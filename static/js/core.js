@@ -1,6 +1,7 @@
 // 公共部分: 请求、页面切换、登录、设置
 const $ = id => document.getElementById(id);
 let user = null;      // 当前用户名
+let isAdmin = false;  // 管理员(第一个注册的用户): “我的”页多出邀请码和成员管理
 let stats = null;     // 最近一次 /api/stats 的结果
 
 async function api(path, method = "GET", body) {
@@ -186,7 +187,7 @@ function showApp() {
 async function boot() {
   try {
     const me = await api("/api/me");
-    user = me.username;
+    user = me.username; isAdmin = !!me.admin;
   } catch (e) { user = null; }
   if (user) showApp(); else showLogin();
 }
@@ -194,9 +195,11 @@ async function boot() {
 async function doAuth(kind) {
   $("authMsg").textContent = "";
   try {
-    const r = await api("/api/" + kind, "POST", { username: $("u").value, password: $("p").value });
-    $("p").value = "";
-    user = r.username;
+    const body = { username: $("u").value, password: $("p").value };
+    if (kind === "register") body.invite = $("inv").value;
+    const r = await api("/api/" + kind, "POST", body);
+    $("p").value = ""; $("inv").value = "";
+    user = r.username; isAdmin = !!r.admin;
     showApp();
   } catch (e) { $("authMsg").textContent = e.message; }
 }

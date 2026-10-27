@@ -112,6 +112,82 @@ onShow.me = async () => {
   $("avatar").textContent = (user || "?").slice(0, 1).toUpperCase();
   const s = await loadStats();
   $("meStats").textContent = `已学 ${s.learned} · 已掌握 ${s.mastered}`;
+  $("adminBox").classList.toggle("hidden", !isAdmin);
+  if (isAdmin) loadAdmin();
+};
+
+// 改密码
+$("btnPwToggle").onclick = () => { $("pwBox").classList.toggle("hidden"); $("pwMsg").textContent = ""; };
+$("btnPwSave").onclick = async () => {
+  const msg = $("pwMsg"); msg.className = "msg";
+  if ($("pwNew").value !== $("pwNew2").value) { msg.textContent = "两次输入的新密码不一样"; return; }
+  try {
+    await api("/api/password", "POST", { old: $("pwOld").value, new: $("pwNew").value });
+    ["pwOld", "pwNew", "pwNew2"].forEach(id => $(id).value = "");
+    $("pwBox").classList.add("hidden");
+    toast("密码已修改");
+  } catch (e) { msg.textContent = e.message; }
+};
+
+// ---------- 管理员: 邀请码、成员 ----------
+function adminRow(box, text, cls) {
+  const row = document.createElement("div"); row.className = "arow";
+  const t = document.createElement("div"); t.className = "grow"; t.append(text);
+  if (cls) t.classList.add(cls);
+  row.appendChild(t); box.appendChild(row);
+  return row;
+}
+function miniBtn(row, label, fn) {
+  const b = document.createElement("button"); b.className = "mini"; b.textContent = label; b.onclick = fn;
+  row.appendChild(b); return b;
+}
+async function copyText(s) {
+  try { await navigator.clipboard.writeText(s); toast("已复制"); }
+  catch (e) { toast("没能自动复制，请长按选中后复制"); }   // http 网址下浏览器可能不让写剪贴板
+}
+
+async function loadAdmin() {
+  let inv, us;
+  try { [inv, us] = await Promise.all([api("/api/invites"), api("/api/admin/users")]); }
+  catch (e) { return toast(e.message); }
+  $("inviteDays").textContent = inv.days;
+  const box = $("inviteList"); box.textContent = "";
+  for (const i of inv.invites) {
+    const row = adminRow(box, "");
+    const t = row.firstChild;
+    const code = document.createElement("div"); code.className = "code"; code.textContent = i.code;
+    const st = document.createElement("div"); st.className = "meta left"; st.style.fontSize = "13px";
+    st.textContent = i.status === "used" ? `已被 ${i.used_by || "（已删除的用户）"} 使用`
+                   : i.status === "expired" ? "已过期" : `${localDate(i.expires_at).text}前有效`;
+    t.append(code, st);
+    if (i.status === "unused") {
+      miniBtn(row, "复制", () => copyText(i.code));
+      miniBtn(row, "作废", async () => {
+        if (!confirm(`作废邀请码 ${i.code}？`)) return;
+        try { await api("/api/invites/" + i.code, "DELETE"); } catch (e) { return toast(e.message); }
+        loadAdmin();
+      });
+    }
+  }
+  const ul = $("userList"); ul.textContent = "";
+  for (const u of us.users) {
+    const row = adminRow(ul, `${u.username}${u.me ? "（我）" : ""} · 已学 ${u.learned}`);
+    if (u.me) continue;
+    miniBtn(row, "重置密码", async () => {
+      if (!confirm(`把 ${u.username} 的密码重置成一个临时密码？他原来的密码会失效。`)) return;
+      let r;
+      try { r = await api(`/api/admin/users/${u.id}/reset_password`, "POST", {}); } catch (e) { return toast(e.message); }
+      const p = document.createElement("div"); p.className = "msg left";
+      p.textContent = `${r.username} 的临时密码：${r.password}（请转告他，登录后在“我的”里改密码）`;
+      row.after(p);
+    });
+  }
+}
+$("btnInvite").onclick = async () => {
+  let r;
+  try { r = await api("/api/invites", "POST", {}); } catch (e) { return toast(e.message); }
+  await loadAdmin();
+  copyText(r.code);
 };
 $("optArticle").checked = needArticle();
 $("optArticle").onchange = () => {

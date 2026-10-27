@@ -15,6 +15,7 @@
   <div class="card">
     <input id="u" placeholder="用户名" autocomplete="username">
     <input id="p" type="password" placeholder="密码（至少 8 位）" autocomplete="current-password">
+    <input id="inv" placeholder="邀请码（只有注册时要填）" autocomplete="off" autocapitalize="characters" spellcheck="false">
     <div class="row">
       <button id="btnLogin">登录</button>
       <button id="btnReg" class="secondary">注册</button>
@@ -100,6 +101,30 @@
         <div id="avatar" style="width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;
              display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700"></div>
         <div><b id="meName" style="font-size:18px"></b><div class="meta left" id="meStats"></div></div>
+      </div>
+      <h2>账号</h2>
+      <div class="card">
+        <button class="secondary" id="btnPwToggle" style="width:100%">修改密码</button>
+        <div id="pwBox" class="hidden" style="margin-top:10px">
+          <input id="pwOld" type="password" placeholder="旧密码" autocomplete="current-password">
+          <input id="pwNew" type="password" placeholder="新密码（至少 8 位）" autocomplete="new-password">
+          <input id="pwNew2" type="password" placeholder="再输一次新密码" autocomplete="new-password">
+          <button id="btnPwSave" style="width:100%">保存新密码</button>
+          <div id="pwMsg" class="msg"></div>
+        </div>
+      </div>
+      <div id="adminBox" class="hidden">
+        <h2>邀请朋友（只有管理员能看到）</h2>
+        <div class="card">
+          <p class="meta left" style="margin-top:0">朋友注册时要填邀请码。每个码只能用一次，<span id="inviteDays">7</span> 天后过期。</p>
+          <button id="btnInvite" style="width:100%">生成邀请码</button>
+          <div id="inviteList"></div>
+        </div>
+        <h2>成员</h2>
+        <div class="card">
+          <p class="meta left" style="margin-top:0">朋友忘了密码：点“重置密码”，把临时密码告诉他，他登录后自己再改。</p>
+          <div id="userList"></div>
+        </div>
       </div>
       <h2>设置</h2>
       <div class="card">

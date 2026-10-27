@@ -134,6 +134,15 @@ CREATE TABLE IF NOT EXISTS deleted_words (
     gender TEXT NOT NULL,
     PRIMARY KEY (german, gender)
 );
+-- 邀请码: 管理员(第一个注册的用户)生成, 朋友凭码注册; 一次性, 过期作废。used_at 不为空 = 已用过
+CREATE TABLE IF NOT EXISTS invites (
+    code TEXT PRIMARY KEY,                -- 不带横线的大写字母数字, 显示时加横线
+    created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    used_at TEXT
+);
 -- 每个用户的设置, 例如 book = 当前单词书
 CREATE TABLE IF NOT EXISTS user_settings (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

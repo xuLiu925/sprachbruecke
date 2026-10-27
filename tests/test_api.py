@@ -133,6 +133,41 @@ assert c3.post("/api/login", json={"username": "alice", "password": "12345678"})
 for _ in range(8): c3.post("/api/login", json={"username": "carol", "password": "x"})
 assert c3.post("/api/login", json={"username": "carol", "password": "x"}).status_code == 429
 
+# 邀请码: 管理员(第一个用户)生成, 一次性, 过期 / 作废后不能用; 输入时大小写、横线空格都无所谓
+assert J(c.get("/api/me"))["admin"] is True
+reg = lambda name, code: A.app.test_client().post("/api/register", json={"username": name, "password": "12345678", "invite": code})
+assert reg("dave", "XXXX-XXXX").status_code == 400
+inv = J(c.post("/api/invites", json={}))["code"]
+ci = A.app.test_client()
+assert ci.post("/api/register", json={"username": "dave", "password": "12345678",
+                                      "invite": inv.lower().replace("-", " ")}).status_code == 200
+assert J(ci.get("/api/me")) == {"username": "dave", "admin": False}
+assert reg("erin", inv).status_code == 400                       # 用过了
+assert ci.post("/api/invites", json={}).status_code == 403       # 不是管理员
+assert ci.get("/api/admin/users").status_code == 403
+assert J(c.get("/api/invites"))["invites"][0]["used_by"] == "dave"
+dbi = sqlite3.connect(os.environ["DB_PATH"])
+inv2 = J(c.post("/api/invites", json={}))["code"]
+dbi.execute("UPDATE invites SET expires_at = '2000-01-01 00:00:00' WHERE code = ?", (inv2.replace("-", ""),)); dbi.commit()
+assert reg("erin", inv2).status_code == 400
+assert J(c.get("/api/invites"))["invites"][0]["status"] == "expired"
+inv3 = J(c.post("/api/invites", json={}))["code"]
+assert J(c.delete("/api/invites/" + inv3))["deleted"] == 1 and reg("erin", inv3).status_code == 400
+dbi.close()
+# 改密码: 要输对旧密码
+assert ci.post("/api/password", json={"old": "wrongwrong", "new": "abcdefgh"}).status_code == 401
+assert ci.post("/api/password", json={"old": "12345678", "new": "short"}).status_code == 400
+assert ci.post("/api/password", json={"old": "12345678", "new": "abcdefgh"}).status_code == 200
+login = lambda name, pw: A.app.test_client().post("/api/login", json={"username": name, "password": pw}).status_code
+assert login("dave", "abcdefgh") == 200 and login("dave", "12345678") == 401
+# 管理员重置别人的密码(不能重置自己的)
+us = J(c.get("/api/admin/users"))["users"]
+did = next(u["id"] for u in us if u["username"] == "dave")
+me_id = next(u["id"] for u in us if u["me"])
+assert c.post(f"/api/admin/users/{me_id}/reset_password", json={}).status_code == 400
+tmp = J(c.post(f"/api/admin/users/{did}/reset_password", json={}))["password"]
+assert login("dave", tmp) == 200 and login("dave", "abcdefgh") == 401
+
 # 单词书: 还没有分级的词时默认「全部」; 有了以后默认 A1, 新词按 rank 出
 assert J(c.get("/api/books"))["current"] == "all"
 db = sqlite3.connect(os.environ["DB_PATH"])
