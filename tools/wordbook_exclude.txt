@@ -1,0 +1,36 @@
+# 不放进单词书的词(每行一个, 区分大小写, 对所有级别都生效)。主要是字幕词频里混进来的英文、地名、语气词
+# 发现问题词: 在这里加一行, 然后重新跑单词书的几条命令(见 CLAUDE.md「单词书怎么更新」)
+# 带数字的词(50er)和纯感叹词(aah)已经由脚本自动过滤, 不用写在这里
+Sir
+Lady
+Monsieur
+Madame
+Mister
+Gate
+Oscar
+Van
+Song
+My
+Me
+Si
+Chi
+Wu
+Teddy
+Paris
+Rom
+hi
+ha
+ne
+eh
+Namen
+Hab
+Mach
+Werd
+Se
+Henry
+West
+frank
+Han
+Flint
+Barbie
+Doc

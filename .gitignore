@@ -1,0 +1,23 @@
+# 用户数据和密钥（绝不能公开）
+vocab.db
+vocab.db.*
+*.db
+backups/
+.secret_key
+
+# 单词书和原始数据（很大，且有版权问题）
+data/
+
+# 本机私人文件（含机型、用户名、IP 等）
+CLAUDE.md
+deploy.local.bat
+*.xlsx
+
+# 本地环境、缓存、日志、打包文件
+.venv/
+.idea/
+__pycache__/
+*.pyc
+*.log
+sb.tar.gz
+.claude/

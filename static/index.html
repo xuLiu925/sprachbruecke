@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f4e78">
+<title>通德 Sprachbrücke</title>
+<link rel="stylesheet" href="static/app.css">
+</head>
+<body class="no-tabs">
+
+<!-- 登录 / 注册 -->
+<div id="login" class="login hidden">
+  <div class="logo"><b>通德</b><span>Sprachbrücke · 语言之桥</span></div>
+  <div class="card">
+    <input id="u" placeholder="用户名" autocomplete="username">
+    <input id="p" type="password" placeholder="密码（至少 8 位）" autocomplete="current-password">
+    <div class="row">
+      <button id="btnLogin">登录</button>
+      <button id="btnReg" class="secondary">注册</button>
+    </div>
+    <div id="authMsg" class="msg"></div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <header class="topbar">
+    <button class="back hidden" id="btnBack">‹ 返回</button>
+    <h1 id="title">通德</h1>
+  </header>
+
+  <main>
+    <!-- ===== 首页 ===== -->
+    <section class="page" data-page="home">
+      <div class="hello" id="hello"></div>
+      <div class="card">
+        <div class="today">
+          <div><b id="hDue">-</b><span>今日待复习</span></div>
+          <div><b id="hNew">-</b><span>可学新词</span></div>
+        </div>
+        <button class="big" id="hStart">开始今日复习</button>
+      </div>
+      <div class="list">
+        <button class="item" id="hBook">
+          <span class="ico">📚</span>
+          <span class="body"><b id="hBookName"></b><small id="hBookProg"></small></span>
+          <span class="chev">换一本 ›</span>
+        </button>
+      </div>
+
+      <h2>学习进度</h2>
+      <div class="card">
+        <div class="stat3">
+          <div><b id="hLearned">-</b><span>已学</span></div>
+          <div><b id="hMastered">-</b><span>已掌握</span></div>
+          <div><b id="hTotal">-</b><span>词库</span></div>
+        </div>
+        <!-- 当前单词书的进度: 浅色 = 已学, 绿色 = 已掌握 -->
+        <div class="meta left" style="font-size:13px;margin-top:14px" id="hBarTitle"></div>
+        <div class="bar bar2"><i class="learned" id="hBarLearned" style="width:0"></i><i id="hBar" style="width:0"></i></div>
+        <div class="meta left" style="font-size:12px" id="hBarText"></div>
+      </div>
+
+      <h2>学习模块</h2>
+      <div class="grid" id="modules"></div>
+    </section>
+
+    <!-- ===== 练习 ===== -->
+    <section class="page" data-page="practice">
+      <h2>词汇</h2>
+      <div class="list" id="practiceList"></div>
+      <h2>以后会有</h2>
+      <div class="list" id="soonList"></div>
+    </section>
+
+    <!-- ===== 词库 ===== -->
+    <section class="page" data-page="words">
+      <div class="row" style="margin-bottom:6px">
+        <button id="goAdd">＋ 添加单词</button>
+        <button id="goImport" class="secondary">批量导入</button>
+      </div>
+      <div class="chips" id="wLevels"></div>
+      <input id="wSearch" type="search" placeholder="搜索德语或中文">
+      <div class="meta left" id="wCount" style="margin:0 4px 8px;font-size:13px"></div>
+      <div class="list" id="wList"></div>
+    </section>
+
+    <!-- ===== 选择单词书 ===== -->
+    <section class="page" data-page="books">
+      <div class="list" id="bookList"></div>
+      <p class="meta left" style="line-height:1.6">
+        A1 / A2 / B1 主要来自歌德学院词表，缺的常用词按词频补充；B2 / C1 是按词频挑的常用词（不是官方等级）。<br>
+        同一本书里按常用程度出新词。中文是机器翻译，翻错的可以在「词库」里点开那个词改。
+      </p>
+    </section>
+
+    <!-- ===== 我的 ===== -->
+    <section class="page" data-page="me">
+      <div class="card" style="display:flex;align-items:center;gap:14px">
+        <div id="avatar" style="width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;
+             display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700"></div>
+        <div><b id="meName" style="font-size:18px"></b><div class="meta left" id="meStats"></div></div>
+      </div>
+      <h2>设置</h2>
+      <div class="card">
+        <label class="check"><input type="checkbox" id="optArticle"> 拼写名词时必须带冠词（推荐）</label>
+      </div>
+      <h2>声音</h2>
+      <div class="card">
+        <label class="check"><input type="checkbox" id="optAutoWord"> 自动朗读单词（出新卡片、打开单词时）</label>
+        <label class="check"><input type="checkbox" id="optAutoExample"> 显示答案后自动朗读例句</label>
+        <div class="row" style="margin-top:8px;align-items:center">
+          <span class="meta left" style="flex:0 0 64px">语速</span>
+          <select id="optRate">
+            <option value="0.7">慢</option><option value="0.85">稍慢</option>
+            <option value="1">正常</option><option value="1.15">快</option>
+          </select>
+        </div>
+        <div class="row" style="align-items:center">
+          <span class="meta left" style="flex:0 0 64px">德语语音</span>
+          <select id="optVoice"></select>
+        </div>
+        <p class="meta left" id="voiceHint" style="font-size:13px;margin:0 0 8px"></p>
+        <button class="secondary" id="btnTestVoice" style="width:100%">▶ 试听</button>
+      </div>
+      <h2>复习是怎么安排的</h2>
+      <div class="card meta left" style="line-height:1.7">
+        复习用 FSRS 算法：按你的评分推算每个词的记忆稳定性，在“预计还有 90% 把握记得”时安排复习。<br>
+        忘了：今天再练一次（拼写）；困难 / 良好 / 简单：间隔依次变长。<br>
+        拼写题由系统判断对错，答错记为“忘了”。<br>
+        <b>已掌握</b> = 记忆稳定性 ≥ 21 天，并且拼写答对过。
+      </div>
+      <button class="danger" id="btnLogout" style="width:100%;margin-top:6px">退出登录</button>
+      <p class="meta" style="font-size:12px;margin-top:20px">通德 Sprachbrücke v0.2 · by Liuxu</p>
+    </section>
+
+    <!-- ===== 今日复习 ===== -->
+    <section class="page" data-page="review">
+      <div class="progress"><span id="rProgress"></span><span id="rStats"></span></div>
+      <div class="flashrow"><div id="flash" class="flash"></div><button class="mini hidden" id="btnUndo">‹ 上一个</button></div>
+      <div class="card" id="cardBox">
+        <div class="tag" id="modeTag"></div>
+        <div class="word" id="wWord"></div>
+        <div class="meta" id="wPos"></div>
+        <div id="spellBox" class="hidden" style="margin-top:12px">
+          <input id="spellIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="输入德语">
+          <div class="row umlauts" data-for="spellIn">
+            <button class="secondary" data-ch="ä">ä</button><button class="secondary" data-ch="ö">ö</button>
+            <button class="secondary" data-ch="ü">ü</button><button class="secondary" data-ch="ß">ß</button>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button id="btnSpeak" class="secondary">🔊 发音</button>
+          <button id="btnShow">显示答案</button>
+        </div>
+        <div class="answer hidden" id="answer">
+          <p id="aResult" style="font-weight:600"></p>
+          <div class="word" id="aWord"></div>
+          <p id="aMeaning" style="font-size:20px"></p>
+          <p id="aPlural" class="meta"></p>
+          <div class="exrow"><button class="mini" id="btnSpeakEx" title="朗读例句">🔊</button><p id="aExample" class="meta"></p></div>
+          <div id="aForms"></div>
+          <div class="row" style="margin-top:12px">
+            <button class="bad" id="btnR1">忘了</button>
+            <button class="hard" id="btnR2">困难</button>
+            <button class="good" id="btnR3">良好</button>
+            <button id="btnR4">简单</button>
+          </div>
+        </div>
+        <p class="kbd-hint"><kbd>空格</kbd> 显示答案 / 良好 · <kbd>1</kbd>–<kbd>4</kbd> 评分 · <kbd>P</kbd> 读单词 · <kbd>E</kbd> 读例句 · <kbd>Backspace</kbd> 上一个（撤销评分） · <kbd>Esc</kbd> 返回</p>
+      </div>
+      <div id="done" class="card hidden" style="text-align:center">
+        <p style="font-size:20px">今天的复习完成了 🎉</p>
+        <div class="row">
+          <button id="btnHome" class="secondary">回首页</button>
+          <button id="btnReload">再来一轮</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 单词详情(查看) ===== -->
+    <section class="page" data-page="view">
+      <div class="card" style="text-align:center">
+        <div class="tag" id="vLevel"></div>
+        <div class="word" id="vWord"></div>
+        <div class="meta" id="vPos"></div>
+        <button class="secondary" id="vSpeak" style="margin-top:8px">🔊 发音</button>
+        <div class="answer">
+          <p id="vMeaning" style="font-size:20px"></p>
+          <p id="vPlural" class="meta"></p>
+          <div class="exrow"><button class="mini" id="vSpeakEx" title="朗读例句">🔊</button><p id="vExample" class="meta"></p></div>
+          <div id="vForms"></div>
+        </div>
+      </div>
+      <div class="card notice hidden" id="vNotice">
+        <p id="vNoticeText" class="left" style="margin:0 0 10px;line-height:1.7"></p>
+        <button class="secondary" id="vRestore" style="width:100%"></button>
+      </div>
+      <h2>我的学习情况</h2>
+      <div class="card meta left" id="vStatus" style="line-height:1.7"></div>
+      <button id="vEdit" style="width:100%">✏️ 编辑这个词</button>
+    </section>
+
+    <!-- ===== 听写 ===== -->
+    <section class="page" data-page="dictation">
+      <p class="meta">听发音写出单词（名词带冠词）。只是额外练习，不影响复习计划。</p>
+      <div class="card" id="dictBox">
+        <div class="tag" id="dictProgress"></div>
+        <div class="row" style="margin:12px 0">
+          <button id="dictPlay" class="big">🔊 再听一遍</button>
+          <button id="dictSlow" class="secondary" style="flex:0 0 96px">🐢 慢速</button>
+        </div>
+        <div class="meta" id="dictPos"></div>
+        <input id="dictIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="写出你听到的词">
+        <div class="row umlauts" data-for="dictIn">
+          <button class="secondary" data-ch="ä">ä</button><button class="secondary" data-ch="ö">ö</button>
+          <button class="secondary" data-ch="ü">ü</button><button class="secondary" data-ch="ß">ß</button>
+        </div>
+        <button id="dictCheck" style="width:100%;margin-top:8px">检查</button>
+        <div class="answer hidden" id="dictAnswer">
+          <p id="dictResult" style="font-weight:600"></p>
+          <div class="word" id="dictWord"></div>
+          <p id="dictMeaning" style="font-size:18px"></p>
+          <button id="dictNext" style="width:100%">下一个</button>
+        </div>
+        <p class="kbd-hint"><kbd>回车</kbd> 检查 / 下一个 · <kbd>Ctrl</kbd>+<kbd>回车</kbd> 再听一遍 · <kbd>Esc</kbd> 返回</p>
+      </div>
+      <div class="card hidden" id="dictDone" style="text-align:center">
+        <p style="font-size:20px" id="dictScore"></p>
+        <div class="meta left" id="dictWrong" style="line-height:1.8"></div>
+        <button id="dictAgain" style="width:100%;margin-top:12px">再来一组</button>
+      </div>
+      <button id="dictBack" class="mini hidden">‹ 上一个</button>
+    </section>
+
+    <!-- ===== 语法基础 ===== -->
+    <section class="page" data-page="grammar">
+      <p class="meta left">德语最基础的语法表，每个知识点有速查表和练习。表里的德语点一下就能听。</p>
+      <div id="gList"></div>
+      <p class="meta left" style="font-size:12px">内容按标准德语语法整理，建议对照教材核对。</p>
+    </section>
+
+    <section class="page" data-page="gtopic">
+      <div class="tag" id="gLevel"></div>
+      <div class="card"><ul id="gIntro" class="gintro"></ul></div>
+      <div class="card" id="gTables"></div>
+      <h2>例句</h2>
+      <div class="card" id="gExamples"></div>
+      <button class="big" id="gStart"></button>
+    </section>
+
+    <section class="page" data-page="gquiz">
+      <div class="card" id="gqBox">
+        <div class="tag" id="gqProgress"></div>
+        <div class="gprompt" id="gqPrompt"></div>
+        <div class="meta" id="gqHint"></div>
+        <div class="opts" id="gqOpts"></div>
+        <div class="answer hidden" id="gqFeedback">
+          <p id="gqResult" style="font-weight:600"></p>
+          <p id="gqExplain" class="meta"></p>
+          <div class="row" style="margin-top:10px">
+            <button class="secondary" id="gqSay" style="flex:0 0 110px">🔊 听整句</button>
+            <button id="gqNext">下一题</button>
+          </div>
+        </div>
+        <p class="kbd-hint"><kbd>1</kbd>–<kbd>6</kbd> 按顺序选答案 · <kbd>回车</kbd> 下一题 · <kbd>Esc</kbd> 返回</p>
+      </div>
+      <div class="card hidden" id="gqDone" style="text-align:center">
+        <p style="font-size:22px" id="gqScore"></p>
+        <p class="meta" id="gqDoneMsg"></p>
+        <div class="row">
+          <button class="secondary" id="gqBack">看速查表</button>
+          <button id="gqAgain">再练一次</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 冠词练习 ===== -->
+    <section class="page" data-page="drill">
+      <p class="meta">只是额外练习，不影响复习计划。优先出你学过的名词。</p>
+      <div class="card">
+        <div class="tag" id="drillProgress"></div>
+        <div class="word" id="drillWord"></div>
+        <div class="meta" id="drillMeaning"></div>
+        <div class="row" style="margin-top:14px" id="drillBtns">
+          <button class="bder" data-art="der">der</button>
+          <button class="bdie" data-art="die">die</button>
+          <button class="bdas" data-art="das">das</button>
+          <button class="secondary" data-art="?">不会</button>
+        </div>
+        <p id="drillMsg" class="meta" style="min-height:20px"></p>
+        <div class="answer hidden" id="drillInfo">
+          <div class="word" id="dWord"></div>
+          <p id="dPlural" class="meta"></p>
+          <div class="exrow"><button class="mini" id="btnDrillEx" title="朗读例句">🔊</button><p id="dExample" class="meta"></p></div>
+          <div class="row" style="margin-top:12px">
+            <button id="btnDrillSpeak" class="secondary">🔊 发音</button>
+            <button id="btnDrillView" class="secondary">详情</button>
+            <button id="btnDrillNext">下一个</button>
+          </div>
+        </div>
+        <button id="btnDrill" class="hidden" style="width:100%">再来一组</button>
+        <button id="btnDrillBack" class="mini hidden" style="margin-top:10px">‹ 上一个</button>
+        <p class="kbd-hint"><kbd>1</kbd> der · <kbd>2</kbd> die · <kbd>3</kbd> das · <kbd>4</kbd> 不会 · 答完后 <kbd>空格</kbd>/<kbd>回车</kbd> 下一个 · <kbd>P</kbd> 读单词 · <kbd>E</kbd> 读例句 · <kbd>Backspace</kbd> 上一个 · <kbd>Esc</kbd> 返回</p>
+      </div>
+    </section>
+
+    <!-- ===== 添加单词 ===== -->
+    <section class="page" data-page="add">
+      <div class="card">
+        <input id="nGerman" placeholder="德语词（不带冠词），如 Tisch">
+        <div class="row">
+          <select id="nGender">
+            <option value="">无冠词</option><option>der</option><option>die</option><option>das</option>
+          </select>
+          <input id="nPos" placeholder="词性，如 名词">
+        </div>
+        <input id="nPlural" placeholder="复数（可空）">
+        <input id="nMeaning" placeholder="释义">
+        <textarea id="nExample" placeholder="例句（可空；第二行可以写中文翻译）" style="min-height:76px"></textarea>
+        <div id="formsBox" class="hidden" style="margin-bottom:10px">
+          <p class="meta left" id="formsTitle"></p>
+          <div id="formsInputs"></div>
+          <button id="btnDraft" class="secondary" style="margin-top:6px">按规则生成草稿</button>
+          <p class="meta left">草稿按常规规则推算，强变化动词（fahren → fährst）、可分动词、弱变化名词（der Student → den Studenten）等会算错，保存前请核对。不填就不保存变化形式。</p>
+        </div>
+        <button id="btnAdd" style="width:100%">添加</button>
+        <div id="addMsg" class="msg"></div>
+        <button id="btnDelete" class="danger hidden" style="width:100%;margin-top:8px">删除这个词（只对我自己）</button>
+        <p class="meta left hidden" id="editInfo" style="font-size:12px"></p>
+      </div>
+    </section>
+
+    <!-- ===== 批量导入 ===== -->
+    <section class="page" data-page="import">
+      <div class="card">
+        <p class="meta left">导入的词只有你自己能看到，词库里已经有的会跳过。<br>每行一个词，用 Tab 或英文逗号分隔：<br>
+        德语词, 冠词(der/die/das 或留空), 词性, 复数, 释义, 例句</p>
+        <textarea id="bulk" placeholder="Tisch, der, 名词, Tische, 桌子, Der Tisch ist groß."></textarea>
+        <button id="btnBulk" style="width:100%">导入</button>
+        <div id="bulkMsg" class="msg"></div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button data-tab="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>首页</button>
+    <button data-tab="practice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>练习</button>
+    <button data-tab="words">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/></svg>词库</button>
+    <button data-tab="me">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg>我的</button>
+  </nav>
+</div>
+
+<script src="static/js/core.js"></script>
+<script src="static/js/grammar-data.js"></script><!-- 纯数据, 首页要用知识点数, 所以放前面 -->
+<script src="static/js/home.js"></script>
+<script src="static/js/review.js"></script>
+<script src="static/js/drill.js"></script>
+<script src="static/js/dictation.js"></script>
+<script src="static/js/words.js"></script>
+<script src="static/js/grammar.js"></script>
+<script>boot();</script>
+</body>
+</html>
