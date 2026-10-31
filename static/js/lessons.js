@@ -1,5 +1,6 @@
 // 情景课: 读课文(点词看详情) → 练习 → 用德语写出来。内容在 static/lessons.json, 完成记录存本机
 let lessons = null, lessonNow = null, lessonShown = null, wsSeq = 0, wsWord = null, lessonAi = false;
+let wsAsk = null;     // 单词卡要交给 AI 查的 {q, context}
 const LESSON_LEVELS = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶" };
 
 async function loadLessons() {
@@ -161,6 +162,7 @@ async function openWordSheet(token, line) {
   $("wsPlural").textContent = ""; $("wsMeaning").textContent = "查询中…"; $("wsLesson").textContent = "";
   $("wsExample").textContent = "";
   $("wsAdd").classList.add("hidden"); $("wsView").classList.add("hidden"); $("wsSay").classList.add("hidden");
+  $("wsAi").classList.add("hidden");
   let found = null;
   try { found = (await api("/api/lookup?w=" + encodeURIComponent(gl ? gl.german : lemma))).word; }
   catch (e) { if (seq === wsSeq) toast(e.message); }
@@ -168,7 +170,17 @@ async function openWordSheet(token, line) {
   const w = found || gl;
   if (!w) {
     wsWord = null;
+    let r = {};
+    try { r = await api("/api/dict?q=" + encodeURIComponent(lemma)); } catch (e) {}
+    if (seq !== wsSeq) return;
+    const saved = (r.words || []).find(x => x.ai_word);    // 以前用 AI 查过
+    if (saved) return openGlossaryWord(saved);
     $("wsMeaning").textContent = "词库里没有这个词";
+    if (r.can && r.ai) {                                   // 点了才调用 AI, 人名这类词不用查
+      wsAsk = { q: lemma, context: line.de };
+      $("wsAi").disabled = false; $("wsAi").textContent = "✨ 用 AI 查询";
+      $("wsAi").classList.remove("hidden");
+    }
     return;
   }
   wsWord = found ? { ...w } : { ...gl, learned: false, queued: false };
@@ -186,6 +198,7 @@ async function openWordSheet(token, line) {
 function openGlossaryWord(g) {
   wsSeq++;
   wsWord = { ...g, id: null, learned: false, queued: false };
+  $("wsAi").classList.add("hidden");
   $("wsheet").classList.remove("hidden");
   wordInto($("wsWord"), g);
   $("wsPlural").textContent = [g.pos, g.plural ? "复数 " + g.plural : ""].filter(Boolean).join(" · ");
@@ -197,6 +210,20 @@ function openGlossaryWord(g) {
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
   if (getSetting("autoWord")) speakDe(wordText(g));
 }
+$("wsAi").onclick = async () => {
+  const seq = wsSeq, btn = $("wsAi");
+  btn.disabled = true; btn.textContent = "AI 正在查询…";
+  let r;
+  try { r = await api("/api/dict/ai", "POST", wsAsk); }
+  catch (e) {
+    if (seq === wsSeq) { toast(e.message); btn.disabled = false; btn.textContent = "✨ 用 AI 查询"; }
+    return;
+  }
+  if (seq !== wsSeq) return;                 // 查询期间关掉了单词卡或点了别的词
+  if (r.word) return openGlossaryWord(r.word);
+  btn.classList.add("hidden");
+  $("wsMeaning").textContent = "AI 也没有查到这个词";
+};
 $("wsSay").onclick = () => { if (wsWord) speakDe(wordText(wsWord)); };
 $("wsView").onclick = () => { if (wsWord && wsWord.id) openView(wsWord.id); };
 $("wsAdd").onclick = async () => {

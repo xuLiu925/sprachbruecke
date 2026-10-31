@@ -566,6 +566,20 @@ qk = J(c.post("/api/review/queue", json={k: kw[k] for k in ("german", "gender", 
 assert J(c.get(f"/api/words/{qk}"))["example"] == kom["example"]
 same = [w for w in dq(c, "Kommissionierer") if w["german"] == "Kommissionierer"]
 assert len(same) == 1 and same[0]["id"] == qk and "ai_word" not in same[0]
+# 单词卡查词带上原句; 自建对话的词表进入查词, 只有自己查得到, 删课后就没有了
+calls = []
+DI.call_gemini = fake3
+assert J(c.post("/api/dict/ai", json={"q": "Rollwagen", "context": "Der Rollwagen steht hier."}))["word"]
+assert "Der Rollwagen steht hier." in calls[0] and "这句话" in calls[0]
+assert J(c.post("/api/dict/ai", json={"q": "Rolle2"}))["word"] and "这句话" not in calls[1]
+DI.call_gemini = real_call
+mine = {**good, "glossary": [{"german": "Rollcontainer", "gender": "der", "pos": "名词", "plural": "Rollcontainer", "meaning": "笼车"}]}
+ml = J(c.post("/api/custom_lessons", json=mine))["lesson"]
+rc = dq(c, "Rollcontainer")[0]
+assert rc["glossary"] and rc["id"] is None and dq(c, "笼车")[0]["german"] == "Rollcontainer"
+assert dq(cb, "Rollcontainer") == [] and dq(cb, "笼车") == []
+c.delete("/api/custom_lessons/" + ml["id"][1:])
+assert dq(c, "Rollcontainer") == []
 db.close()
 
 c.post("/api/logout", json={})

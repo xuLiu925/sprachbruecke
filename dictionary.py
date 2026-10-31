@@ -18,7 +18,7 @@ from auth import admin_required, is_admin
 from custom_lessons import TOKEN, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
-from lessons import find_word, like_escape, load_items
+from lessons import find_word, like_escape, load_items, my_lessons
 from vocab import GENDERS, query, word_status
 
 bp = Blueprint("dictionary", __name__)
@@ -54,6 +54,14 @@ def glossary_row(g, form=None):
     return d
 
 
+def all_glossary():
+    """自带 15 课和当前用户自建课程的词表; 同一个词只留一份, 自带的优先"""
+    seen = {}
+    for g in load_items()["glossary"] + [g for lesson in my_lessons() for g in lesson["glossary"]]:
+        seen.setdefault((g["german"].lower(), g["gender"]), g)
+    return list(seen.values())
+
+
 def not_in_words(g):
     return query("SELECT 1 FROM all_my_words WHERE german = :g AND gender = :a LIMIT 1",
                  g=g["german"], a=g["gender"]).fetchone() is None
@@ -62,7 +70,7 @@ def not_in_words(g):
 def glossary_german(q):
     """(档次, 词) 列表, 档次的含义和 search_german 一样"""
     low, out = q.lower(), []
-    for g in load_items()["glossary"]:
+    for g in all_glossary():
         german, plural = g["german"].lower(), g["plural"].lower()
         if german == low:
             rk = 0
@@ -135,7 +143,7 @@ def search_chinese(q):
         part=f"%{like_escape(q)}%", lim=CHINESE_POOL,
     ).fetchall()
     words = [(chinese_rank(r["meaning"], q), out_row(r)) for r in rows]   # 查询已按常用程度排好, 同一档里常用词在前
-    glossary = [(chinese_rank(g["meaning"], q), glossary_row(g)) for g in load_items()["glossary"]
+    glossary = [(chinese_rank(g["meaning"], q), glossary_row(g)) for g in all_glossary()
                 if q in g["meaning"] and not_in_words(g)]
     return merge(words, glossary)
 
@@ -145,9 +153,10 @@ def lookup_key(q):
     return "".join(q.split()).lower()
 
 
-def build_prompt(q):
+def build_prompt(q, context=""):
+    where = f"\n这个词出现在这句话里，请按句中的意思解释：{context}\n" if context else ""
     return f"""你是德汉词典编辑，读者是在德国海外仓工作的中文学习者。请查这个词：{q}
-
+{where}
 规则：
 - 输入可能是德语（可能是变化形式）或中文。给出对应德语词的原形。中文输入时选仓库工作中最常用的德语词。
 - 如果不是真实存在的词，或你不确定，只输出 {{"found": false}}，不要编造。
@@ -195,7 +204,8 @@ def ai_row(word):
 @bp.route("/api/dict/ai", methods=["POST"])
 @admin_required
 def ai_lookup():
-    """用 AI 查一个词 {q}: 已保存就直接返回。AI 说没有这个词时 word 是 null, 不保存, 以后可以再试"""
+    """用 AI 查一个词 {q, context}: context 是可选的原句, 让释义贴合语境。
+    已保存就直接返回。AI 说没有这个词时 word 是 null, 不保存, 以后可以再试"""
     data = json_body()
     q = text(data.get("q"), 51) if data else ""
     if not q or len(q) > 50:
@@ -204,7 +214,7 @@ def ai_lookup():
     if saved:
         return jsonify({"word": ai_row(saved)})
     try:
-        raw = call_gemini(build_prompt(q))
+        raw = call_gemini(build_prompt(q, text(data.get("context"), 300)))
     except AiError as ex:
         return err(ex.msg, ex.code)
     parsed = extract_json(raw)
