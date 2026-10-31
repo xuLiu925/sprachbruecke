@@ -183,3 +183,7 @@ table.forms.gtable td:first-child { font-size:14px; white-space:normal; min-widt
 .opts.wide button { text-align:left; }
 .opts button { font-size:17px; }
 .opts button:disabled { opacity:1; }
+
+/* 单词详情: 用法、词根、更多例句等 */
+.detail-title { margin: 14px 0 4px; font-size: 14px; }
+.detail-line { margin: 0 0 6px; font-size: 14px; line-height: 1.6; white-space: pre-line; }

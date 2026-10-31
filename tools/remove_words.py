@@ -17,6 +17,7 @@ EXCLUDE = os.path.join(ROOT, "tools", "wordbook_exclude.txt")
 STEPS = [
     ["tools/build_wordbook.py"],
     ["tools/translate_wordbook.py"],
+    ["tools/merge_wordbook.py"],
     None,  # 备份数据库
     ["tools/import_wordbook.py", "data/wordbook.json"],
 ]
@@ -46,19 +47,19 @@ def main():
     if not words:
         print("没有输入词, 什么都没做")
         return 1
-    print("== 1/5 写进排除名单")
+    print(f"== 1/{len(STEPS) + 1} 写进排除名单")
     add_to_exclude(words)
 
     for i, step in enumerate(STEPS, 2):
         if step is None:
-            print(f"== {i}/5 备份数据库")
+            print(f"== {i}/{len(STEPS) + 1} 备份数据库")
             if os.path.exists(DB_PATH):
                 shutil.copy2(DB_PATH, DB_PATH + ".bak")
                 print("  已备份到 " + DB_PATH + ".bak")
             else:
                 print("  还没有数据库, 跳过")
             continue
-        print(f"== {i}/5 python {' '.join(step)}")
+        print(f"== {i}/{len(STEPS) + 1} python {' '.join(step)}")
         if subprocess.run([sys.executable] + step, cwd=ROOT).returncode != 0:
             print("\n!! 这一步出错了, 后面的没有运行。把上面的报错发给 Claude。")
             return 1

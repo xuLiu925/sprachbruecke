@@ -19,7 +19,8 @@ function buildModules() {
 }
 buildModules();
 
-const BOOK_NAMES = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶", B2: "B2 中高级", C1: "C1 高级", all: "全部单词" };
+const BOOK_NAMES = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶", B2: "B2 中高级", C1: "C1 高级", all: "全部单词",
+                     dsh: "德福 DSH 核心词汇", common: "德语常用词汇" };
 
 onShow.home = async () => {
   $("hello").textContent = "你好，" + user;
@@ -51,7 +52,7 @@ onShow.books = async () => {
   const r = await api("/api/books");
   const box = $("bookList"); box.textContent = "";
   const all = { level: "all", total: null };
-  for (const b of [...r.books, all]) {
+  for (const b of [...r.books, ...r.themes, all]) {
     const sub = b.level === "all" ? "整个词库，包括示例词和你自己加的词"
       : b.total ? `${b.total} 个词 · 已学 ${b.learned} · 已掌握 ${b.mastered}` : "还没有导入";
     const it = listItem(b.level === "all" ? "🗃️" : "📘", BOOK_NAMES[b.level], sub, async () => {

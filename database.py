@@ -106,6 +106,18 @@ CREATE TABLE IF NOT EXISTS word_levels (
     rank INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_word_levels ON word_levels (level, rank);
+-- 专题单词书(见 vocab.py 的 THEME_BOOKS): 一个词可以同时在几本书里, 也可以不属于任何级别
+CREATE TABLE IF NOT EXISTS word_books (
+    book TEXT NOT NULL,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    rank INTEGER NOT NULL,
+    PRIMARY KEY (book, word_id)
+);
+-- 单词书的详细内容, JSON, 字段都可选: ipa, root(词根), usage, examples, phrases, synonyms, antonyms, related, notes
+CREATE TABLE IF NOT EXISTS word_details (
+    word_id INTEGER PRIMARY KEY REFERENCES words(id) ON DELETE CASCADE,
+    details TEXT NOT NULL
+);
 -- 每个用户自己改过的词(只对他自己生效, 词库原文 words 不动); 删掉这一行 = 恢复原来的内容
 --   存的是改后的完整内容; forms 为 NULL 表示他把变格/变位删掉了
 CREATE TABLE IF NOT EXISTS user_word_edits (

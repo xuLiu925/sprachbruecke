@@ -185,6 +185,18 @@ r = J(c.get("/api/review/today")); assert [x["german"] for x in r["cards"] if x[
 s = J(c.get("/api/stats")); assert s["book"] == "A2" and s["book_total"] == 1 and s["book_learned"] == 0 and s["book_mastered"] == 0
 assert [w["german"] for w in J(c.get("/api/words?level=A1"))["words"]] == ["Hund", "Katze"]
 assert J(c.get("/api/words?level=mine"))["words"] and all(w["private"] for w in J(c.get("/api/words?level=mine"))["words"])
+# 专题单词书和单词详情
+db.executemany("INSERT INTO word_books (book, word_id, rank) VALUES (?,?,?)",
+               [("dsh", ids["Kind"], 2), ("dsh", ids["Katze"], 1)])
+db.execute("INSERT INTO word_details (word_id, details) VALUES (?, ?)", (ids["Katze"], '{"root": "x", "usage": ["y"]}'))
+db.commit()
+t = J(c.get("/api/books"))["themes"]
+assert t == [{"level": "dsh", "total": 2, "learned": 0, "mastered": 0}], t
+assert J(c.post("/api/books/current", json={"book": "dsh"}))["current"] == "dsh"
+r = J(c.get("/api/review/today")); assert [x["german"] for x in r["cards"] if x["is_new"]] == ["Katze", "Kind"]
+assert [w["german"] for w in J(c.get("/api/words?level=dsh"))["words"]] == ["Katze", "Kind"]
+w = J(c.get(f"/api/words/{ids['Katze']}")); assert w["details"]["root"] == "x" and w["books"] == ["dsh"]
+assert J(c.get(f"/api/words/{ids['Hund']}"))["details"] is None
 c.post("/api/books/current", json={"book": "all"})
 
 # 编辑 / 删除单词, 动词的过去式和完成时

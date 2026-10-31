@@ -1,7 +1,7 @@
 """第 3 步(只在电脑上运行): 用谷歌翻译的免费接口给单词和例句加中文, 生成最终单词书
 
 输入:  data/work/wordbook_base.jsonl    第 2 步的输出
-输出:  data/wordbook.json                最终单词书(再用 tools/import_wordbook.py 导入数据库)
+输出:  data/work/wordbook_translated.json  机翻版单词书(下一步 merge_wordbook.py 再用人工词典改进)
 缓存:  data/work/translate_cache.json   翻过的不会重复请求, 中断后重新运行会接着翻
 
 运行:  python tools/translate_wordbook.py
@@ -18,7 +18,7 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "data", "work", "wordbook_base.jsonl")
 CACHE = os.path.join(ROOT, "data", "work", "translate_cache.json")
-OUT = os.path.join(ROOT, "data", "wordbook.json")
+OUT = os.path.join(ROOT, "data", "work", "wordbook_translated.json")
 
 URL = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=de&tl=zh-CN&dt=t&q="
 WORDS_PER_REQUEST = 40

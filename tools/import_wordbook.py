@@ -4,8 +4,8 @@
                     数据库默认是项目里的 vocab.db, 要导到别处就先设环境变量 DB_PATH
 可以重复运行:
   - 新词: 加进词库, 带上变格/变位和级别
-  - 已经有的词(德语 + 冠词相同): 释义和已有的变格/变位不动, 只补上缺的部分(如过去式); 例句换成新的;
-    更新级别和排序。(用户在 App 里改的内容存在 user_word_edits, 不受影响)
+  - 已经有的词(德语 + 冠词相同): 释义、词性、复数、例句换成新的; 已有的变格/变位不动, 只补上缺的部分(如过去式);
+    更新级别、专题书和详情。(用户在 App 里改的内容存在 user_word_edits, 不受影响)
   - 这次单词书里没有了的词(被规则或排除名单踢掉的): 没人学过就删掉, 有人学过就只移出单词书、保留进度
   - 在 App 里删掉过的词: 跳过, 不会加回来
 导入前先备份数据库!
@@ -34,10 +34,12 @@ def main():
     added = updated = skipped = 0
     seen = set(db.execute("SELECT german, gender FROM deleted_words").fetchall())   # 在 App 里删掉过的词不再加回来
     kept = set()   # 这次单词书里有的词
+    before = db.execute("SELECT word_id FROM word_levels UNION SELECT word_id FROM word_books").fetchall()
+    db.execute("DELETE FROM word_books")     # 专题书每次整个重写
     for d in words:
         row, e = clean_word(d)
         forms, e2 = clean_forms(d.get("forms")) if not e else (None, None)
-        if e or e2 or d.get("level") not in LEVELS:
+        if e or e2 or not (d.get("level") in LEVELS or d.get("books")):
             skipped += 1
             continue
         key = (row[0], row[2])
@@ -52,8 +54,9 @@ def main():
         else:
             word_id = db.execute("SELECT id FROM words WHERE german = ? AND gender = ? AND owner_id IS NULL",
                                  key).fetchone()[0]
-            # 例句换成新的(释义不动)。用户自己改的内容在 user_word_edits 里, 不受影响
-            db.execute("UPDATE words SET example = ? WHERE id = ?", (row[5], word_id))
+            # 用户自己改的内容在 user_word_edits 里, 不受影响
+            db.execute("UPDATE words SET pos = ?, plural = ?, meaning = ?, example = ? WHERE id = ?",
+                       (row[1], row[3], row[4], row[5], word_id))
             updated += 1
         kept.add(word_id)
         if forms:
@@ -64,28 +67,39 @@ def main():
                 merged = {**json.loads(forms), **json.loads(old[0])}
                 db.execute("UPDATE word_forms SET forms = ? WHERE word_id = ?",
                            (json.dumps(merged, ensure_ascii=False), word_id))
-        db.execute(
-            "INSERT INTO word_levels (word_id, level, rank) VALUES (?, ?, ?) "
-            "ON CONFLICT(word_id) DO UPDATE SET level = excluded.level, rank = excluded.rank",
-            (word_id, d["level"], int(d["rank"])),
-        )
+        if d.get("level") in LEVELS:
+            db.execute(
+                "INSERT INTO word_levels (word_id, level, rank) VALUES (?, ?, ?) "
+                "ON CONFLICT(word_id) DO UPDATE SET level = excluded.level, rank = excluded.rank",
+                (word_id, d["level"], int(d["rank"])),
+            )
+        for book, rank in (d.get("books") or {}).items():
+            db.execute("INSERT INTO word_books (book, word_id, rank) VALUES (?, ?, ?)", (book, word_id, int(rank)))
+        if d.get("details"):
+            db.execute("INSERT OR REPLACE INTO word_details (word_id, details) VALUES (?, ?)",
+                       (word_id, json.dumps(d["details"], ensure_ascii=False)))
+        else:
+            db.execute("DELETE FROM word_details WHERE word_id = ?", (word_id,))
     # 被踢出单词书的词(比如 aah、50er): 没人学过就删掉; 有人学过就只从单词书里拿掉, 保留进度
     removed = unlisted = 0
-    for (word_id,) in db.execute("SELECT word_id FROM word_levels").fetchall():
+    for (word_id,) in before:
         if word_id in kept:
             continue
         if db.execute("SELECT 1 FROM progress WHERE word_id = ? LIMIT 1", (word_id,)).fetchone():
             db.execute("DELETE FROM word_levels WHERE word_id = ?", (word_id,))
+            db.execute("DELETE FROM word_details WHERE word_id = ?", (word_id,))
             unlisted += 1
         else:
             db.execute("DELETE FROM words WHERE id = ?", (word_id,))
             removed += 1
     db.commit()
     counts = db.execute("SELECT level, COUNT(*) FROM word_levels GROUP BY level ORDER BY level").fetchall()
+    themes = db.execute("SELECT book, COUNT(*) FROM word_books GROUP BY book ORDER BY book").fetchall()
     db.close()
     print(f"新增 {added} 个, 已有的更新 {updated} 个, 格式不对跳过 {skipped} 个")
     print(f"不在单词书里了: 删除 {removed} 个(没人学过), 只移出单词书 {unlisted} 个(有人学过, 保留进度)")
     print("各级词数:", ", ".join(f"{lv} {n}" for lv, n in counts))
+    print("专题书词数:", ", ".join(f"{b} {n}" for b, n in themes))
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ function openView(id) { viewingId = id; go("view"); }
 // 级别筛选
 let wLevel = "";
 const LEVEL_FILTERS = [["", "全部"], ["A1", "A1"], ["A2", "A2"], ["B1", "B1"], ["B2", "B2"], ["C1", "C1"],
-                       ["mine", "我加的"], ["hidden", "已删除"]];
+                       ["dsh", "DSH"], ["common", "常用"], ["mine", "我加的"], ["hidden", "已删除"]];
 for (const [v, label] of LEVEL_FILTERS) {
   const b = document.createElement("button");
   b.textContent = label; b.dataset.level = v;
@@ -85,7 +85,9 @@ onShow.view = async () => {
   let w;
   try { w = await api("/api/words/" + viewingId); } catch (e) { return switchTab("words"); }
   viewWord = w;
-  $("vLevel").textContent = w.private ? "🔒 我加的词（只有你能看到）" : w.level ? w.level + " 单词书" : "示例词";
+  const bookTags = w.books.map(b => BOOK_NAMES[b] || b);
+  $("vLevel").textContent = w.private ? "🔒 我加的词（只有你能看到）"
+    : [w.level && w.level + " 单词书", ...bookTags].filter(Boolean).join(" · ") || "示例词";
   wordInto($("vWord"), w);
   $("vPos").textContent = w.pos || "";
   $("vMeaning").textContent = w.meaning;
@@ -93,6 +95,7 @@ onShow.view = async () => {
   $("vExample").textContent = w.example || "";
   $("vSpeakEx").classList.toggle("hidden", !w.example);
   renderForms(w.forms, $("vForms"));
+  renderDetails(w.details, $("vDetails"));
   $("vStatus").textContent = studyText(w);
   showNotice(w);
   if (getSetting("autoWord")) speakDe(wordText(w));
@@ -100,6 +103,31 @@ onShow.view = async () => {
 $("vSpeak").onclick = () => viewWord && speakDe(wordText(viewWord));
 $("vSpeakEx").onclick = () => viewWord && speakDe(exampleDe(viewWord.example));
 $("vEdit").onclick = () => openEdit(viewingId);
+
+// 单词书的详细内容: 音标、词根、用法、更多例句、词组、近反义词、相关词、提示
+const DETAIL_SECTIONS = [["root", "词根"], ["usage", "用法"], ["examples", "更多例句"], ["phrases", "常用词组"],
+                         ["synonyms", "近义词"], ["antonyms", "反义词"], ["related", "相关词"], ["notes", "提示"]];
+function renderDetails(d, box) {
+  box.textContent = "";
+  if (!d) return;
+  if (d.machine) {
+    const p = document.createElement("p"); p.className = "meta"; p.textContent = "⚠️ 这个释义是机器翻译，可能不准";
+    box.appendChild(p);
+  }
+  if (d.ipa) {
+    const p = document.createElement("p"); p.className = "meta"; p.textContent = `[${d.ipa}]`;
+    box.appendChild(p);
+  }
+  for (const [key, title] of DETAIL_SECTIONS) {
+    if (!d[key] || !d[key].length) continue;
+    const h = document.createElement("h4"); h.className = "detail-title"; h.textContent = title;
+    box.appendChild(h);
+    for (const line of [].concat(d[key])) {
+      const p = document.createElement("p"); p.className = "detail-line"; p.textContent = line;
+      box.appendChild(p);
+    }
+  }
+}
 
 // 改过 / 删掉的词: 提示 + 恢复按钮
 function showNotice(w) {

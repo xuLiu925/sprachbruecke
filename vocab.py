@@ -49,7 +49,8 @@ def query(sql, **params):
 
 # ---------- 单词书 ----------
 LEVELS = ["A1", "A2", "B1", "B2", "C1"]
-BOOKS = LEVELS + ["all"]   # all = 整个词库(包括自己加的词)
+THEME_BOOKS = ["dsh", "common"]   # 专题单词书(word_books 表), 名字在前端 BOOK_NAMES 里
+BOOKS = LEVELS + THEME_BOOKS + ["all"]   # all = 整个词库(包括自己加的词)
 
 
 def current_book(uid):
@@ -67,6 +68,8 @@ def book_filter(book):
     """返回 (JOIN 子句, 命名参数, 出新词的顺序)"""
     if book == "all":
         return "LEFT JOIN word_levels l ON l.word_id = w.id", {}, "COALESCE(l.rank, 1000000000), w.id"
+    if book in THEME_BOOKS:
+        return "JOIN word_books l ON l.word_id = w.id AND l.book = :book", {"book": book}, "l.rank"
     return "JOIN word_levels l ON l.word_id = w.id AND l.level = :book", {"book": book}, "l.rank"
 
 
@@ -83,7 +86,16 @@ def books():
     ).fetchall()
     by = {r["level"]: dict(r) for r in rows}
     out = [by.get(lv, {"level": lv, "total": 0, "learned": 0, "mastered": 0}) for lv in LEVELS]
-    return jsonify({"current": current_book(current_user_id()), "books": out})
+    rows = query(
+        "SELECT l.book AS level, COUNT(*) AS total, COUNT(p.word_id) AS learned, "
+        "SUM(CASE WHEN p.stability >= :ms AND p.spell_ok > 0 THEN 1 ELSE 0 END) AS mastered "
+        "FROM my_words w JOIN word_books l ON l.word_id = w.id "
+        "LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid GROUP BY l.book",
+        ms=MASTERED_STABILITY,
+    ).fetchall()
+    by = {r["level"]: dict(r) for r in rows}
+    themes = [by[b] for b in THEME_BOOKS if b in by]   # 没导入的专题书不显示
+    return jsonify({"current": current_book(current_user_id()), "books": out, "themes": themes})
 
 
 @bp.route("/api/books/current", methods=["POST"])
@@ -342,19 +354,25 @@ def list_words():
     source = "my_words"
     where = "(w.german LIKE :like ESCAPE '\\' OR w.meaning LIKE :like ESCAPE '\\')"
     args = {"like": like}
+    theme_join = ""
+    order = "w.german COLLATE NOCASE"
     if level in LEVELS:
         where += " AND l.level = :level"
         args["level"] = level
+        order = "l.rank"
+    elif level in THEME_BOOKS:
+        theme_join = "JOIN word_books b ON b.word_id = w.id AND b.book = :level"
+        args["level"] = level
+        order = "b.rank"
     elif level == "mine":     # 自己加的私有词
         where += " AND w.private"
     elif level == "hidden":   # 自己删掉的词(可以恢复)
         source = "all_my_words"
         where += " AND w.hidden"
-    order = "l.rank" if level in LEVELS else "w.german COLLATE NOCASE"
     rows = query(
         "SELECT w.id, w.german, w.gender, w.pos, w.plural, w.meaning, w.edited, w.hidden, w.private, l.level, "
         "p.next_review, p.stability, p.spell_ok, p.reps "
-        f"FROM {source} w LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid "
+        f"FROM {source} w {theme_join} LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid "
         f"LEFT JOIN word_levels l ON l.word_id = w.id WHERE {where} ORDER BY {order} LIMIT 200",
         **args,
     ).fetchall()
@@ -388,6 +406,10 @@ def get_word(word_id):
         return err("单词不存在", 404)
     d = dict(row)
     d["forms"] = json.loads(d["forms"]) if d["forms"] else None
+    db = get_db()
+    details = db.execute("SELECT details FROM word_details WHERE word_id = ?", (word_id,)).fetchone()
+    d["details"] = json.loads(details[0]) if details else None
+    d["books"] = [r[0] for r in db.execute("SELECT book FROM word_books WHERE word_id = ?", (word_id,))]
     d["status"] = word_status(d)
     d["stability"] = round(d["stability"], 1) if d["stability"] is not None else None
     d["edited"], d["hidden"], d["private"] = bool(d["edited"]), bool(d["hidden"]), bool(d["private"])
