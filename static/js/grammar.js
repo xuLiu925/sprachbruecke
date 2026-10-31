@@ -1,6 +1,7 @@
 // 语法基础: 知识点列表 → 知识点(说明 + 速查表 + 例句) → 练习(选择题)。内容在 grammar-data.js
 let gTopic = null;                       // 正在看的知识点
 let gQs = [], gi = 0, gScore = 0, gAnswered = false;
+let gPicks = [], gOpts = [];             // gPicks[i] = 第 i 题的作答 {value, opts}, 回看时原样显示; gOpts = 这题显示的选项
 
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 function shuffle(arr) {
@@ -235,7 +236,7 @@ onShow.gquiz = async () => {
   $("title").textContent = gTopic.title;
   $("gqBox").classList.add("hidden");
   $("gqDone").classList.add("hidden");
-  gQs = await gTopic.quiz(); gi = 0; gScore = 0;
+  gQs = await gTopic.quiz(); gi = 0; gScore = 0; gPicks = [];
   $("gqBox").classList.remove("hidden");
   $("gqDone").classList.add("hidden");
   gRender();
@@ -272,6 +273,9 @@ function gRender() {
     const pick = new Set([q.answer, ...shuffle(opts.filter(o => o !== q.answer)).slice(0, 3)]);
     opts = q.fixed ? opts.filter(o => pick.has(o)) : shuffle([...pick]);    // 选项太多时抽 4 个, 固定题保持原来的先后
   } else if (!q.wide && !q.fixed) opts = shuffle(opts);
+  const seen = gPicks[gi];
+  if (seen) opts = seen.opts;            // 回看: 选项和答题时一样
+  gOpts = opts;
   const box = $("gqOpts"); box.textContent = "";
   box.className = "opts" + (q.wide ? " wide" : opts.length === 2 || opts.length === 4 ? " two" : "");   // 2 个或 4 个选项排成两列
   opts.forEach((o, i) => {
@@ -282,14 +286,21 @@ function gRender() {
   });
   $("gqFeedback").classList.add("hidden");
   $("gqGiveUp").classList.remove("hidden");
+  $("gqPrev").classList.toggle("hidden", gi === 0);
+  if (seen) gShowAnswer(seen.value);
 }
 
 // value = null 表示点了“不会”: 直接看答案, 算答错
 function gChoose(value) {
   if (gAnswered) return;
+  if (value === gQs[gi].answer) gScore++;
+  gPicks[gi] = { value, opts: gOpts };
+  gShowAnswer(value);
+}
+
+function gShowAnswer(value) {
   gAnswered = true;
   const q = gQs[gi], ok = value === q.answer;
-  if (ok) gScore++;
   document.querySelectorAll("#gqOpts button").forEach(b => {
     b.disabled = true;
     if (b.dataset.value === q.answer) b.className = "good";
@@ -320,6 +331,7 @@ function gSentence() {   // 题目填好答案后的德语(用来朗读)
 }
 $("gqSay").onclick = () => speakDe(gSentence());
 $("gqNext").onclick = () => { gi++; gRender(); };
+$("gqPrev").onclick = () => { if (gi > 0) { gi--; gRender(); } };   // 只回看, 不能改答案
 
 function gDone() {
   $("gqBox").classList.add("hidden");
@@ -341,6 +353,7 @@ onKey.gquiz = (e, typing) => {
     if (e.key === "Enter") { onShow.gquiz(); return true; }
     return false;
   }
+  if (e.key === "Backspace") { $("gqPrev").click(); return true; }
   if (!gAnswered && e.key === "?") { gChoose(null); return true; }
   if (!gAnswered && /^[1-9]$/.test(e.key)) {
     const b = document.querySelectorAll("#gqOpts button")[+e.key - 1];
