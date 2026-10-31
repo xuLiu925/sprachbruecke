@@ -503,6 +503,25 @@ assert J(c.post("/api/roleplay/answer", json={"key": di1[0]["key"], "rating": 1}
 back = J(c.get("/api/roleplay/due"))["items"]
 assert [i["key"] for i in back] == [di1[0]["key"]] and back[0]["drill"]
 assert J(c.post("/api/roleplay/answer", json={"key": di1[0]["key"], "rating": 3}))["interval_days"] >= 1
+
+# 查词: 原形、复数、变化形式、开头、中文都能查, 最相关的在最前面
+dq = lambda client, q: J(client.get("/api/dict?q=" + urllib.parse.quote(q)))["words"]
+assert c.get("/api/dict").status_code == 400 and c.get("/api/dict?q=" + "a" * 51).status_code == 400
+assert dq(c, "tisch")[0]["german"] == "Tisch" and "form" not in dq(c, "tisch")[0]
+assert (lambda w: (w["german"], w["form"]))(dq(c, "Tische")[0]) == ("Tisch", "Tische")     # 复数
+assert (lambda w: (w["german"], w["form"]))(dq(c, "Tisches")[0]) == ("Tisch", "Tisches")   # 变格
+assert (lambda w: (w["german"], w["form"]))(dq(cb, "gehe")[0]) == ("gehen", "gehe")        # 变位
+assert (lambda w: (w["german"], w["form"]))(dq(c, "schnellen")[0]) == ("schnell", "schnellen")   # 形容词词尾
+assert dq(c, "Tis")[0]["german"] == "Tisch" and dq(c, "isch")[0]["german"] == "Tisch"      # 开头 / 包含
+assert dq(c, "桌子")[0]["german"] == "Tisch" and dq(c, "水")[0]["german"] == "Wasser"       # 中文, 义项完全相同的优先
+assert dq(c, "%") == [] and dq(c, "完全没有这个词") == []
+assert {"id", "status", "next_review", "edited", "hidden", "private", "level"} <= set(dq(c, "Tisch")[0])
+assert not {"stability", "spell_ok", "reps", "rk"} & set(dq(c, "Tisch")[0])
+assert dq(cb, "Fenster") == [] or dq(cb, "Fenster")[0]["private"] is False                  # 别人的私有词查不到
+hw = J(c.get("/api/words?q=Hund"))["words"][0]["id"]
+assert J(c.get(f"/api/words/{hw}"))["queued"] is False
+c.post("/api/review/queue", json={"word_id": hw})
+assert J(c.get(f"/api/words/{hw}"))["queued"] is True
 db.close()
 
 c.post("/api/logout", json={})

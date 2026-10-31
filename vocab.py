@@ -420,6 +420,8 @@ def get_word(word_id):
     details = db.execute("SELECT details FROM word_details WHERE word_id = ?", (word_id,)).fetchone()
     d["details"] = json.loads(details[0]) if details else None
     d["books"] = [r[0] for r in db.execute("SELECT book FROM word_books WHERE word_id = ?", (word_id,))]
+    d["queued"] = db.execute("SELECT 1 FROM study_queue WHERE user_id = ? AND word_id = ?",
+                             (current_user_id(), word_id)).fetchone() is not None
     d["status"] = word_status(d)
     d["stability"] = round(d["stability"], 1) if d["stability"] is not None else None
     d["edited"], d["hidden"], d["private"] = bool(d["edited"]), bool(d["hidden"]), bool(d["private"])

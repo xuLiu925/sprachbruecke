@@ -43,10 +43,16 @@ let searchTimer, searchSeq = 0;
 async function loadWords() {
   const seq = ++searchSeq;
   const q = $("wSearch").value.trim();
-  const r = await api("/api/words?q=" + encodeURIComponent(q) + "&level=" + wLevel);
+  // 在“全部”里输入内容 = 查词(能查变位变格, 最相关的在前); 选了级别 = 在这个范围里筛选
+  const dict = q && !wLevel;
+  const url = dict ? "/api/dict?q=" + encodeURIComponent(q) : "/api/words?q=" + encodeURIComponent(q) + "&level=" + wLevel;
+  let r;
+  try { r = await api(url); } catch (e) { if (seq === searchSeq) toast(e.message); return; }
   if (seq !== searchSeq) return;   // 只显示最后一次搜索的结果
   const box = $("wList"); box.textContent = "";
-  $("wCount").textContent = (q ? "找到 " : "共 ") + r.words.length + " 个" + (r.words.length >= 200 ? "（最多显示 200 个）" : "");
+  const limit = dict ? 50 : 200;
+  $("wCount").textContent = q && !r.words.length ? `没有找到“${q}”`
+    : (q ? "找到 " : "共 ") + r.words.length + " 个" + (r.words.length >= limit ? `（最多显示 ${limit} 个）` : "");
   box.classList.toggle("hidden", !r.words.length);
   for (const w of r.words) {
     const row = document.createElement("button"); row.className = "item wordrow";
@@ -54,8 +60,8 @@ async function loadWords() {
     const body = document.createElement("span"); body.className = "body";
     const t = document.createElement("b"); wordInto(t, w);
     const s = document.createElement("small");
-    s.textContent = [w.private ? "🔒 我加的" : "", w.edited ? "✏️ 已改" : "", w.level, w.pos, w.meaning]
-      .filter(Boolean).join(" · ");
+    s.textContent = [w.form ? `${w.form} 的原形` : "", w.private ? "🔒 我加的" : "", w.edited ? "✏️ 已改" : "",
+                     w.level, w.pos, w.meaning].filter(Boolean).join(" · ");
     body.append(t, s);
     if (w.hidden) {
       const c = document.createElement("span"); c.className = "chip"; c.textContent = "已删除";
@@ -97,11 +103,19 @@ onShow.view = async () => {
   renderForms(w.forms, $("vForms"));
   renderDetails(w.details, $("vDetails"));
   $("vStatus").textContent = studyText(w);
+  $("vQueue").classList.toggle("hidden", w.status !== "new" || w.hidden);
+  $("vQueue").disabled = !!w.queued;
+  $("vQueue").textContent = w.queued ? "已加入复习" : "加入复习";
   showNotice(w);
   if (getSetting("autoWord")) speakDe(wordText(w));
 };
 $("vSpeak").onclick = () => viewWord && speakDe(wordText(viewWord));
 $("vSpeakEx").onclick = () => viewWord && speakDe(exampleDe(viewWord.example));
+$("vQueue").onclick = async () => {
+  try { await api("/api/review/queue", "POST", { word_id: viewingId }); } catch (e) { return toast(e.message); }
+  $("vQueue").disabled = true; $("vQueue").textContent = "已加入复习";
+  toast("已加入复习");
+};
 $("vEdit").onclick = () => openEdit(viewingId);
 
 // 单词书的详细内容: 音标、词根、用法、更多例句、词组、近反义词、相关词、提示

@@ -12,7 +12,7 @@ if "%IP%"=="" set /p IP=Phone IP (e.g. 192.168.1.23):
 if "%IP%"=="" goto :eof
 
 echo == Packing...
-tar -czf sb.tar.gz app.py database.py helpers.py auth.py srs.py vocab.py vocab_seed.py tts.py sentences.py lessons.py custom_lessons.py explain.py requirements.txt deploy_phone.sh static tools/import_wordbook.py data/wordbook.json
+tar -czf sb.tar.gz app.py database.py helpers.py auth.py srs.py vocab.py vocab_seed.py tts.py sentences.py lessons.py custom_lessons.py explain.py dictionary.py requirements.txt deploy_phone.sh static tools/import_wordbook.py data/wordbook.json
 if errorlevel 1 goto fail
 
 echo == Uploading (enter phone password if asked)...
