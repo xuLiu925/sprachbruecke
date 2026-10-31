@@ -48,7 +48,7 @@ function drillShowAnswer(speak) {
   drillBtns.forEach(x => x.disabled = true);
   wordInto($("dWord"), w);
   $("dPlural").textContent = w.plural ? "复数：" + w.plural : "";
-  $("dExample").textContent = w.example || "";
+  exampleInto($("dExample"), w.example);
   $("btnDrillEx").classList.toggle("hidden", !w.example);
   $("drillInfo").classList.remove("hidden");
   if (!speak) return;

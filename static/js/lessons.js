@@ -150,19 +150,32 @@ const LESSON_FORMS = { im: "in", ins: "in", am: "an", ans: "an", zum: "zu", zur:
 function lessonGlossary(lemma) {          // 本课优先, 再看其他课; 复数也能找到
   const key = lemma.toLowerCase();
   const hit = g => g.german.toLowerCase() === key || (g.plural || "").toLowerCase() === key;
-  return lessonNow.glossary.find(hit) || lessons.flatMap(l => l.glossary).find(hit);
+  return (lessonNow && lessonNow.glossary.find(hit)) || (lessons || []).flatMap(l => l.glossary).find(hit);
 }
+
+// 例句(“德语\n中文”)里的德语词可以点, 中文行照常显示
+function exampleInto(el, text) {
+  const [de, ...rest] = (text || "").split("\n");
+  el.textContent = "";
+  lessonTokens(el, { de });
+  if (rest.length) el.append(document.createElement("br"), rest.join("\n"));
+}
+
+// 这些页面离开再回来会重新出题, 所以单词卡里不放“详情”, 免得丢掉正在做的这一组
+const wsCanLeave = () => !["review", "drill", "dictation", "squiz"].includes(current);
 
 async function openWordSheet(token, line) {
   const seq = ++wsSeq;
   const lemma = (line.map && line.map[token]) || LESSON_FORMS[token.toLowerCase()] || token;
-  const gl = lessonGlossary(lemma);
   $("wsheet").classList.remove("hidden");
   $("wsWord").textContent = token;
   $("wsPlural").textContent = ""; $("wsMeaning").textContent = "查询中…"; $("wsLesson").textContent = "";
   $("wsExample").textContent = "";
   $("wsAdd").classList.add("hidden"); $("wsView").classList.add("hidden"); $("wsSay").classList.add("hidden");
   $("wsAi").classList.add("hidden");
+  try { await loadLessons(); } catch (e) {}   // 复习页里可能还没加载过课程; 没有仓储词表也能查词
+  if (seq !== wsSeq) return;
+  const gl = lessonGlossary(lemma);
   let found = null;
   try { found = (await api("/api/lookup?w=" + encodeURIComponent(gl ? gl.german : lemma))).word; }
   catch (e) { if (seq === wsSeq) toast(e.message); }
@@ -191,7 +204,7 @@ async function openWordSheet(token, line) {
   if (gl && found && gl.meaning !== found.meaning) $("wsLesson").textContent = "在仓库里：" + gl.meaning;
   $("wsSay").classList.remove("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
-  $("wsView").classList.toggle("hidden", !found);
+  $("wsView").classList.toggle("hidden", !found || !wsCanLeave());
   if (getSetting("autoWord")) speakDe(wordText(w));
 }
 // 查词结果里的仓储词: 不用查询, 内容都在手上
@@ -225,7 +238,13 @@ $("wsAi").onclick = async () => {
   $("wsMeaning").textContent = "AI 也没有查到这个词";
 };
 $("wsSay").onclick = () => { if (wsWord) speakDe(wordText(wsWord)); };
-$("wsView").onclick = () => { if (wsWord && wsWord.id) openView(wsWord.id); };
+$("wsView").onclick = () => {
+  if (!wsWord || !wsWord.id) return;
+  const id = wsWord.id;
+  closeWordSheet();
+  if (current === "view") { viewingId = id; onShow.view(); window.scrollTo(0, 0); }   // 详情页里点词: 网址不变, 要手动刷新
+  else openView(id);
+};
 $("wsAdd").onclick = async () => {
   const w = wsWord;
   if (!w) return;
@@ -234,7 +253,7 @@ $("wsAdd").onclick = async () => {
   try {
     const r = await api("/api/review/queue", "POST", body);
     w.id = r.word_id; w.learned = r.learned; w.queued = r.queued;
-    if (wsWord === w) { wsButton(w); $("wsView").classList.remove("hidden"); }
+    if (wsWord === w) { wsButton(w); $("wsView").classList.toggle("hidden", !wsCanLeave()); }
     toast(r.learned ? "这个词已经学过了" : "已加入复习");
   } catch (e) { toast(e.message); }
 };

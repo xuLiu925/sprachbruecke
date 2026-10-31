@@ -143,7 +143,7 @@ $("sqNext").onclick = sCheck;
 function sShow(q, a) {
   $("sqResult").textContent = a.msg;
   $("sqResult").className = a.ok === false ? "msg" : a.ok ? "ok" : "";
-  $("sqDe").textContent = q.de;
+  exampleInto($("sqDe"), q.de);
   $("sqGloss").classList.toggle("hidden", !q.german);   // 情景课的排序题没有目标词
   wordInto($("sqWord"), q);
   $("sqMeaning").textContent = q.meaning;

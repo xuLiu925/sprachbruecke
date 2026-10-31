@@ -116,7 +116,7 @@ onShow.view = async () => {
   $("vPos").textContent = w.pos || "";
   $("vMeaning").textContent = w.meaning;
   $("vPlural").textContent = w.plural && !(w.forms && w.forms.cases) ? "复数：" + w.plural : "";
-  $("vExample").textContent = w.example || "";
+  exampleInto($("vExample"), w.example);
   $("vSpeakEx").classList.toggle("hidden", !w.example);
   renderForms(w.forms, $("vForms"));
   renderDetails(w.details, $("vDetails"));

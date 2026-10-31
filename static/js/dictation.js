@@ -52,6 +52,7 @@ function dictShow(w, r) {
   $("dictResult").className = r.ok ? "ok" : "msg";
   wordInto($("dictWord"), w);
   $("dictMeaning").textContent = w.meaning;
+  exampleInto($("dictExample"), w.example);
   $("dictAnswer").classList.remove("hidden");
   $("dictCheck").classList.add("hidden");
 }

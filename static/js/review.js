@@ -76,7 +76,7 @@ function render() {
   $("aWord").classList.toggle("hidden", !spell);
   $("aMeaning").textContent = spell ? "" : c.meaning;
   $("aPlural").textContent = c.plural && !(c.forms && c.forms.cases) ? "复数：" + c.plural : "";
-  $("aExample").textContent = c.example || "";
+  exampleInto($("aExample"), c.example);
   renderForms(c.forms);
   $("btnSpeakEx").classList.toggle("hidden", !c.example);
   $("answer").classList.add("hidden");

@@ -161,6 +161,10 @@ document.querySelectorAll("#tabbar button").forEach(b => b.onclick = () => switc
 const onKey = {};
 document.addEventListener("keydown", e => {
   if (!user || e.isComposing || e.altKey || e.metaKey) return;   // 输入法选字时不算
+  if (!$("wsheet").classList.contains("hidden")) {               // 单词卡打开时, 快捷键别影响下面的页面(比如误触评分)
+    if (e.key === "Escape") { e.preventDefault(); closeWordSheet(); }
+    return;
+  }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (e.key === "Escape") {
     if (typing) e.target.blur();                                  // 输入框里按 Esc 只是退出输入
