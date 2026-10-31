@@ -707,6 +707,22 @@ assert cb.post(f"/api/grammar/questions/{mine_q['id']}/status", json={"status": 
 assert c.post(f"/api/grammar/questions/{mine_q['id']}/status", json={"status": "hidden"}).status_code == 200
 assert mine_q["id"] not in [x["id"] for x in J(c.get("/api/grammar/art-def/quiz?n=30"))["questions"]]
 assert c.post("/api/grammar/questions/99999/status", json={"status": "active"}).status_code == 404
+
+# 词性解释: 词尾、复合词、动词名词、时间词; 对不上就说没有规律, 不编原因
+gr = lambda german, gender: J(c.get(f"/api/gender_reason?german={urllib.parse.quote(german)}&gender={gender}"))["reason"]
+assert A.app.test_client().get("/api/gender_reason?german=Tisch&gender=der").status_code == 401
+assert c.get("/api/gender_reason?german=Tisch&gender=x").status_code == 400 and c.get("/api/gender_reason?gender=der").status_code == 400
+assert "-ung" in gr("Zeitung", "die") and "-chen" in gr("Mädchen", "das") and "-ling" in gr("Lehrling", "der")
+assert gr("Sprung", "der") == "这个词没有明显规律，要和冠词一起记"                # der Sprung 不是 -ung 规律
+assert gr("Tisch", "der") == "这个词没有明显规律，要和冠词一起记"
+assert gr("Haustisch", "der") == "复合词，词性看最后一个词：der Tisch"
+assert gr("Kinderbuch", "das") == "复合词，词性看最后一个词：das Buch"           # 前半段是复数也算
+assert gr("Arbeitstisch", "der") == "复合词，词性看最后一个词：der Tisch"        # 连接成分 -s
+assert gr("Lernbuch", "das") == "复合词，词性看最后一个词：das Buch"             # 动词词干
+assert gr("Hausbuch", "der") == "这个词没有明显规律，要和冠词一起记"             # 冠词对不上
+assert gr("Xyzbuch", "das") == "这个词没有明显规律，要和冠词一起记"              # 前半段不是真词
+assert "动词" in gr("Gehen", "das") and "星期" in gr("Montag", "der") and "-e" in gr("Lampe", "die")
+assert gr("die Lieferung", "die").startswith("以 -ung")                           # 带冠词也能查
 db.close()
 
 c.post("/api/logout", json={})

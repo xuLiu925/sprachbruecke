@@ -21,6 +21,7 @@
   dictionary.py  查词(德语、变化形式、中文)
   form_drills.py 词形练习(复数、变格、动词变位)
   grammar.py     语法题库(出题、AI 出草稿、管理); 初始题在 grammar_seed.py
+  gender_hint.py 词性解释(规则判断, 不用 AI)
   tts.py         在线德语发音(设备没有德语语音时用)
   vocab_seed.py  示例词和变格 / 变位
 """
@@ -35,6 +36,7 @@ import custom_lessons
 import dictionary
 import explain
 import form_drills
+import gender_hint
 import grammar
 import lessons
 import sentences
@@ -85,6 +87,7 @@ app.register_blueprint(explain.bp)
 app.register_blueprint(dictionary.bp)
 app.register_blueprint(form_drills.bp)
 app.register_blueprint(grammar.bp)
+app.register_blueprint(gender_hint.bp)
 app.register_blueprint(tts.bp)
 
 init_db()

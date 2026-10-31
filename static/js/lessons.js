@@ -189,6 +189,7 @@ async function openWordSheet(token, line) {
   $("wsWord").textContent = token;
   $("wsPlural").textContent = ""; $("wsMeaning").textContent = "查询中…"; $("wsLesson").textContent = "";
   $("wsExample").textContent = "";
+  genderReason($("wsGender"), "", "");
   $("wsAdd").classList.add("hidden"); $("wsView").classList.add("hidden"); $("wsSay").classList.add("hidden");
   $("wsAi").classList.add("hidden");
   try { await loadLessons(); } catch (e) {}   // 复习页里可能还没加载过课程; 没有仓储词表也能查词
@@ -219,6 +220,7 @@ async function openWordSheet(token, line) {
   $("wsPlural").textContent = [w.pos, w.plural ? "复数 " + w.plural : "", token !== w.german ? "文中是 " + token : ""]
     .filter(Boolean).join(" · ");
   $("wsMeaning").textContent = w.meaning;
+  genderReason($("wsGender"), w.german, w.gender);
   if (gl && found && gl.meaning !== found.meaning) $("wsLesson").textContent = "在仓库里：" + gl.meaning;
   $("wsSay").classList.remove("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
@@ -234,6 +236,7 @@ function openGlossaryWord(g) {
   wordInto($("wsWord"), g);
   $("wsPlural").textContent = [g.pos, g.plural ? "复数 " + g.plural : ""].filter(Boolean).join(" · ");
   $("wsMeaning").textContent = g.meaning;
+  genderReason($("wsGender"), g.german, g.gender);
   $("wsExample").textContent = g.example || "";
   $("wsLesson").textContent = g.ai_word ? "AI 生成，未核对" : "";
   $("wsSay").classList.remove("hidden");

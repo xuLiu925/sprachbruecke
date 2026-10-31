@@ -311,6 +311,8 @@ function gShowAnswer(value) {
   $("gqResult").className = ok ? "ok" : "msg";
   $("gqZh").textContent = q.zh || "";
   $("gqExplain").textContent = q.explain || "";
+  const noun = (q.hint || "").match(/^(der|die|das) ([^ ·]+)/);     // 提示写着 die Palette · 阴性 的题
+  genderReason($("gqGender"), noun && noun[2], noun && noun[1]);
   $("gqGiveUp").classList.add("hidden");
   $("gqReport").classList.toggle("hidden", !q.id);     // 题库里的题才能报错
   $("gqFeedback").classList.remove("hidden");

@@ -99,6 +99,17 @@ function speakSystem(text, queue, rate) {
   speechSynthesis.speak(u);
 }
 const wordText = w => (w.gender ? w.gender + " " : "") + w.german;   // 名词连冠词一起读
+
+// 显示词性解释; 不是名词或查询失败时留空。切到下一个词后, 上一个词迟到的结果不显示
+async function genderReason(el, german, gender) {
+  el.textContent = "";
+  el.dataset.word = german || "";
+  if (!german || !gender) return;
+  try {
+    const r = await api(`/api/gender_reason?german=${encodeURIComponent(german)}&gender=${gender}`);
+    if (el.dataset.word === german) el.textContent = "💡 " + r.reason;
+  } catch (e) {}
+}
 const exampleDe = ex => (ex || "").split("\n")[0];                  // 例句第一行是德语, 第二行是中文
 
 // ---------- 页面切换 ----------
