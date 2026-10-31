@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import g
 
+from grammar_seed import SEED_QUESTIONS
 from srs import W
 from vocab_seed import SEED_WORDS, seed_forms
 
@@ -204,6 +205,21 @@ CREATE TABLE IF NOT EXISTS content_reports (
     created_at TEXT NOT NULL,
     PRIMARY KEY (kind, sent_key)
 );
+-- 语法题库(手写题和 AI 题)。topic = 知识点 id; prompt 里的 ___ 是空; 选项在 grammar.py 的 TOPICS 里
+--   source = seed / manual / ai; status = active / hidden(停用, 保留记录)
+CREATE TABLE IF NOT EXISTS grammar_questions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    topic TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    hint TEXT NOT NULL DEFAULT '',
+    explain TEXT NOT NULL DEFAULT '',
+    zh TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'seed',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL,
+    UNIQUE (topic, prompt)
+);
 -- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
 CREATE TABLE IF NOT EXISTS sentence_progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -306,5 +322,12 @@ def init_db():
         "SELECT id, ? FROM words WHERE german = ? AND gender = ? AND owner_id IS NULL",
         list(seed_forms()),
     )
+    # 语法题库的初始题: 只补没有的, 用户改过或停用的不动
+    for topic, items in SEED_QUESTIONS.items():
+        db.executemany(
+            "INSERT OR IGNORE INTO grammar_questions (topic, prompt, answer, hint, explain, zh, source, created_at) "
+            "VALUES (?,?,?,?,?,?,'seed',?)",
+            [(topic, *item, now_str()) for item in items],
+        )
     db.commit()
     db.close()

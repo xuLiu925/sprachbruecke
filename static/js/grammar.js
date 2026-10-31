@@ -21,21 +21,27 @@ function articleQuiz(form, nouns, cases, genders) {
   const qs = [];
   for (const c of cases) for (const g of genders) {
     const answer = form(c, GENDER_KEYS.indexOf(g));
-    qs.push({ prompt: fillFrame(c, g, nouns), hint: `${nouns[g][0]} · ${GENDER_ZH[g]}`, options, answer,
+    qs.push({ prompt: fillFrame(c, g, nouns), hint: `${nouns[g][0]} · ${GENDER_ZH[g]}`, options, answer, fixed: true,
               explain: `${CASE_REASON[c]}；${GENDER_ZH[g]} → ${answer}` });
   }
   return shuffle(qs).slice(0, 10);
 }
 
+// 题库在后端的知识点: 后端的题 + 程序生成的题。fixed = 选项每题都一样, 按钮不换位置
+async function bankQuiz(topic, n, local) {
+  try { return shuffle([...local, ...(await api(`/api/grammar/${topic}/quiz?n=${n}`)).questions]); }
+  catch (e) { toast("题库加载失败，先做基础题"); return shuffle(local); }
+}
+
 function prepQuiz(sentences) {
   return shuffle(sentences).map(([prompt, answer, explain]) =>
-    ({ prompt, options: ["der", "die", "das", "den", "dem"], answer, explain }));
+    ({ prompt, options: ["der", "die", "das", "den", "dem"], answer, explain, fixed: true }));
 }
 
 function verbQuiz(verbs, n) {
   const all = verbs.flatMap(v => PERSONS6.map((p, i) => ({ v, i })));
   return shuffle(all).slice(0, n).map(({ v, i }) => ({
-    prompt: `${PERSONS6[i]} ___`, hint: `（${v}）`, options: [...new Set(VERBS[v])], answer: VERBS[v][i],
+    prompt: `${PERSONS6[i]} ___`, hint: `（${v}）`, options: [...new Set(VERBS[v])], answer: VERBS[v][i], fixed: true,
     explain: `${v}：${PERSONS6[i]} → ${VERBS[v][i]}`,
   }));
 }
@@ -51,7 +57,7 @@ function adjQuiz(type, n) {
   if (type === "strong") {
     for (const [c, g, sentence, adjs] of STRONG_ITEMS) {
       const adj = rand(adjs), gi = GENDER_KEYS.indexOf(g), end = STRONG_END[c][gi];
-      qs.push({ prompt: sentence, hint: `（${adj}）· ${GENDER_ZH[g]}`, answer: adj + end,
+      qs.push({ prompt: sentence, hint: `（${adj}）· ${GENDER_ZH[g]}`, answer: adj + end, fixed: true,
                 options: ["e", "en", "er", "es", "em"].map(e => adj + e),
                 explain: `${ADJ_TYPE_NAME.strong} · ${CASE_NAMES[c]}${GENDER_ZH[g]} → -${end}` });
     }
@@ -61,7 +67,7 @@ function adjQuiz(type, n) {
     for (const c of [0, 1, 2, 3]) for (const g of GENDER_KEYS) {
       const adj = rand(ADJ_PEOPLE), gi = GENDER_KEYS.indexOf(g), end = ends[c][gi];
       const prompt = ADJ_FRAMES[c][g === "pl" ? 1 : 0].replace("{a}", article(c, gi)).replace("{n}", QUIZ_NOUNS[g][c]);
-      qs.push({ prompt, hint: `（${adj}）· ${GENDER_ZH[g]}`, answer: adj + end,
+      qs.push({ prompt, hint: `（${adj}）· ${GENDER_ZH[g]}`, answer: adj + end, fixed: true,
                 options: ["e", "en", "er", "es", "em"].map(e => adj + e),
                 explain: `${ADJ_TYPE_NAME[type]} · ${CASE_NAMES[c]}${GENDER_ZH[g]} → -${end}` });
     }
@@ -218,14 +224,18 @@ onShow.gtopic = () => {
   }
   const best = bestScore(t.id);
   $("gStart").textContent = "开始练习" + (best ? `（上次最好 ${best[0]} / ${best[1]}）` : "");
+  $("gBank").classList.toggle("hidden", !(t.bank && isAdmin));
 };
+$("gBank").onclick = () => go("gbank");
 $("gStart").onclick = () => go("gquiz");
 
 // ---------- 练习 ----------
-onShow.gquiz = () => {
+onShow.gquiz = async () => {
   if (!gTopic) return location.replace("#grammar");
   $("title").textContent = gTopic.title;
-  gQs = gTopic.quiz(); gi = 0; gScore = 0;
+  $("gqBox").classList.add("hidden");
+  $("gqDone").classList.add("hidden");
+  gQs = await gTopic.quiz(); gi = 0; gScore = 0;
   $("gqBox").classList.remove("hidden");
   $("gqDone").classList.add("hidden");
   gRender();
@@ -242,7 +252,7 @@ function promptInto(el, text, fill) {   // 把 ___ 显示成空格(答完后按�
   el.textContent = "";
   const parts = text.split("___"), f = fill ? fill.split(" … ") : [];
   parts.forEach((p, i) => {
-    el.append(p);
+    lessonTokens(el, { de: p });        // 题目里的德语词能点, 看释义
     if (i < parts.length - 1) {
       const s = document.createElement("span"); s.className = "blank" + (fill ? " filled" : "");
       s.textContent = f[i] || "    "; el.appendChild(s);
@@ -256,10 +266,12 @@ function gRender() {
   gAnswered = false;
   $("gqProgress").textContent = `第 ${gi + 1} / ${gQs.length} 题`;
   promptInto($("gqPrompt"), q.prompt);
-  $("gqHint").textContent = q.hint || "";
+  $("gqHint").textContent = [q.hint, q.source === "ai" ? "AI 生成，未核对" : ""].filter(Boolean).join(" · ");
   let opts = q.options;
-  if (opts.length > 6) opts = shuffle([q.answer, ...shuffle(opts.filter(o => o !== q.answer)).slice(0, 3)]);
-  else if (!q.wide) opts = shuffle(opts);
+  if (opts.length > 6) {
+    const pick = new Set([q.answer, ...shuffle(opts.filter(o => o !== q.answer)).slice(0, 3)]);
+    opts = q.fixed ? opts.filter(o => pick.has(o)) : shuffle([...pick]);    // 选项太多时抽 4 个, 固定题保持原来的先后
+  } else if (!q.wide && !q.fixed) opts = shuffle(opts);
   const box = $("gqOpts"); box.textContent = "";
   box.className = "opts" + (q.wide ? " wide" : opts.length === 2 || opts.length === 4 ? " two" : "");   // 2 个或 4 个选项排成两列
   opts.forEach((o, i) => {
@@ -269,8 +281,10 @@ function gRender() {
     box.appendChild(b);
   });
   $("gqFeedback").classList.add("hidden");
+  $("gqGiveUp").classList.remove("hidden");
 }
 
+// value = null 表示点了“不会”: 直接看答案, 算答错
 function gChoose(value) {
   if (gAnswered) return;
   gAnswered = true;
@@ -282,11 +296,21 @@ function gChoose(value) {
     else if (b.dataset.value === value) b.className = "bad";
   });
   if (!q.wide) promptInto($("gqPrompt"), q.prompt, q.answer);
-  $("gqResult").textContent = ok ? "✔ 正确" : "✘ 正确答案：" + q.answer;
+  $("gqResult").textContent = ok ? "✔ 正确" : (value === null ? "不会，正确答案：" : "✘ 正确答案：") + q.answer;
   $("gqResult").className = ok ? "ok" : "msg";
+  $("gqZh").textContent = q.zh || "";
   $("gqExplain").textContent = q.explain || "";
+  $("gqGiveUp").classList.add("hidden");
+  $("gqReport").classList.toggle("hidden", !q.id);     // 题库里的题才能报错
   $("gqFeedback").classList.remove("hidden");
 }
+$("gqGiveUp").onclick = () => gChoose(null);
+$("gqReport").onclick = async () => {
+  const reason = (prompt("这题哪里有问题？") || "").trim();
+  if (!reason) return;
+  try { await api(`/api/grammar/questions/${gQs[gi].id}/report`, "POST", { reason }); toast("已记录"); }
+  catch (e) { toast(e.message); }
+};
 
 function gSentence() {   // 题目填好答案后的德语(用来朗读)
   const q = gQs[gi];
@@ -317,6 +341,7 @@ onKey.gquiz = (e, typing) => {
     if (e.key === "Enter") { onShow.gquiz(); return true; }
     return false;
   }
+  if (!gAnswered && e.key === "?") { gChoose(null); return true; }
   if (!gAnswered && /^[1-9]$/.test(e.key)) {
     const b = document.querySelectorAll("#gqOpts button")[+e.key - 1];
     if (b) { b.click(); return true; }

@@ -275,6 +275,31 @@
       <h2>例句</h2>
       <div class="card" id="gExamples"></div>
       <button class="big" id="gStart"></button>
+      <button class="big secondary hidden" id="gBank" style="margin-top:8px">📚 管理题库</button>
+    </section>
+
+    <section class="page" data-page="gbank">
+      <div class="card">
+        <p class="meta left" style="margin-top:0">写下想出什么题。AI 的题要检查后再保存，也不要写真实的客户和订单信息。</p>
+        <textarea id="gbWant" maxlength="300" placeholder="例如：第三格 · 司机提货" style="min-height:70px"></textarea>
+        <select id="gbN" style="margin-top:8px"><option value="5">5 题</option><option value="10">10 题</option></select>
+        <button class="big" id="gbGen" style="margin-top:8px">✨ 生成题目</button>
+        <button class="secondary" id="gbAdd" style="width:100%;margin-top:8px">＋ 手动加一题</button>
+        <p id="gbMsg" class="msg"></p>
+        <details id="gbManual">
+          <summary class="meta left">不用 API：复制到免费 AI</summary>
+          <button class="secondary" id="gbCopy" style="width:100%;margin-top:8px">复制提示词</button>
+          <textarea id="gbPaste" spellcheck="false" placeholder="粘贴 AI 的回复" style="min-height:90px;margin-top:8px"></textarea>
+          <button class="secondary" id="gbRead" style="width:100%;margin-top:8px">读取结果</button>
+        </details>
+      </div>
+      <div class="card hidden" id="gbDraftBox">
+        <p class="meta left" style="margin-top:0">检查后再保存。系统只能检查格式，判断不了语法对不对。</p>
+        <div id="gbDrafts"></div>
+        <button id="gbSave" style="width:100%;margin-top:10px">保存这些题</button>
+      </div>
+      <h2 id="gbCount"></h2>
+      <div class="card" id="gbList"></div>
     </section>
 
     <section class="page" data-page="gquiz">
@@ -283,15 +308,18 @@
         <div class="gprompt" id="gqPrompt"></div>
         <div class="meta" id="gqHint"></div>
         <div class="opts" id="gqOpts"></div>
+        <button class="secondary" id="gqGiveUp" style="width:100%;margin-top:8px">不会</button>
         <div class="answer hidden" id="gqFeedback">
           <p id="gqResult" style="font-weight:600"></p>
+          <p id="gqZh"></p>
           <p id="gqExplain" class="meta"></p>
+          <button class="mini hidden" id="gqReport">⚠️ 这题有问题</button>
           <div class="row" style="margin-top:10px">
             <button class="secondary" id="gqSay" style="flex:0 0 110px">🔊 听整句</button>
             <button id="gqNext">下一题</button>
           </div>
         </div>
-        <p class="kbd-hint"><kbd>1</kbd>–<kbd>6</kbd> 按顺序选答案 · <kbd>回车</kbd> 下一题 · <kbd>Esc</kbd> 返回</p>
+        <p class="kbd-hint"><kbd>1</kbd>–<kbd>6</kbd> 按顺序选答案 · <kbd>?</kbd> 不会 · <kbd>回车</kbd> 下一题 · <kbd>Esc</kbd> 返回</p>
       </div>
       <div class="card hidden" id="gqDone" style="text-align:center">
         <p style="font-size:22px" id="gqScore"></p>
@@ -570,6 +598,7 @@
 <script src="static/js/dictation.js"></script>
 <script src="static/js/words.js"></script>
 <script src="static/js/grammar.js"></script>
+<script src="static/js/gbank.js"></script>
 <script src="static/js/sentence.js"></script>
 <script src="static/js/explain.js"></script>
 <script src="static/js/lessons.js"></script>

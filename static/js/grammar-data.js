@@ -430,7 +430,9 @@ const GRAMMAR_TOPICS = [
             "规律：阴性和复数的第一、四格一样；阳性只有第四格变成 den；第三格复数名词本身也要加 -n。"],
     tables: [{ head: GENDER_HEAD, rows: DEF_ARTICLES.map((r, c) => [CASE_NAMES[c], ...r]) }],
     examples: ["Der Mann trinkt Kaffee.", "Ich sehe den Mann.", "Ich helfe dem Mann.", "Das ist das Auto des Mannes."],
-    quiz: () => articleQuiz((c, g) => DEF_ARTICLES[c][g], QUIZ_NOUNS, [0, 1, 2, 3], ["m", "f", "n", "pl"]),
+    bank: true,      // 题库在后端(grammar.py), 管理员能加题
+    quiz: () => bankQuiz("art-def", 10,
+      articleQuiz((c, g) => DEF_ARTICLES[c][g], QUIZ_NOUNS, [0, 1, 2, 3], ["m", "f", "n", "pl"]).slice(0, 4)),
   },
   {
     id: "art-indef", group: "冠词", level: "A1", title: "不定冠词 ein / eine",

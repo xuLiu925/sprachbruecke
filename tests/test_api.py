@@ -651,6 +651,62 @@ for kind, n in (("plural", 10), ("cases", 10), ("verbs", 2)):
     qs = J(cb.get("/api/forms/" + kind))["questions"]
     assert len(qs) == n and len({x["word_id"] for x in qs}) == n, (kind, len(qs))
     assert all(x["blank"]["answer"] and x["accept"] and x["german"] and x["zh"] and x["de"] for x in qs)
+
+# 语法题库: 初始题启动时导入; 管理员能 AI 出草稿、保存、修改、停用; 系统检查题目格式
+import grammar as GR, grammar_seed
+assert len(grammar_seed.WAREHOUSE_DEF) == 34
+assert A.app.test_client().get("/api/grammar/art-def/quiz").status_code == 401
+assert c.get("/api/grammar/x/quiz").status_code == 404 and c.get("/api/grammar/art-def/quiz?n=a").status_code == 400
+gq = J(cb.get("/api/grammar/art-def/quiz?n=10"))
+assert len(gq["questions"]) == 10 and len({x["id"] for x in gq["questions"]}) == 10
+q0 = gq["questions"][0]
+assert q0["options"] == ["der", "die", "das", "den", "dem", "des"] and q0["fixed"] and q0["answer"] in q0["options"]
+assert q0["source"] == "seed" and q0["prompt"].count("___") == 1 and q0["zh"] and not gq["can"]
+assert len(J(c.get("/api/grammar/art-def/quiz?n=999"))["questions"]) == GR.MAX_ROUND
+database.init_db()                                                            # 再启动不重复导入
+assert db.execute("SELECT COUNT(*) FROM grammar_questions").fetchone()[0] == 34
+assert cb.get("/api/grammar/art-def/questions").status_code == 403
+topic_def = GR.TOPICS["art-def"]
+goodq = {"prompt": "Der Karton steht vor ___ Rampe.", "answer": "der", "hint": "die Rampe · 阴性", "explain": "vor 表示位置 + 第三格", "zh": "纸箱在月台前。", "evil": 1}
+assert GR.clean_question(goodq, topic_def)[1] is None and "evil" not in GR.clean_question(goodq, topic_def)[0]
+for bad, msg in (({**goodq, "prompt": "Kein Platzhalter."}, "___"), ({**goodq, "prompt": "___ und ___."}, "___"), ({**goodq, "prompt": "这是 ___ 中文。"}, "德语"),
+                 ({**goodq, "answer": "einer"}, "答案"), ({**goodq, "zh": "no"}, "中文"), ({**goodq, "explain": ""}, "中文")):
+    assert msg in GR.clean_question(bad, topic_def)[1], bad
+assert len(GR.clean_questions({"questions": [goodq, {"prompt": "x"}]}, topic_def)[0]) == 1 and GR.clean_questions({"questions": [{}]}, topic_def)[1]
+gen = {"request": "第三格 司机", "n": 5}
+assert c.post("/api/grammar/art-def/generate", json={"request": "x"}).status_code == 400
+assert c.post("/api/grammar/art-def/generate", json={**gen, "n": 11}).status_code == 400
+assert c.post("/api/grammar/art-def/generate", json=gen).status_code == 503 and cb.post("/api/grammar/art-def/generate", json=gen).status_code == 403
+calls = []
+def fake6(prompt):
+    calls.append(prompt); return json.dumps({"questions": [goodq]})
+GR.call_gemini = fake6
+draft = J(c.post("/api/grammar/art-def/generate", json=gen))["questions"]
+assert draft[0]["source"] == "ai" and "第三格 司机" in calls[0] and "Hubwagen" in calls[0]
+assert db.execute("SELECT COUNT(*) FROM grammar_questions").fetchone()[0] == 34       # 草稿不保存
+GR.call_gemini = lambda prompt: "没有 JSON"
+assert c.post("/api/grammar/art-def/generate", json=gen).status_code == 502
+GR.call_gemini = real_call
+assert "第三格 司机" in J(c.post("/api/grammar/art-def/prompt", json=gen))["prompt"]
+assert len(J(c.post("/api/grammar/art-def/check", json={"text": json.dumps({"questions": [goodq]})}))["questions"]) == 1
+assert c.post("/api/grammar/art-def/check", json={"text": "abc"}).status_code == 400
+assert cb.post("/api/grammar/art-def/questions", json={"questions": draft}).status_code == 403
+assert c.post("/api/grammar/art-def/questions", json={"questions": [{**draft[0], "answer": "x"}]}).status_code == 400
+assert J(c.post("/api/grammar/art-def/questions", json={"questions": draft})) == {"saved": 1, "skipped": 0}
+assert J(c.post("/api/grammar/art-def/questions", json={"questions": draft})) == {"saved": 0, "skipped": 1}    # 重复的跳过
+mine_q = [x for x in J(c.get("/api/grammar/art-def/questions"))["questions"] if x["source"] == "ai"][0]
+assert cb.post(f"/api/grammar/questions/{mine_q['id']}/report", json={"reason": "x"}).status_code == 400
+assert cb.post(f"/api/grammar/questions/{mine_q['id']}/report", json={"reason": "答案不对"}).status_code == 200
+assert J(c.get("/api/grammar/art-def/questions"))["questions"][0]["report"] == "答案不对"     # 有报错的排最前
+edited = {**mine_q, "answer": "dem", "prompt": "Der Karton steht vor ___ Tor.", "hint": "das Tor · 中性", "explain": "vor 表示位置 + 第三格；中性 → dem", "zh": "纸箱在门前。"}
+assert J(c.post("/api/grammar/art-def/questions", json={"questions": [edited]}))["saved"] == 1
+after = [x for x in J(c.get("/api/grammar/art-def/questions"))["questions"] if x["id"] == mine_q["id"]][0]
+assert after["answer"] == "dem" and after["report"] is None and after["source"] == "ai"
+assert c.post(f"/api/grammar/questions/{mine_q['id']}/status", json={"status": "x"}).status_code == 400
+assert cb.post(f"/api/grammar/questions/{mine_q['id']}/status", json={"status": "hidden"}).status_code == 403
+assert c.post(f"/api/grammar/questions/{mine_q['id']}/status", json={"status": "hidden"}).status_code == 200
+assert mine_q["id"] not in [x["id"] for x in J(c.get("/api/grammar/art-def/quiz?n=30"))["questions"]]
+assert c.post("/api/grammar/questions/99999/status", json={"status": "active"}).status_code == 404
 db.close()
 
 c.post("/api/logout", json={})

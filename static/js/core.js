@@ -114,6 +114,7 @@ const PAGES = {
   grammar:  { title: "语法基础", parent: "home" },
   gtopic:   { title: "语法", parent: "grammar" },      // 标题在页面里换成知识点名字
   gquiz:    { title: "语法练习", parent: "gtopic" },
+  gbank:    { title: "题库", parent: "gtopic" },           // 标题在页面里换成知识点名字
   lessons:  { title: "情景课", parent: "home" },
   lesson:   { title: "情景课", parent: "lessons" },       // 标题在页面里换成课名
   lnew:     { title: "新建工作对话", parent: "lessons" },
