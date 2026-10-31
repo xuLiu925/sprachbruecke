@@ -30,8 +30,14 @@ function articleQuiz(form, nouns, cases, genders) {
 
 // 题库在后端的知识点: 后端的题 + 程序生成的题。fixed = 选项每题都一样, 按钮不换位置
 async function bankQuiz(topic, n, local) {
-  try { return shuffle([...local, ...(await api(`/api/grammar/${topic}/quiz?n=${n}`)).questions]); }
-  catch (e) { toast("题库加载失败，先做基础题"); return shuffle(local); }
+  const scope = getSetting("gScope");
+  try {
+    if (scope !== "warehouse") {       // 从词库的名词自动出题
+      const r = await api(`/api/grammar/nouns?scope=${scope}&n=14`);
+      if (r.questions.length) return r.questions;
+    }
+    return shuffle([...local, ...(await api(`/api/grammar/${topic}/quiz?n=${n}`)).questions]);
+  } catch (e) { toast("题库加载失败，先做基础题"); return shuffle(local); }
 }
 
 function prepQuiz(sentences) {
@@ -226,8 +232,11 @@ onShow.gtopic = () => {
   const best = bestScore(t.id);
   $("gStart").textContent = "开始练习" + (best ? `（上次最好 ${best[0]} / ${best[1]}）` : "");
   $("gBank").classList.toggle("hidden", !(t.bank && isAdmin));
+  $("gScopeRow").classList.toggle("hidden", !t.bank);
+  $("gScope").value = getSetting("gScope");
 };
 $("gBank").onclick = () => go("gbank");
+$("gScope").onchange = () => setSetting("gScope", $("gScope").value);
 $("gStart").onclick = () => go("gquiz");
 
 // ---------- 练习 ----------
@@ -237,6 +246,7 @@ onShow.gquiz = async () => {
   $("gqBox").classList.add("hidden");
   $("gqDone").classList.add("hidden");
   gQs = await gTopic.quiz(); gi = 0; gScore = 0; gPicks = [];
+  $("gqHints").checked = getSetting("gHints");
   $("gqBox").classList.remove("hidden");
   $("gqDone").classList.add("hidden");
   gRender();
@@ -261,13 +271,22 @@ function promptInto(el, text, fill) {   // 把 ___ 显示成空格(答完后按�
   });
 }
 
+// 题库知识点可以关掉词性提示; 自动出的题关掉后还留着单复数, 否则同形的词有两个答案
+function gHint() {
+  if (gi >= gQs.length) return;
+  const q = gQs[gi], on = !gTopic.bank || getSetting("gHints") || gAnswered;
+  $("gqHint").textContent = [on ? q.hint : q.must, q.source === "ai" ? "AI 生成，未核对" : ""].filter(Boolean).join(" · ");
+}
+$("gqHints").onchange = () => { setSetting("gHints", $("gqHints").checked); gHint(); };
+
 function gRender() {
   if (gi >= gQs.length) return gDone();
   const q = gQs[gi];
   gAnswered = false;
-  $("gqProgress").textContent = `第 ${gi + 1} / ${gQs.length} 题`;
+  $("gqProgress").textContent = `第 ${gi + 1} / ${gQs.length} 题` + (q.retry ? " · 错题再练一次" : "");
+  $("gqHintRow").classList.toggle("hidden", !gTopic.bank);
   promptInto($("gqPrompt"), q.prompt);
-  $("gqHint").textContent = [q.hint, q.source === "ai" ? "AI 生成，未核对" : ""].filter(Boolean).join(" · ");
+  gHint();
   let opts = q.options;
   if (opts.length > 6) {
     const pick = new Set([q.answer, ...shuffle(opts.filter(o => o !== q.answer)).slice(0, 3)]);
@@ -293,7 +312,11 @@ function gRender() {
 // value = null 表示点了“不会”: 直接看答案, 算答错
 function gChoose(value) {
   if (gAnswered) return;
-  if (value === gQs[gi].answer) gScore++;
+  const q = gQs[gi];
+  if (!q.retry) {                        // 得分只算第一次; 题库知识点的错题排到最后再练一次
+    if (value === q.answer) gScore++;
+    else if (gTopic.bank) gQs.push({ ...q, retry: true });
+  }
   gPicks[gi] = { value, opts: gOpts };
   gShowAnswer(value);
 }
@@ -306,30 +329,35 @@ function gShowAnswer(value) {
     if (b.dataset.value === q.answer) b.className = "good";
     else if (b.dataset.value === value) b.className = "bad";
   });
-  if (!q.wide) promptInto($("gqPrompt"), q.prompt, q.answer);
+  if (!q.wide) promptInto($("gqPrompt"), q.prompt, q.fill || q.answer);
+  gHint();
   $("gqResult").textContent = ok ? "✔ 正确" : (value === null ? "不会，正确答案：" : "✘ 正确答案：") + q.answer;
   $("gqResult").className = ok ? "ok" : "msg";
   $("gqZh").textContent = q.zh || "";
   $("gqExplain").textContent = q.explain || "";
   const noun = (q.hint || "").match(/^(der|die|das) ([^ ·]+)/);     // 提示写着 die Palette · 阴性 的题
-  genderReason($("gqGender"), noun && noun[2], noun && noun[1]);
+  genderReason($("gqGender"), noun && noun[2], noun && noun[1], q.meaning || "");
   $("gqGiveUp").classList.add("hidden");
-  $("gqReport").classList.toggle("hidden", !q.id);     // 题库里的题才能报错
+  $("gqReport").classList.toggle("hidden", !q.id && !q.word_id);     // 题库题和自动出的题能报错
   $("gqFeedback").classList.remove("hidden");
 }
 $("gqGiveUp").onclick = () => gChoose(null);
 $("gqReport").onclick = async () => {
   const reason = (prompt("这题哪里有问题？") || "").trim();
   if (!reason) return;
-  try { await api(`/api/grammar/questions/${gQs[gi].id}/report`, "POST", { reason }); toast("已记录"); }
-  catch (e) { toast(e.message); }
+  const q = gQs[gi];
+  try {
+    if (q.id) await api(`/api/grammar/questions/${q.id}/report`, "POST", { reason });
+    else await api("/api/grammar/nouns/report", "POST", { word_id: q.word_id, prompt: q.prompt, reason });
+    toast("已记录");
+  } catch (e) { toast(e.message); }
 };
 
 function gSentence() {   // 题目填好答案后的德语(用来朗读)
   const q = gQs[gi];
   if (q.plain) return q.prompt;                      // 可分 / 不可分: 读动词本身
   if (q.wide || / = ___$/.test(q.prompt)) return q.answer;   // 选句子、数字、钟点: 读答案
-  return fillBlanks(q.prompt, q.answer);
+  return fillBlanks(q.prompt, q.fill || q.answer);
 }
 $("gqSay").onclick = () => speakDe(gSentence());
 $("gqNext").onclick = () => { gi++; gRender(); };
@@ -338,12 +366,13 @@ $("gqPrev").onclick = () => { if (gi > 0) { gi--; gRender(); } };   // 只回看
 function gDone() {
   $("gqBox").classList.add("hidden");
   $("gqDone").classList.remove("hidden");
-  $("gqScore").textContent = `得分 ${gScore} / ${gQs.length}`;
+  const total = gQs.filter(q => !q.retry).length;      // 错题重练不计入总分
+  $("gqScore").textContent = `得分 ${gScore} / ${total}`;
   const best = bestScore(gTopic.id);
-  if (!best || gScore / gQs.length > best[0] / best[1]) {
-    try { localStorage.setItem("sb_gbest_" + gTopic.id, JSON.stringify([gScore, gQs.length])); } catch (e) {}
+  if (!best || gScore / total > best[0] / best[1]) {
+    try { localStorage.setItem("sb_gbest_" + gTopic.id, JSON.stringify([gScore, total])); } catch (e) {}
   }
-  $("gqDoneMsg").textContent = gScore === gQs.length ? "全对了 🎉" : "错的地方回到速查表再看一眼，再练一次。";
+  $("gqDoneMsg").textContent = gScore === total ? "全对了 🎉" : "错的地方回到速查表再看一眼，再练一次。";
 }
 $("gqAgain").onclick = () => onShow.gquiz();
 $("gqBack").onclick = () => $("btnBack").click();

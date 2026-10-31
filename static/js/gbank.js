@@ -23,6 +23,25 @@ async function gbLoad() {
   $("gbCount").textContent = `共 ${r.questions.length} 题，启用 ${on} 题`;
   const box = $("gbList"); box.textContent = "";
   for (const q of r.questions) box.appendChild(gbRow(q));
+  gbNounReports();
+}
+
+// 自动出的名词题的报错: 题目不存数据库, 这里只记下问题, 处理后清除
+async function gbNounReports() {
+  let r;
+  try { r = await api("/api/grammar/nouns/reports"); } catch (e) { return; }
+  const box = $("gbNounReports"); box.textContent = "";
+  box.classList.toggle("hidden", !r.reports.length);
+  for (const x of r.reports) {
+    const row = document.createElement("div"); row.className = "lline";
+    const t = document.createElement("div"); t.textContent = `⚠️ ${x.german}：${x.reason}`;
+    const b = document.createElement("button"); b.className = "mini"; b.textContent = "处理好了，清除";
+    b.onclick = async () => {
+      try { await api("/api/grammar/nouns/reports/" + x.id, "DELETE"); } catch (e) { return toast(e.message); }
+      gbNounReports();
+    };
+    row.append(t, b); box.appendChild(row);
+  }
 }
 
 const GB_SOURCE = { seed: "初始题", manual: "手动", ai: "AI，未核对" };

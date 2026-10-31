@@ -755,6 +755,43 @@ assert J(mm(c, again=True))["memo"] == "新的联想：der 狗" and rw("Hund", "
 GH.call_gemini = lambda prompt: json.dumps({"memo": "no"})
 assert mm(c, again=True).status_code == 502 and rw("Hund", "der")["memo"] == "新的联想：der 狗"   # 失败时旧的不动
 GH.call_gemini = real_call
+
+# 定冠词自动出题: 优先用例句, 没有例句用通用句型; 答案来自变格表
+import noun_quiz as NQ
+nf = {"cases": {"sg": ["der Mann", "des Mannes / des Manns", "dem Mann", "den Mann"],
+                "pl": ["die Männer", "der Männer", "den Männern", "die Männer"]}}
+def nr(forms=nf, example="", gender="der", german="Mann", details=None):
+    return {"id": 7, "german": german, "gender": gender, "meaning": "男人", "example": example,
+            "forms": json.dumps(forms) if forms else None, "details": json.dumps(details) if details else None}
+assert NQ.split_form("des Mannes / des Manns") == ("des", "Mannes") and NQ.split_form("kein Mann") is None
+assert len(NQ.table(nr())) == 8 and NQ.table(nr(gender="die")) == [] and NQ.table(nr(forms=None)) == []
+eq = NQ.make_question(nr(example="Ich sehe den Mann im Lager.\n我在仓库里看见那个男人。"))
+assert eq["prompt"] == "Ich sehe ___ Mann im Lager." and eq["answer"] == "den" and eq["source"] == "example"
+assert eq["must"] == "单数" and "第四格" in eq["explain"] and eq["zh"] == "我在仓库里看见那个男人。"
+sq = NQ.make_question(nr(example="Der Mann ist hier.\n那个男人在这里。"))
+assert sq["prompt"] == "___ Mann ist hier." and sq["answer"] == "der" and sq["fill"] == "Der"       # 句首大写
+pq = NQ.make_question(nr(example="Ich sehe die Männer.\n我看见那些男人。"))
+assert pq["must"] == "复数" and "第一格或第四格" in pq["explain"]
+assert NQ.make_question(nr(example="Der Mann sieht den Mann.\n两个男人。"))["source"] in ("example", "template")
+same = {"cases": {"sg": ["der Scanner", "des Scanners", "dem Scanner", "den Scanner"], "pl": ["die Scanner", "der Scanner", "den Scannern", "die Scanner"]}}
+assert NQ.example_question(nr(forms=same, german="Scanner", example="Ich sehe den Scanner.\n我看见扫描枪。"), NQ.table(nr(forms=same, german="Scanner"))) is None
+assert NQ.make_question(nr(example="Der Mann ist hier."))["source"] == "template"                    # 没有中文
+for _ in range(60):
+    tq = NQ.template_question(nr(), NQ.table(nr()))
+    assert tq["prompt"].count("___") == 1 and tq["answer"] in NQ.OPTIONS and tq["must"] in ("单数", "复数") and tq["zh"].endswith("男人")
+assert NQ.make_question(nr(forms=None, example="Der Mann ist hier.\n他在这里。")) is None
+assert c.get("/api/grammar/nouns?scope=x").status_code == 400 and c.get("/api/grammar/nouns?n=x").status_code == 400
+assert A.app.test_client().get("/api/grammar/nouns").status_code == 401
+na = J(cb.get("/api/grammar/nouns?scope=all&n=10"))["questions"]
+assert len(na) == 10 and len({x["word_id"] for x in na}) == 10 and all(x["answer"] in x["options"] and x["fixed"] and x["must"] for x in na)
+assert J(cb.get("/api/grammar/nouns?scope=learned&n=10"))["questions"]                              # 学过的少时用单词书补
+assert J(c.get("/api/grammar/nouns?scope=book&n=5"))["questions"] is not None
+nid = na[0]["word_id"]
+nrep = lambda client, **b: client.post("/api/grammar/nouns/report", json={"word_id": nid, "prompt": "p ___", "reason": "这题不对", **b})
+assert nrep(cb, reason="x").status_code == 400 and nrep(cb, word_id="1").status_code == 400 and nrep(cb, word_id=999999).status_code == 404
+assert nrep(cb).status_code == 200 and cb.get("/api/grammar/nouns/reports").status_code == 403
+assert J(c.get("/api/grammar/nouns/reports"))["reports"][0]["id"] == nid
+assert c.delete(f"/api/grammar/nouns/reports/{nid}").status_code == 200 and J(c.get("/api/grammar/nouns/reports"))["reports"] == []
 db.close()
 
 c.post("/api/logout", json={})

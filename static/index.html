@@ -275,6 +275,15 @@
       <div class="card" id="gTables"></div>
       <h2>例句</h2>
       <div class="card" id="gExamples"></div>
+      <div class="card hidden" id="gScopeRow">
+        <label class="meta left">练习范围</label>
+        <select id="gScope" style="margin-top:6px">
+          <option value="warehouse">海外仓题库</option>
+          <option value="learned">学过的词</option>
+          <option value="book">当前单词书</option>
+          <option value="all">全部名词</option>
+        </select>
+      </div>
       <button class="big" id="gStart"></button>
       <button class="big secondary hidden" id="gBank" style="margin-top:8px">📚 管理题库</button>
     </section>
@@ -299,6 +308,7 @@
         <div id="gbDrafts"></div>
         <button id="gbSave" style="width:100%;margin-top:10px">保存这些题</button>
       </div>
+      <div class="card hidden" id="gbNounReports"></div>
       <h2 id="gbCount"></h2>
       <div class="card" id="gbList"></div>
     </section>
@@ -306,6 +316,7 @@
     <section class="page" data-page="gquiz">
       <div class="card" id="gqBox">
         <div class="tag" id="gqProgress"></div>
+        <label class="meta hidden" id="gqHintRow" style="display:block;text-align:center"><input type="checkbox" id="gqHints" style="width:auto"> 显示词性提示</label>
         <div class="gprompt" id="gqPrompt"></div>
         <div class="meta" id="gqHint"></div>
         <div class="opts" id="gqOpts"></div>
