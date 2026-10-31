@@ -162,6 +162,19 @@ CREATE TABLE IF NOT EXISTS study_queue (
     added_at TEXT NOT NULL,
     PRIMARY KEY (user_id, word_id)
 );
+-- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
+CREATE TABLE IF NOT EXISTS sentence_progress (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_key TEXT NOT NULL,
+    next_review TEXT NOT NULL,
+    stability REAL NOT NULL,
+    difficulty REAL NOT NULL,
+    last_review TEXT NOT NULL,
+    reps INTEGER NOT NULL DEFAULT 0,
+    lapses INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, item_key)
+);
+CREATE INDEX IF NOT EXISTS idx_sentence_due ON sentence_progress (user_id, next_review);
 -- 每个用户的设置, 例如 book = 当前单词书
 CREATE TABLE IF NOT EXISTS user_settings (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

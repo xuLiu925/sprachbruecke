@@ -1,15 +1,29 @@
-"""情景课的后端: 点词查词、把词加入复习。课文本身是静态文件 static/lessons.json
+"""情景课的后端: 点词查词、把词加入复习、角色扮演和整句复习。课文本身是静态文件 static/lessons.json
 
 文章里的词可能是变位 / 变格后的样子(ging, Häusern), find_word 用 word_forms 里的形式反查原形。
 可分动词(hole ... ab)查不出来, 由课文的 map 字段直接给出原形。
+
+角色扮演: 用户固定扮演 Li。课文里「别人说一句 → Li 接一句」的地方就是一道题,
+听对方的话, 自己开口回答, 再和参考回答对照、自评。评过的题用 FSRS 安排复习。
 """
+import hashlib
+import json
+import os
+from datetime import datetime, timedelta, timezone
+
 from flask import Blueprint, jsonify, request
 
-from database import get_db, now_str
+from database import BASE, fmt_time, get_db, now_str, parse_time
 from helpers import current_user_id, err, json_body, login_required
+from srs import fsrs_review
 from vocab import clean_word, query
 
 bp = Blueprint("lessons", __name__)
+
+LESSONS_FILE = os.path.join(BASE, "static", "lessons.json")
+ROLE = "Li"             # 用户扮演的角色
+DUE_LIMIT = 30          # 整句复习一次最多多少句
+_items = {"mtime": None, "by_key": {}, "by_lesson": {}}
 
 ADJ_ENDINGS = ("en", "em", "er", "es", "e")
 COLS = ("w.id, w.german, w.pos, w.gender, w.plural, w.meaning, w.example, "
@@ -48,6 +62,87 @@ def find_word(token):
             if row:
                 return row
     return None
+
+
+def roleplay_items(lesson):
+    """一课的角色扮演题: 对方说一句, 紧接着 Li 回答"""
+    out = []
+    for before, line in zip(lesson["lines"], lesson["lines"][1:]):
+        if line["who"] != ROLE or before["who"] == ROLE:
+            continue
+        key = hashlib.sha1(f"{before['de']}|{line['de']}".encode("utf-8")).hexdigest()[:16]
+        out.append({"key": key, "lesson": lesson["id"], "level": lesson["level"], "title": lesson["title"],
+                    "who": before["who"], "prompt": before["de"], "prompt_zh": before["zh"],
+                    "answer": line["de"], "answer_zh": line["zh"]})
+    return out
+
+
+def load_items():
+    """课文文件变了才重新读"""
+    mtime = os.path.getmtime(LESSONS_FILE)
+    if _items["mtime"] != mtime:
+        with open(LESSONS_FILE, encoding="utf-8") as f:
+            lessons = json.load(f)["lessons"]
+        by_lesson = {x["id"]: roleplay_items(x) for x in lessons}
+        _items.update(mtime=mtime, by_lesson=by_lesson,
+                      by_key={i["key"]: i for items in by_lesson.values() for i in items})
+    return _items
+
+
+@bp.route("/api/roleplay/lesson/<lesson_id>")
+@login_required
+def roleplay_lesson(lesson_id):
+    items = load_items()["by_lesson"].get(lesson_id)
+    if items is None:
+        return err("课程不存在", 404)
+    return jsonify({"items": items})
+
+
+@bp.route("/api/roleplay/due")
+@login_required
+def roleplay_due():
+    """到期要复习的句子。count 是到期总数, items 最多 DUE_LIMIT 句; 课文改掉的旧句子跳过"""
+    rows = get_db().execute(
+        "SELECT item_key FROM sentence_progress WHERE user_id = ? AND next_review <= ? ORDER BY next_review",
+        (current_user_id(), now_str()),
+    ).fetchall()
+    by_key = load_items()["by_key"]
+    due = [by_key[r["item_key"]] for r in rows if r["item_key"] in by_key]
+    return jsonify({"count": len(due), "items": due[:DUE_LIMIT]})
+
+
+@bp.route("/api/roleplay/answer", methods=["POST"])
+@login_required
+def roleplay_answer():
+    """评分 {key, rating}: 1 没说出来 / 2 说得磕绊 / 3 说出来了。第一次评分时这句进入复习"""
+    data = json_body()
+    if data is None:
+        return err("请求格式错误")
+    key, rating = data.get("key"), data.get("rating")
+    if not isinstance(key, str) or key not in load_items()["by_key"]:
+        return err("句子不存在", 404)
+    if isinstance(rating, bool) or rating not in (1, 2, 3):
+        return err("rating 只能是 1-3")
+    db = get_db()
+    uid = current_user_id()
+    row = db.execute("SELECT * FROM sentence_progress WHERE user_id = ? AND item_key = ?", (uid, key)).fetchone()
+    now = datetime.now(timezone.utc)
+    if row is None:
+        s, d, days = fsrs_review(None, None, None, rating, now)
+        reps, lapses = 0, 0
+    else:
+        s, d, days = fsrs_review(row["stability"], row["difficulty"], parse_time(row["last_review"]), rating, now)
+        reps, lapses = row["reps"], row["lapses"] + (rating == 1)
+    nxt = fmt_time(now + timedelta(days=days))
+    db.execute(
+        "INSERT INTO sentence_progress (user_id, item_key, next_review, stability, difficulty, last_review, "
+        "reps, lapses) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(user_id, item_key) DO UPDATE SET "
+        "next_review = excluded.next_review, stability = excluded.stability, difficulty = excluded.difficulty, "
+        "last_review = excluded.last_review, reps = excluded.reps, lapses = excluded.lapses",
+        (uid, key, nxt, s, d, fmt_time(now), reps + 1, lapses),
+    )
+    db.commit()
+    return jsonify({"interval_days": days, "next_review": nxt})
 
 
 @bp.route("/api/lookup")

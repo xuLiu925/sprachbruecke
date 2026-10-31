@@ -11,7 +11,11 @@ async function loadLessons() {
 }
 const lessonDone = () => getSetting("lessonDone") || {};
 
+$("lDue").onclick = () => rpOpen(null);
+$("lRoleplay").onclick = () => { if (lessonNow) rpOpen(lessonNow.id); };
+
 onShow.lessons = async () => {
+  showSentenceDue($("lDue"));
   let all;
   try { all = await loadLessons(); } catch (e) { return toast(e.message); }
   const box = $("lessonList"), done = lessonDone(); box.textContent = "";

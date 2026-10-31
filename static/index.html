@@ -40,6 +40,7 @@
           <div><b id="hNew">-</b><span>可学新词</span></div>
         </div>
         <button class="big" id="hStart">开始今日复习</button>
+        <button class="big secondary hidden" id="hSentences" style="margin-top:8px"></button>
       </div>
       <div class="list">
         <button class="item" id="hBook">
@@ -303,7 +304,8 @@
 
     <!-- ===== 情景课 ===== -->
     <section class="page" data-page="lessons">
-      <p class="meta left">海外仓场景：读课文、做练习，再用德语写出来。点课文里的单词看释义，不会的词可以加入复习。</p>
+      <p class="meta left">海外仓场景：读课文、做练习、开口说，再用德语写出来。点课文里的单词看释义，不会的词可以加入复习。</p>
+      <button class="big hidden" id="lDue" style="margin-bottom:8px"></button>
       <div id="lessonList"></div>
       <p class="meta left" style="font-size:12px">课文由 AI 编写，建议请老师或母语者抽查。</p>
     </section>
@@ -321,7 +323,9 @@
         <button id="lCloze">填空</button>
         <button id="lOrder">连词成句</button>
       </div>
-      <h2>③ 用</h2>
+      <h2>③ 说</h2>
+      <button class="big" id="lRoleplay">🎭 角色扮演：听对方说，你开口回答</button>
+      <h2>④ 用</h2>
       <div class="card">
         <p id="lTask" style="margin-top:0;line-height:1.6"></p>
         <ul id="lTips" class="gintro"></ul>
@@ -332,6 +336,49 @@
         </div>
         <button id="lShowModel" style="width:100%;margin-top:8px">写好了，看参考答案</button>
         <div class="hidden" id="lModel"></div>
+      </div>
+    </section>
+
+    <!-- ===== 角色扮演 / 整句复习 ===== -->
+    <section class="page" data-page="roleplay">
+      <div class="card hidden" id="rpBox">
+        <div class="tag" id="rpProgress"></div>
+        <div class="rpbar"><i id="rpBar"></i></div>
+        <div id="rpAsk">
+          <p class="meta" id="rpWho"></p>
+          <p class="gprompt">🎧 听完，开口回答</p>
+          <div class="row">
+            <button class="secondary" id="rpReplay">🔊 重听</button>
+            <button class="secondary" id="rpSlow">🐢 慢速</button>
+            <button class="secondary" id="rpShowHint">中文提示</button>
+          </div>
+          <p class="meta hidden" id="rpHint"></p>
+          <button id="rpShow" style="width:100%;margin-top:8px">说完了，看答案</button>
+        </div>
+        <div class="hidden" id="rpReveal">
+          <div class="lline">
+            <div class="lwho">对方说</div>
+            <button class="lmodel" id="rpSayPrompt">🔊 <span id="rpPromptDe"></span></button>
+            <div class="lzh" id="rpPromptZh"></div>
+          </div>
+          <div class="lline">
+            <div class="lwho">参考回答</div>
+            <button class="lmodel" id="rpSayAnswer">🔊 <span id="rpAnswerDe"></span></button>
+            <div class="lzh" id="rpAnswerZh"></div>
+          </div>
+          <p class="meta">再跟读一遍，然后选一项。意思说对了就算，不用和参考回答一模一样。</p>
+          <div class="row" id="rpRate">
+            <button class="bad" data-r="1">没说出来</button>
+            <button class="hard" data-r="2">说得磕绊</button>
+            <button class="good" data-r="3">说出来了</button>
+          </div>
+        </div>
+        <p class="kbd-hint"><kbd>R</kbd> 重听 · <kbd>S</kbd> 慢速 · <kbd>空格</kbd> 看答案 · <kbd>1</kbd>–<kbd>3</kbd> 评分 · <kbd>Esc</kbd> 返回</p>
+      </div>
+      <div class="card hidden" id="rpDone" style="text-align:center">
+        <p style="font-size:20px" id="rpScore"></p>
+        <p class="meta" id="rpNote"></p>
+        <button id="rpRestart" style="width:100%;margin-top:12px">再练一次</button>
       </div>
     </section>
 
@@ -489,6 +536,7 @@
 <script src="static/js/grammar.js"></script>
 <script src="static/js/sentence.js"></script>
 <script src="static/js/lessons.js"></script>
+<script src="static/js/roleplay.js"></script>
 <script>boot();</script>
 </body>
 </html>

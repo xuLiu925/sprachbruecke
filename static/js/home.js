@@ -45,8 +45,20 @@ onShow.home = async () => {
   const nothing = s.due + newAvail === 0;
   $("hStart").disabled = nothing;
   $("hStart").textContent = nothing ? "今天的任务完成了 🎉" : "开始今日复习";
+  showSentenceDue($("hSentences"));
 };
 $("hStart").onclick = () => go("review");
+$("hSentences").onclick = () => rpOpen(null);
+
+// 有到期的句子才显示这个按钮; 查询失败时不打扰, 保持隐藏
+async function showSentenceDue(btn) {
+  btn.classList.add("hidden");
+  try {
+    const { count } = await api("/api/roleplay/due");
+    btn.textContent = `🎭 整句复习（${count} 句）`;
+    btn.classList.toggle("hidden", !count);
+  } catch (e) {}
+}
 $("hBook").onclick = () => go("books");
 
 // ---------- 选择单词书 ----------

@@ -359,6 +359,29 @@ for l in ld:
     for q in l["cloze"]:
         assert tok.findall(l["lines"][q["line"]]["de"]).count(q["answer"]) == 1, (l["id"], q)
         assert q["base"] and q["meaning"], q
+
+# 角色扮演: 每课至少 3 句; 评分后进入整句复习, 「没说出来」马上到期, 说出来了就排到以后
+for l in ld:
+    assert len(J(c.get("/api/roleplay/lesson/" + l["id"]))["items"]) >= 3, l["id"]
+assert c.get("/api/roleplay/lesson/x").status_code == 404
+items = J(c.get("/api/roleplay/lesson/a2-2"))["items"]
+assert items[0]["who"] == "司机" and items[0]["answer"] == "Haben Sie die Referenznummer?"
+assert all(i["answer"] != i["prompt"] for i in items)
+assert J(c.get("/api/roleplay/due")) == {"count": 0, "items": []}
+rp = lambda key, rating: c.post("/api/roleplay/answer", json={"key": key, "rating": rating})
+k0, k1 = items[0]["key"], items[1]["key"]
+assert rp("x", 3).status_code == 404 and rp(k0, 4).status_code == 400 and rp(k0, True).status_code == 400
+assert J(rp(k0, 1))["interval_days"] == 0
+assert J(rp(k1, 3))["interval_days"] >= 1
+due = J(c.get("/api/roleplay/due"))
+assert due["count"] == 1 and due["items"][0]["key"] == k0
+assert J(rp(k0, 3))["interval_days"] >= 1 and J(c.get("/api/roleplay/due"))["count"] == 0
+assert db.execute("SELECT reps, lapses FROM sentence_progress WHERE item_key = ?", (k0,)).fetchone() == (2, 0)
+assert J(cb.get("/api/roleplay/due"))["count"] == 0                     # 进度按用户分开
+# 课文改掉的旧句子不再出现, 也不报错
+db.execute("INSERT INTO sentence_progress VALUES ((SELECT id FROM users WHERE username = 'alice'), 'gone', "
+           "'2020-01-01 00:00:00', 1, 5, '2019-12-31 00:00:00', 1, 0)"); db.commit()
+assert J(c.get("/api/roleplay/due"))["count"] == 0
 db.close()
 
 c.post("/api/logout", json={})
