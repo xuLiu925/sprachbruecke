@@ -181,6 +181,20 @@ async function openWordSheet(token, line) {
   $("wsView").classList.toggle("hidden", !found);
   if (getSetting("autoWord")) speakDe(wordText(w));
 }
+// 查词结果里的仓储词: 不用查询, 内容都在手上
+function openGlossaryWord(g) {
+  wsSeq++;
+  wsWord = { ...g, id: null, learned: false, queued: false };
+  $("wsheet").classList.remove("hidden");
+  wordInto($("wsWord"), g);
+  $("wsPlural").textContent = [g.pos, g.plural ? "复数 " + g.plural : ""].filter(Boolean).join(" · ");
+  $("wsMeaning").textContent = g.meaning;
+  $("wsLesson").textContent = "";
+  $("wsSay").classList.remove("hidden");
+  $("wsView").classList.add("hidden");
+  $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
+  if (getSetting("autoWord")) speakDe(wordText(g));
+}
 $("wsSay").onclick = () => { if (wsWord) speakDe(wordText(wsWord)); };
 $("wsView").onclick = () => { if (wsWord && wsWord.id) openView(wsWord.id); };
 $("wsAdd").onclick = async () => {

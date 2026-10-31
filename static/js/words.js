@@ -56,11 +56,11 @@ async function loadWords() {
   box.classList.toggle("hidden", !r.words.length);
   for (const w of r.words) {
     const row = document.createElement("button"); row.className = "item wordrow";
-    row.onclick = () => openView(w.id);
+    row.onclick = () => w.id ? openView(w.id) : openGlossaryWord(w);   // 情景课的仓储词还不在词库里, 用单词卡显示
     const body = document.createElement("span"); body.className = "body";
     const t = document.createElement("b"); wordInto(t, w);
     const s = document.createElement("small");
-    s.textContent = [w.form ? `${w.form} 的原形` : "", w.private ? "🔒 我加的" : "", w.edited ? "✏️ 已改" : "",
+    s.textContent = [w.form ? `${w.form} 的原形` : "", w.glossary ? "📦 仓储词" : "", w.private ? "🔒 我加的" : "", w.edited ? "✏️ 已改" : "",
                      w.level, w.pos, w.meaning].filter(Boolean).join(" · ");
     body.append(t, s);
     if (w.hidden) {

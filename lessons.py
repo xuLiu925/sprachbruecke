@@ -23,7 +23,7 @@ bp = Blueprint("lessons", __name__)
 LESSONS_FILE = os.path.join(BASE, "static", "lessons.json")
 ROLE = "Li"             # 用户扮演的角色
 DUE_LIMIT = 30          # 整句复习一次最多多少句
-_items = {"mtime": None, "by_key": {}, "by_lesson": {}}
+_items = {"mtime": None, "by_key": {}, "by_lesson": {}, "glossary": []}
 
 ADJ_ENDINGS = ("en", "em", "er", "es", "e")
 COLS = ("w.id, w.german, w.pos, w.gender, w.plural, w.meaning, w.example, "
@@ -84,7 +84,11 @@ def load_items():
         with open(LESSONS_FILE, encoding="utf-8") as f:
             lessons = json.load(f)["lessons"]
         by_lesson = {x["id"]: roleplay_items(x) for x in lessons}
-        _items.update(mtime=mtime, by_lesson=by_lesson,
+        glossary = {}       # 同一个词在几课里都有时, 用最先出现的
+        for x in lessons:
+            for g in x["glossary"]:
+                glossary.setdefault((g["german"].lower(), g["gender"]), g)
+        _items.update(mtime=mtime, by_lesson=by_lesson, glossary=list(glossary.values()),
                       by_key={i["key"]: i for items in by_lesson.values() for i in items})
     return _items
 

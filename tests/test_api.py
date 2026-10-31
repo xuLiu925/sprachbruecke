@@ -522,6 +522,17 @@ hw = J(c.get("/api/words?q=Hund"))["words"][0]["id"]
 assert J(c.get(f"/api/words/{hw}"))["queued"] is False
 c.post("/api/review/queue", json={"word_id": hw})
 assert J(c.get(f"/api/words/{hw}"))["queued"] is True
+# 查词也能查到情景课的仓储词; 加进词库后不重复显示
+pw = dq(cb, "Palette")[0]
+assert (pw["german"], pw["gender"], pw["id"], pw["glossary"], pw["status"]) == ("Palette", "die", None, True, "new")
+assert (lambda w: (w["german"], w["form"]))(dq(cb, "Paletten")[0]) == ("Palette", "Paletten")
+assert dq(cb, "托盘")[0]["german"] == "Palette" and dq(cb, "Liefers")[0]["german"] == "Lieferschein"
+assert [w for w in dq(cb, "送货单") if w["german"] == "Lieferschein"][0]["glossary"]
+alice_pal = [w for w in dq(c, "Palette") if w["german"] == "Palette"]
+assert len(alice_pal) == 1 and alice_pal[0]["id"] and "glossary" not in alice_pal[0]     # alice 早就加过, 用她的词
+assert J(cb.post("/api/review/queue", json={k: pw[k] for k in ("german", "gender", "pos", "plural", "meaning")}))["queued"]
+bob_pal = [w for w in dq(cb, "Palette") if w["german"] == "Palette"]
+assert len(bob_pal) == 1 and bob_pal[0]["id"]
 db.close()
 
 c.post("/api/logout", json={})
