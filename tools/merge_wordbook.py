@@ -42,6 +42,7 @@ CJK = re.compile(r"[一-鿿]")
 WORD = re.compile(r"[A-Za-zÄÖÜäöüß]{2,}")
 POS_PREFIX = re.compile(r"^(?:\s*[A-Za-z]{1,5}\.(?:\s*/\s*|\s*))+")
 MAX_MEANING = 60     # 释义超过这么长就只留前几个义项, 卡片上放不下
+ARTICLE_FIXES = [("es", "das", "代词"), ("Sie", "die", "代词"), ("Prost", "das", "感叹词")]
 LIMITS = {"usage": 6, "examples": 3, "phrases": 6, "synonyms": 6, "antonyms": 4, "related": 6, "notes": 3}
 
 
@@ -271,7 +272,7 @@ class Book:
 
     def find(self, german, gender=""):
         hits = self.index.get(german, [])
-        if gender:   # 同形词(der / das Band)只认冠词相同的
+        if gender and not any(german == fix[0] for fix in ARTICLE_FIXES):   # 同形词(der / das Band)只认冠词相同的
             return next((w for w in hits if w["gender"] == gender), None)
         return hits[0] if hits else None
 
@@ -286,6 +287,16 @@ class Book:
         self.words.append(w)
         self.add(w)
         return w
+
+
+def fix_function_words(book):
+    """把被当成名词的虚词改回来。old_gender 让导入时改原来的词条, 学习进度不丢"""
+    for german, gender, pos in ARTICLE_FIXES:
+        w = book.find(german, gender)
+        if w:
+            book.index[german].remove(w)
+            w.update(old_gender=gender, gender="", pos=pos, plural="", forms=None)
+            book.index[german].append(w)
 
 
 def absorb(w, e, rank_meaning, meaning_rank):
@@ -372,6 +383,7 @@ def main():
         exclude = {l.split("#")[0].strip() for l in f}
     src["words"] = [w for w in src["words"] if w["german"] not in exclude]
     book = Book(src["words"])
+    fix_function_words(book)
     frdic_a1 = read_frdic(glob.glob(os.path.join(RAW, "欧标A1单词*.csv"))[0])
     frdic_a2 = read_frdic(glob.glob(os.path.join(RAW, "欧标A2单词*.csv"))[0])
     frdic_common = read_frdic(glob.glob(os.path.join(RAW, "德语常用词汇*.csv"))[0])

@@ -46,6 +46,13 @@ def main():
         if key in seen:          # 单词书里同一个词出现两次, 只用第一次(级别低的)
             continue
         seen.add(key)
+        if d.get("old_gender"):     # 冠词改了(das es → es): 改原来的词条, 编号不变, 学习进度不丢
+            old = db.execute("SELECT id FROM words WHERE german = ? AND gender = ? AND owner_id IS NULL",
+                             (key[0], d["old_gender"])).fetchone()
+            done = db.execute("SELECT 1 FROM words WHERE german = ? AND gender = ? AND owner_id IS NULL", key).fetchone()
+            if old and not done:      # 重复导入时已经改过了, 旧词条(如果还有)按“不在单词书里”处理
+                db.execute("UPDATE words SET gender = ? WHERE id = ?", (key[1], old[0]))
+                db.execute("DELETE FROM word_forms WHERE word_id = ?", (old[0],))
         cur = db.execute(
             "INSERT OR IGNORE INTO words (german, pos, gender, plural, meaning, example) VALUES (?,?,?,?,?,?)", row)
         if cur.rowcount:

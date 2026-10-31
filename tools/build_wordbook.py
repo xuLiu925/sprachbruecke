@@ -281,7 +281,12 @@ def wiki_info(german, gender, es):
     verb = next((e for e in es if e["pos"] == "verb"), None)
     info = {"pos": "、".join(dict.fromkeys(POS_ZH.get(e["pos"], e["pos"]) for e in es)) if es else "",
             "gender": "", "plural": "", "forms": None, "example": ""}
-    main = noun if (noun and (gender or not verb)) else verb or (es[0] if es else None)
+    # 词表没给冠词时, 虚词优先于同形的名词: es 是代词, 不是 das Es
+    function_word = next((e for e in es if e["pos"] in CLOSED_POS | {"intj"}), None)
+    if noun and (gender or not (verb or function_word)):
+        main = noun
+    else:
+        main = verb or function_word or (es[0] if es else None)
     if main is noun and noun:
         info["gender"], info["plural"], info["forms"] = noun_info(noun)
         info["pos"] = "名词"
