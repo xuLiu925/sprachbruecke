@@ -131,7 +131,7 @@ $("lCloze").onclick = () => { sPreset = { mode: "cloze", name: "本课填空", q
 $("lOrder").onclick = () => { sPreset = { mode: "order", name: "本课连词成句", questions: lessonOrder(lessonNow) }; go("squiz"); };
 
 // ---------- 点词: 底部弹出单词卡 ----------
-function closeWordSheet() { $("wsheet").classList.add("hidden"); wsWord = null; wsSeq++; }
+function closeWordSheet() { $("wsheet").classList.add("hidden"); wsWord = null; wsSeq++; wsMoreReset(); }
 $("wsClose").onclick = closeWordSheet;
 $("wsheet").onclick = e => { if (e.target === $("wsheet")) closeWordSheet(); };
 window.addEventListener("hashchange", closeWordSheet);
@@ -189,6 +189,7 @@ async function openWordSheet(token, line) {
   $("wsWord").textContent = token;
   $("wsPlural").textContent = ""; $("wsMeaning").textContent = "查询中…"; $("wsLesson").textContent = "";
   $("wsExample").textContent = "";
+  wsMoreReset();
   genderReason($("wsGender"), "", "");
   $("wsAdd").classList.add("hidden"); $("wsView").classList.add("hidden"); $("wsSay").classList.add("hidden");
   $("wsAi").classList.add("hidden"); $("wsNoun").classList.add("hidden");
@@ -225,13 +226,14 @@ async function openWordSheet(token, line) {
   $("wsSay").classList.remove("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
   $("wsNoun").classList.toggle("hidden", !w.gender);
-  $("wsView").classList.toggle("hidden", !found || !wsCanLeave());
+  $("wsView").classList.toggle("hidden", !found);
   if (getSetting("autoWord")) speakDe(wordText(w));
 }
 // 查词结果里的仓储词: 不用查询, 内容都在手上
 function openGlossaryWord(g) {
   wsSeq++;
   wsWord = { ...g, id: null, learned: false, queued: false };
+  wsMoreReset();
   $("wsAi").classList.add("hidden");
   $("wsheet").classList.remove("hidden");
   wordInto($("wsWord"), g);
@@ -270,7 +272,27 @@ $("wsNoun").onclick = async () => {
   } catch (e) { toast(e.message); }
 };
 $("wsSay").onclick = () => { if (wsWord) speakDe(wordText(wsWord)); };
-$("wsView").onclick = () => {
+// 详情在单词卡里展开, 不离开当前页面, 练习进度不受影响
+function wsMoreReset() {
+  $("wsMore").classList.add("hidden");
+  $("wsForms").textContent = ""; $("wsDetails").textContent = ""; $("wsMoreEx").textContent = "";
+  $("wsView").textContent = "详情";
+}
+$("wsView").onclick = async () => {
+  if (!wsWord || !wsWord.id) return;
+  if (!$("wsMore").classList.contains("hidden")) return wsMoreReset();
+  const seq = wsSeq, id = wsWord.id;
+  let w;
+  try { w = await api("/api/words/" + id); } catch (e) { return toast(e.message); }
+  if (seq !== wsSeq) return;                 // 查询期间关掉了单词卡或点了别的词
+  renderForms(w.forms, $("wsForms"));
+  renderDetails(w.details, $("wsDetails"));
+  exampleInto($("wsMoreEx"), w.example, null);
+  $("wsFull").classList.toggle("hidden", !wsCanLeave());
+  $("wsMore").classList.remove("hidden");
+  $("wsView").textContent = "收起";
+};
+$("wsFull").onclick = () => {
   if (!wsWord || !wsWord.id) return;
   const id = wsWord.id;
   closeWordSheet();
@@ -285,7 +307,7 @@ $("wsAdd").onclick = async () => {
   try {
     const r = await api("/api/review/queue", "POST", body);
     w.id = r.word_id; w.learned = r.learned; w.queued = r.queued;
-    if (wsWord === w) { wsButton(w); $("wsView").classList.toggle("hidden", !wsCanLeave()); }
+    if (wsWord === w) { wsButton(w); $("wsView").classList.remove("hidden"); }
     toast(r.learned ? "这个词已经学过了" : "已加入复习");
   } catch (e) { toast(e.message); }
 };
