@@ -139,12 +139,22 @@ def review_today():
         "WHERE p.user_id = :uid AND p.next_review <= :now ORDER BY p.next_review LIMIT :lim",
         now=now_str(), lim=REVIEW_LIMIT,
     ).fetchall()
+    # 新词: 先出用户主动加入的(情景课), 再按单词书补足
+    queued = query(
+        f"SELECT {WORD_COLS}, 0 AS reps, 0 AS spell_ok, 1 AS is_new "
+        "FROM study_queue q JOIN my_words w ON w.id = q.word_id "
+        "WHERE q.user_id = :uid AND w.id NOT IN (SELECT word_id FROM progress WHERE user_id = :uid) "
+        "ORDER BY q.added_at, w.id LIMIT :lim",
+        lim=NEW_PER_REQUEST,
+    ).fetchall()
     book_join, book_args, order = book_filter(current_book(current_user_id()))
     new = query(
         f"SELECT {WORD_COLS}, 0 AS reps, 0 AS spell_ok, 1 AS is_new FROM my_words w {book_join} "
-        f"WHERE w.id NOT IN (SELECT word_id FROM progress WHERE user_id = :uid) ORDER BY {order} LIMIT :lim",
-        lim=NEW_PER_REQUEST, **book_args,
+        "WHERE w.id NOT IN (SELECT word_id FROM progress WHERE user_id = :uid) "
+        f"AND w.id NOT IN (SELECT word_id FROM study_queue WHERE user_id = :uid) ORDER BY {order} LIMIT :lim",
+        lim=NEW_PER_REQUEST - len(queued), **book_args,
     ).fetchall()
+    new = list(queued) + list(new)
     cards = [card(r) for r in due] + [card(r) for r in new]
     return jsonify({"cards": cards, "due": len(due), "new": len(new)})
 
@@ -566,6 +576,10 @@ def stats():
         f"FROM my_words w {book_join} "
         "LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid", ms=MASTERED_STABILITY, **book_args,
     ).fetchone()
+    queued = query(
+        "SELECT COUNT(*) FROM study_queue q JOIN my_words w ON w.id = q.word_id WHERE q.user_id = :uid "
+        "AND w.id NOT IN (SELECT word_id FROM progress WHERE user_id = :uid)",
+    ).fetchone()[0]
     return jsonify({"total": total, "learned": learned, "due": due, "mastered": mastered,
                     "book": book, "book_total": book_total, "book_learned": book_learned,
-                    "book_mastered": book_mastered})
+                    "book_mastered": book_mastered, "queued": queued})

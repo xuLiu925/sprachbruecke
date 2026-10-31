@@ -7,16 +7,19 @@ const S_MODES = {
 let sMode = "cloze", sq = [], si = 0;
 let sAnswers = [];    // sAnswers[i] = { ok, input, picked, msg }; ok 为 null = 等用户自己判断
 let sPool = [], sPicked = [];   // 排序题: 打乱后的顺序、已选的(都是 tokens 的下标)
+let sPreset = null;   // 情景课自带的题目 {mode, name, questions}; null = 向服务器要题
 
 for (const [mode, m] of Object.entries(S_MODES)) {
-  $("sList").appendChild(listItem(m.ico, m.name, m.sub, () => { sMode = mode; go("squiz"); }));
+  $("sList").appendChild(listItem(m.ico, m.name, m.sub, () => { sMode = mode; sPreset = null; go("squiz"); }));
 }
 
 async function sStart() {
-  $("title").textContent = S_MODES[sMode].name;
+  if (sPreset) sMode = sPreset.mode;
+  $("title").textContent = sPreset ? sPreset.name : S_MODES[sMode].name;
   $("sqBox").classList.add("hidden");
   $("sqDone").classList.add("hidden");
-  try { sq = (await api("/api/sentences?mode=" + sMode)).questions; } catch (e) { toast(e.message); return; }
+  if (sPreset) sq = sPreset.questions;
+  else try { sq = (await api("/api/sentences?mode=" + sMode)).questions; } catch (e) { toast(e.message); return; }
   si = 0; sAnswers = [];
   sRender();
 }
@@ -127,6 +130,7 @@ function sShow(q, a) {
   $("sqResult").textContent = a.msg;
   $("sqResult").className = a.ok === false ? "msg" : a.ok ? "ok" : "";
   $("sqDe").textContent = q.de;
+  $("sqGloss").classList.toggle("hidden", !q.german);   // 情景课的排序题没有目标词
   wordInto($("sqWord"), q);
   $("sqMeaning").textContent = q.meaning;
   $("sqSelf").classList.toggle("hidden", a.ok !== null);
@@ -159,7 +163,7 @@ function sFinish() {
       box.appendChild(line);
     }
   } else if (sq.length) box.textContent = "全部答对了 🎉";
-  else box.textContent = "这种题需要带中文翻译的例句，换一本单词书试试。";
+  else box.textContent = sPreset ? "这一课没有这种题。" : "这种题需要带中文翻译的例句，换一本单词书试试。";
 }
 
 // 回车 检查 / 下一题(在输入框里也有效)

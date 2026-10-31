@@ -3,7 +3,8 @@ const MODULES = [
   { ico: "🔤", name: "词汇", sub: "复习 · 拼写", page: "practice" },
   { ico: "📐", name: "语法", sub: `${GRAMMAR_TOPICS.length} 个知识点`, page: "grammar" },
   { ico: "💬", name: "句子", sub: "填空 · 排序 · 中译德", page: "sentence" },
-  { ico: "🎧", name: "听力" }, { ico: "📖", name: "阅读" }, { ico: "📝", name: "考试" },
+  { ico: "📦", name: "情景课", sub: "海外仓 A1–B1", page: "lessons" },
+  { ico: "🎧", name: "听力" }, { ico: "📝", name: "考试" },
 ];
 
 function buildModules() {
@@ -26,7 +27,7 @@ const BOOK_NAMES = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶", B2: "B2 
 onShow.home = async () => {
   $("hello").textContent = "你好，" + user;
   const s = await loadStats();
-  const newAvail = Math.min(10, s.book_total - s.book_learned);
+  const newAvail = Math.min(10, s.book_total - s.book_learned + s.queued);
   $("hBookName").textContent = "单词书：" + BOOK_NAMES[s.book];
   $("hBookProg").textContent = s.book_total && s.book_learned >= s.book_total
     ? "这本学完了，换一本吧" : `共 ${s.book_total} 个词，进度见下方`;
@@ -96,7 +97,8 @@ const reviewItem = listItem("🗂️", "今日复习", "认词 + 拼写，按 FS
 $("practiceList").append(reviewItem, listItem("🎨", "冠词练习", "der / die / das 选择题", () => go("drill")),
                         listItem("✍️", "听写", "听发音写单词，优先出学过的词", () => go("dictation")),
                         listItem("📐", "语法基础", "冠词、代词、介词、动词、语序的速查表和练习", () => go("grammar")),
-                        listItem("💬", "句子练习", "填空、连词成句、中译德，用学过的词练完整的句子", () => go("sentence")));
+                        listItem("💬", "句子练习", "填空、连词成句、中译德，用学过的词练完整的句子", () => go("sentence")),
+                        listItem("📦", "情景课", "海外仓场景：读课文、做练习、用德语写出来", () => go("lessons")));
 for (const [ico, t, s] of [["🔢", "复数练习", "看单数写复数"], ["🧩", "变格练习", "四个格的冠词和词尾"],
                            ["🔁", "动词变位", "不同人称的现在时"]]) {
   $("soonList").appendChild(listItem(ico, t, s, () => toast("即将推出"), true));

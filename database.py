@@ -155,6 +155,13 @@ CREATE TABLE IF NOT EXISTS invites (
     used_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     used_at TEXT
 );
+-- 用户主动加入复习的词(情景课里点的): 还没学的排在新词最前面, 学过(progress 有记录)就不再出现
+CREATE TABLE IF NOT EXISTS study_queue (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, word_id)
+);
 -- 每个用户的设置, 例如 book = 当前单词书
 CREATE TABLE IF NOT EXISTS user_settings (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

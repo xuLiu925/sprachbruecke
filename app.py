@@ -15,6 +15,7 @@
   srs.py         FSRS 复习算法(纯计算)
   vocab.py       词汇模块接口
   sentences.py   句子练习(用例句出题)
+  lessons.py     情景课(点词查词、加入复习; 课文在 static/lessons.json)
   tts.py         在线德语发音(设备没有德语语音时用)
   vocab_seed.py  示例词和变格 / 变位
 """
@@ -25,6 +26,7 @@ from datetime import timedelta
 from flask import Flask, send_from_directory
 
 import auth
+import lessons
 import sentences
 import tts
 import vocab
@@ -67,6 +69,7 @@ def index():
 app.register_blueprint(auth.bp)
 app.register_blueprint(vocab.bp)
 app.register_blueprint(sentences.bp)
+app.register_blueprint(lessons.bp)
 app.register_blueprint(tts.bp)
 
 init_db()

@@ -179,6 +179,23 @@ table.forms.gtable td:first-child { font-size:14px; white-space:normal; min-widt
 .schips button { padding:8px 12px; font-size:17px; }
 .sline { min-height:56px; padding:8px 0; border-bottom:1px dashed var(--line); }
 #sqWord .art { margin-right:4px; }
+.lline { padding:10px 0; border-bottom:1px solid var(--line); }
+.lline:last-child { border-bottom:0; }
+.lwho { color:var(--muted); font-size:12px; margin-bottom:2px; }
+.lde { font-size:18px; line-height:1.7; }
+.lzh { color:var(--muted); font-size:14px; line-height:1.5; margin-top:4px; }
+.lacts { display:flex; gap:8px; margin-top:6px; }
+button.tok { display:inline; padding:0; background:none; color:inherit; border-radius:0; font:inherit;
+             border-bottom:1px dotted var(--muted); }
+button.lmodel { display:block; width:100%; padding:0; background:none; color:var(--text); text-align:left; line-height:1.5; }
+#lModel { margin-top:12px; border-top:1px dashed var(--line); }
+.sheet { position:fixed; inset:0; z-index:50; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.35); }
+.sheetbox { position:relative; width:100%; max-width:560px; padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+            border-radius:16px 16px 0 0; background:var(--card); }
+.sheetbox .word { font-size:26px; margin:6px 30px 6px; }
+.sheetbox .row { margin-top:12px; }
+#wsClose { position:absolute; top:10px; right:10px; }
+#wsMeaning { text-align:center; font-size:17px; margin:8px 0; }
 .gprompt { font-size:22px; font-weight:600; text-align:center; margin:16px 0 6px; line-height:1.5; }
 .blank { display:inline-block; min-width:64px; border-bottom:2px solid var(--accent); margin:0 4px; color:var(--accent); }
 .blank.filled { color:var(--das); border-color:var(--das); }

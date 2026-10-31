@@ -308,6 +308,57 @@ assert len(q) == 1 and q[0]["blank"]["answer"] == "lese" and q[0]["tokens"] == [
 assert J(cb.get("/api/sentences?mode=cloze"))["questions"] == []  # 别人的私有词不出现
 c.delete(f"/api/words/{q[0]['word_id']}")
 assert J(c.get("/api/sentences?mode=order"))["questions"] == []   # 删掉的词不出现
+
+# 情景课: 词形反查原形
+assert J(cb.get("/api/lookup?w=gegangen"))["word"] is None  # 示例词 gehen 只有现在时
+assert J(cb.get("/api/lookup?w=gehe"))["word"]["german"] == "gehen"
+assert J(c.get("/api/lookup?w=gehe"))["word"] is None       # alice 删掉了自己版本的变位, 要按她的版本
+assert J(c.get("/api/lookup?w=Tische"))["word"]["german"] == "Tisch"
+assert J(c.get("/api/lookup?w=Tisches"))["word"]["german"] == "Tisch"    # 变格
+assert J(c.get("/api/lookup?w=Gehen"))["word"]["german"] == "gehen"      # 句首大写
+assert J(c.get("/api/lookup?w=schnellen"))["word"]["german"] == "schnell"  # 形容词词尾
+assert J(c.get("/api/lookup?w=nichtda"))["word"] is None
+assert J(c.get("/api/lookup?w=%25"))["word"] is None and c.get("/api/lookup").status_code == 400
+# 加入复习: 公共词排到新词最前面, 学过就不再出现; 课文里的词词库没有时加成私有词, 别人看不到
+apfel = ids["Apfel"] if "Apfel" in ids else J(c.get("/api/words?q=Apfel"))["words"][0]["id"]
+db.execute("DELETE FROM progress WHERE word_id = ? AND user_id = (SELECT id FROM users WHERE username = 'alice')", (apfel,)); db.commit()
+assert c.post("/api/review/queue", json={"word_id": 99999}).status_code == 404
+assert J(c.post("/api/review/queue", json={"word_id": apfel}))["queued"]
+assert J(c.get("/api/lookup?w=Apfel"))["word"]["queued"] == 1
+assert J(c.get("/api/stats"))["queued"] == 1
+due0 = J(c.get("/api/review/today"))
+assert due0["cards"][due0["due"]]["id"] == apfel and due0["cards"][due0["due"]]["is_new"]
+assert len({x["id"] for x in due0["cards"]}) == len(due0["cards"])     # 不重复
+la = J(c.post("/api/review/answer", json={"word_id": apfel, "rating": 3}))
+assert J(c.get("/api/stats"))["queued"] == 0
+c.post("/api/review/undo", json={"log_id": la["log_id"]})
+assert J(c.get("/api/stats"))["queued"] == 1    # 撤销后回到队列
+pal = {"german": "Palette", "gender": "die", "pos": "名词", "plural": "Paletten", "meaning": "托盘"}
+pid = J(c.post("/api/review/queue", json=pal))["word_id"]
+assert J(c.post("/api/review/queue", json=pal))["word_id"] == pid         # 不重复加
+assert J(c.get(f"/api/words/{pid}"))["private"] and cb.get(f"/api/words/{pid}").status_code == 404
+assert c.post("/api/review/queue", json={"german": ""}).status_code == 400
+
+# 情景课内容: 结构完整, 填空的答案在句子里只出现一次
+ld = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "lessons.json"), encoding="utf-8"))["lessons"]
+assert len(ld) == 15 and len({l["id"] for l in ld}) == 15
+assert {lv: sum(l["level"] == lv for l in ld) for lv in ("A1", "A2", "B1")} == {"A1": 5, "A2": 5, "B1": 5}
+import re
+tok = re.compile(r"[A-Za-zÄÖÜäöüß]+")
+for l in ld:
+    assert l["title"] and l["scene"] and len(l["lines"]) >= 6, l["id"]
+    assert l["task"]["prompt"] and l["task"]["tips"] and len(l["task"]["model"]) == 3, l["id"]
+    glossary = {g["german"].lower() for g in l["glossary"]}
+    assert len(glossary) == len(l["glossary"]), l["id"]
+    for g in l["glossary"]:
+        assert g["gender"] in ("", "der", "die", "das") and g["pos"] and g["meaning"] and (g["pos"] != "名词" or g["gender"]), g
+    for x in l["lines"]:
+        assert x["de"] and x["zh"] and x["who"], x
+        for k in x.get("map", {}):
+            assert k in tok.findall(x["de"]), (l["id"], k)
+    for q in l["cloze"]:
+        assert tok.findall(l["lines"][q["line"]]["de"]).count(q["answer"]) == 1, (l["id"], q)
+        assert q["base"] and q["meaning"], q
 db.close()
 
 c.post("/api/logout", json={})
