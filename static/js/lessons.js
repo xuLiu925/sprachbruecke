@@ -154,11 +154,29 @@ function lessonGlossary(lemma) {          // 本课优先, 再看其他课; 复�
 }
 
 // 例句(“德语\n中文”)里的德语词可以点, 中文行照常显示
-function exampleInto(el, text) {
+function exampleInto(el, text, level = "B1") {
   const [de, ...rest] = (text || "").split("\n");
   el.textContent = "";
   lessonTokens(el, { de });
   if (rest.length) el.append(document.createElement("br"), rest.join("\n"));
+  if (level) exampleExplain(el, text, level);
+}
+
+// 例句下面的“讲解”。每次换句子都重建, 上一句的讲解自然收起; text 为空时不显示
+function exampleExplain(el, text, level = "B1") {
+  const anchor = el.closest(".exrow") || el;
+  let box = anchor.nextElementSibling;
+  if (!box || !box.classList.contains("exnote")) {
+    box = document.createElement("div"); box.className = "exnote";
+    anchor.after(box);
+  }
+  box.textContent = "";
+  const [de, ...rest] = (text || "").split("\n");
+  if (!de.trim()) return;
+  const note = document.createElement("div"); note.className = "lnote hidden";
+  const btn = document.createElement("button"); btn.className = "mini"; btn.textContent = "📖 讲解";
+  btn.onclick = () => openExplain(note, { de: de.trim(), zh: rest.join(" ").trim() }, level);
+  box.append(btn, note);
 }
 
 // 这些页面离开再回来会重新出题, 所以单词卡里不放“详情”, 免得丢掉正在做的这一组

@@ -179,6 +179,8 @@ table.forms.gtable td:first-child { font-size:14px; white-space:normal; min-widt
 .schips button { padding:8px 12px; font-size:17px; }
 .sline { min-height:56px; padding:8px 0; border-bottom:1px dashed var(--line); }
 #sqWord .art { margin-right:4px; }
+.exnote { margin:6px 0; text-align:center; }
+.exnote .lnote { text-align:left; }
 .lnote { margin-top:10px; padding:10px 12px; border-radius:10px; background:var(--accent-soft); font-size:15px; line-height:1.6; }
 .nhead { margin:12px 0 4px; font-weight:700; }
 .nhead:first-child { margin-top:0; }

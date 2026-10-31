@@ -619,6 +619,9 @@ assert "第二题不自然" in calls[0] and J(c.get(ask3))["report"] is None
 assert new_items[0]["key"] == di1[0]["key"]                                    # 没变的题复习进度还在
 EX.call_gemini = real_call
 
+# 单词书的例句: B2 / C1 也能讲解, 没有中文翻译也可以
+assert "水平 C1" in J(c.post("/api/explain/prompt", json={"de": "Das ist ein Satz.", "zh": "", "level": "C1"}))["prompt"]
+
 # 词形练习: 复数、变格、动词变位; 两种写法都算对, 数据有问题的词不出题
 import form_drills as FD
 assert c.get("/api/forms/x").status_code == 404 and A.app.test_client().get("/api/forms/plural").status_code == 401

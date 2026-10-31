@@ -10,7 +10,7 @@ import re
 from flask import Blueprint, jsonify, request
 
 from auth import admin_required, is_admin
-from custom_lessons import CHINESE, LEVELS, TOKEN, AiError, api_key, call_gemini, extract_json, text
+from custom_lessons import CHINESE, TOKEN, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
 from lessons import drill_items
@@ -18,6 +18,7 @@ from lessons import drill_items
 bp = Blueprint("explain", __name__)
 
 MAX_SENTENCE = 300
+LEVELS = ("A1", "A2", "B1", "B2", "C1")    # 单词书的例句到 C1, 比情景课的级别多
 SCHEMA_TEXT = """{
   "words": [{"word": "句子里原样出现的词或短语，如 dem Hubwagen",
              "base": "原形，如 der Hubwagen",

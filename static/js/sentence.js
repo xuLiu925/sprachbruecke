@@ -143,7 +143,9 @@ $("sqNext").onclick = sCheck;
 function sShow(q, a) {
   $("sqResult").textContent = a.msg;
   $("sqResult").className = a.ok === false ? "msg" : a.ok ? "ok" : "";
-  exampleInto($("sqDe"), q.de);
+  exampleInto($("sqDe"), q.de, null);
+  // 词形练习的答案只是一个词组, 不用讲解
+  exampleExplain($("sqDe"), sPreset && sPreset.url ? "" : `${q.de}\n${q.zh}`);
   $("sqGloss").classList.toggle("hidden", !q.german);   // 情景课的排序题没有目标词
   wordInto($("sqWord"), q);
   $("sqMeaning").textContent = q.meaning;
