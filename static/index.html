@@ -436,7 +436,10 @@
           <div class="schips sline" id="sqLine"></div>
           <div class="schips" id="sqChips"></div>
         </div>
-        <button id="sqCheck" style="width:100%;margin-top:8px">检查</button>
+        <div class="row" id="sqActions" style="margin-top:8px">
+          <button class="secondary" id="sqGiveUp">不会</button>
+          <button id="sqCheck">检查</button>
+        </div>
         <div class="answer hidden" id="sqAnswer">
           <p id="sqResult" style="font-weight:600"></p>
           <p class="scloze" id="sqDe"></p>
@@ -450,7 +453,7 @@
             <button id="sqNext">下一题</button>
           </div>
         </div>
-        <p class="kbd-hint"><kbd>回车</kbd> 检查 / 下一题 · 排序题 <kbd>1</kbd>–<kbd>9</kbd> 选词、<kbd>Backspace</kbd> 退回 · 对照时 <kbd>1</kbd> 我的也对、<kbd>2</kbd> 没写对 · <kbd>P</kbd> 听整句 · <kbd>Esc</kbd> 返回</p>
+        <p class="kbd-hint"><kbd>回车</kbd> 检查 / 下一题 · <kbd>?</kbd> 不会 · 排序题 <kbd>1</kbd>–<kbd>9</kbd> 选词、<kbd>Backspace</kbd> 退回 · 对照时 <kbd>1</kbd> 我的也对、<kbd>2</kbd> 没写对 · <kbd>P</kbd> 听整句 · <kbd>Esc</kbd> 返回</p>
       </div>
       <div class="card hidden" id="sqDone" style="text-align:center">
         <p style="font-size:20px" id="sqScore"></p>

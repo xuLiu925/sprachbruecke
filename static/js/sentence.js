@@ -56,7 +56,7 @@ function sRender() {
   $("sqTyping").classList.toggle("hidden", order);
   $("sqOrder").classList.toggle("hidden", !order);
   $("sqAnswer").classList.add("hidden");
-  $("sqCheck").classList.remove("hidden");
+  $("sqActions").classList.remove("hidden");
   if (order) {
     sPool = sShuffled(q.tokens.length);
     sPicked = a ? a.picked.slice() : [];
@@ -119,6 +119,10 @@ function sCheck() {
       a = { ok: same ? true : null, input, msg: same ? "✔ 和例句一样" : "请和例句对照：" };
     }
   }
+  sSubmit(q, a);
+}
+
+function sSubmit(q, a) {
   sAnswers[si] = a;
   $("sqIn").readOnly = sMode !== "order";
   $("sqIn").blur();                 // 离开输入框, 快捷键才生效
@@ -126,7 +130,14 @@ function sCheck() {
   sShow(q, a);
   if (getSetting("autoExample")) speakDe(q.de);
 }
+
+// 不会: 直接看答案, 算答错, 结尾进“再看一遍”
+function sGiveUp() {
+  if (si >= sq.length || sAnswers[si]) return;
+  sSubmit(sq[si], { ok: false, input: "", picked: [], msg: "不会，记一下答案" });
+}
 $("sqCheck").onclick = sCheck;
+$("sqGiveUp").onclick = sGiveUp;
 $("sqNext").onclick = sCheck;
 
 function sShow(q, a) {
@@ -139,7 +150,7 @@ function sShow(q, a) {
   $("sqSelf").classList.toggle("hidden", a.ok !== null);
   $("sqNext").classList.toggle("hidden", a.ok === null);
   $("sqAnswer").classList.remove("hidden");
-  $("sqCheck").classList.add("hidden");
+  $("sqActions").classList.add("hidden");
 }
 
 // 语序灵活、同一句中文有多种译法, 不一样不等于错, 所以由用户自己判断
@@ -171,12 +182,16 @@ function sFinish() {
 
 // 回车 检查 / 下一题(在输入框里也有效)
 $("sqIn").onkeydown = e => {
+  if (e.key === "?" && sMode === "cloze" && !e.isComposing) {     // 填空题里问号不是答案, 中译德要能打问号
+    e.preventDefault(); e.stopPropagation(); sGiveUp(); return;
+  }
   if (e.key !== "Enter" || e.isComposing) return;
   e.preventDefault(); e.stopPropagation(); sCheck();
 };
 onKey.squiz = (e, typing) => {
   if (typing || e.ctrlKey || si >= sq.length) return false;
   const a = sAnswers[si], pending = a && a.ok === null;
+  if (e.key === "?" && !a) { sGiveUp(); return true; }
   if (e.key === "Enter" || e.key === " ") { sCheck(); return true; }
   if (pending && (e.key === "1" || e.key === "2")) { sSelf(e.key === "1"); return true; }
   if (a && e.key.toLowerCase() === "p") { $("sqSay").click(); return true; }
