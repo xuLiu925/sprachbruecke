@@ -19,6 +19,7 @@
   custom_lessons.py  自建工作对话(AI 生成, 确认后保存)
   explain.py     句子讲解和替换练习(AI 生成, 每句保存一次)
   dictionary.py  查词(德语、变化形式、中文)
+  form_drills.py 词形练习(复数、变格、动词变位)
   tts.py         在线德语发音(设备没有德语语音时用)
   vocab_seed.py  示例词和变格 / 变位
 """
@@ -32,6 +33,7 @@ import auth
 import custom_lessons
 import dictionary
 import explain
+import form_drills
 import lessons
 import sentences
 import tts
@@ -79,6 +81,7 @@ app.register_blueprint(lessons.bp)
 app.register_blueprint(custom_lessons.bp)
 app.register_blueprint(explain.bp)
 app.register_blueprint(dictionary.bp)
+app.register_blueprint(form_drills.bp)
 app.register_blueprint(tts.bp)
 
 init_db()

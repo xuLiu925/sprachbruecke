@@ -618,6 +618,36 @@ assert [i["answer"] for i in new_items] == ["Bitte fahren Sie zu Tor zwei.", "Bi
 assert "第二题不自然" in calls[0] and J(c.get(ask3))["report"] is None
 assert new_items[0]["key"] == di1[0]["key"]                                    # 没变的题复习进度还在
 EX.call_gemini = real_call
+
+# 词形练习: 复数、变格、动词变位; 两种写法都算对, 数据有问题的词不出题
+import form_drills as FD
+assert c.get("/api/forms/x").status_code == 404 and A.app.test_client().get("/api/forms/plural").status_code == 401
+def fr(gender="der", german="Mann", plural="Männer", forms=None):
+    return {"id": 1, "german": german, "gender": gender, "plural": plural, "meaning": "男人",
+            "forms": json.dumps(forms) if forms else None}
+assert FD.plural_question(fr())["blank"] == {"before": "die ", "answer": "Männer", "after": ""}
+assert FD.plural_question(fr(plural="Poulets(CH)")) is None and FD.plural_question(fr(gender="")) is None
+mf = {"cases": {"sg": ["der Mann", "des Mannes / des Manns", "dem Mann", "den Mann"],
+                "pl": ["die Männer", "der Männer", "den Männern", "die Männer"]}}
+slots = FD.case_slots(fr(forms=mf))
+assert len(slots) == 7 and ("单数", 1, ["des Mannes", "des Manns"]) in slots and not [s for s in slots if s[:2] == ("单数", 0)]
+assert FD.case_slots(fr(gender="die", forms=mf)) == []                        # 冠词和变格表对不上
+assert len(FD.case_slots(fr(forms={"cases": {**mf["cases"], "pl": ["", "", "", ""]}}))) == 3   # 没有复数
+for _ in range(30):
+    q = FD.case_question(fr(forms=mf))
+    assert q["blank"]["answer"] in q["accept"] and q["de"].startswith(q["accept"][0]) and "格" in q["zh"]
+fa = fr(gender="", german="fahren", plural="", forms={"praesens": ["fahre", "fährst", "fährt", "fahren", "fahrt", "fahren"]})
+assert [i for i, _f in FD.verb_slots(fa)] == [0, 1, 2, 4]                     # wir / sie 和原形相同, 不考
+za = fr(gender="", german="zerschmettern", forms={"praesens": ["zerschmetter", "zerschmetterst", "zerschmettert", "zerschmettern", "zerschmettert", "zerschmettern"]})
+assert 0 not in [i for i, _f in FD.verb_slots(za)]
+se = fr(gender="", german="sein", forms={"praesens": ["bin", "bist", "ist", "sind", "seid", "sind"]})
+assert len(FD.verb_slots(se)) == 6
+assert FD.verb_slots(fr(gender="", german="x", forms={"praesens": ["a", "", "c", "d", "e", "f"]})) == []
+assert cb.post("/api/books/current", json={"book": "all"}).status_code == 200
+for kind, n in (("plural", 10), ("cases", 10), ("verbs", 2)):
+    qs = J(cb.get("/api/forms/" + kind))["questions"]
+    assert len(qs) == n and len({x["word_id"] for x in qs}) == n, (kind, len(qs))
+    assert all(x["blank"]["answer"] and x["accept"] and x["german"] and x["zh"] and x["de"] for x in qs)
 db.close()
 
 c.post("/api/logout", json={})

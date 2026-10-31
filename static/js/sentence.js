@@ -18,8 +18,10 @@ async function sStart() {
   $("title").textContent = sPreset ? sPreset.name : S_MODES[sMode].name;
   $("sqBox").classList.add("hidden");
   $("sqDone").classList.add("hidden");
-  if (sPreset) sq = sPreset.questions;
-  else try { sq = (await api("/api/sentences?mode=" + sMode)).questions; } catch (e) { toast(e.message); return; }
+  if (sPreset && sPreset.questions) sq = sPreset.questions;
+  else try {
+    sq = (await api(sPreset ? sPreset.url : "/api/sentences?mode=" + sMode)).questions;   // 词形练习每组重新要题
+  } catch (e) { toast(e.message); return; }
   si = 0; sAnswers = [];
   sRender();
 }
@@ -109,7 +111,8 @@ function sCheck() {
     const input = $("sqIn").value;
     if (!input.trim()) return $("sqIn").focus();
     if (sMode === "cloze") {
-      const r = checkSpell({ german: q.blank.answer, gender: "" }, input);
+      const results = (q.accept || [q.blank.answer]).map(x => checkSpell({ german: x, gender: "" }, input));
+      const r = results.find(x => x.ok) || results[0];     // 有的词两种写法都对
       a = { ok: r.ok, input, msg: r.msg };
     } else {
       const same = sPlain(input) === sPlain(q.de);
@@ -153,7 +156,7 @@ $("sqBack").onclick = () => { if (si > 0) { si--; sRender(); } };   // 只回看
 
 function sFinish() {
   const wrong = sq.filter((q, i) => !sAnswers[i].ok);
-  $("sqScore").textContent = sq.length ? `得分 ${sq.length - wrong.length} / ${sq.length}` : "还没有可以出题的例句";
+  $("sqScore").textContent = sq.length ? `得分 ${sq.length - wrong.length} / ${sq.length}` : "还没有可以出的题";
   const box = $("sqWrong"); box.textContent = "";
   if (wrong.length) {
     box.append("再看一遍：");
@@ -163,7 +166,7 @@ function sFinish() {
       box.appendChild(line);
     }
   } else if (sq.length) box.textContent = "全部答对了 🎉";
-  else box.textContent = sPreset ? "这一课没有这种题。" : "这种题需要带中文翻译的例句，换一本单词书试试。";
+  else box.textContent = sPreset ? (sPreset.empty || "这一课没有这种题。") : "这种题需要带中文翻译的例句，换一本单词书试试。";
 }
 
 // 回车 检查 / 下一题(在输入框里也有效)
