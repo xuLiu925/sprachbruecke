@@ -447,7 +447,7 @@ assert e is None and [w["word"] for w in cn["words"]] == ["dem Hubwagen"] and le
 assert "词" in EX.clean_note({"words": [], "similar": note["similar"]}, sent["de"])[1]
 assert "类似" in EX.clean_note({**note, "similar": []}, sent["de"])[1]
 ask = "/api/explain?de=" + urllib.parse.quote(sent["de"])
-assert J(c.get(ask)) == {"note": None, "can": True, "ai": False} and not J(cb.get(ask))["can"]
+assert J(c.get(ask)) == {"note": None, "report": None, "can": True, "ai": False} and not J(cb.get(ask))["can"]
 assert c.post("/api/explain/generate", json={**sent, "level": "C2"}).status_code == 400
 assert c.post("/api/explain/generate", json={**sent, "de": "中文句子"}).status_code == 400
 assert c.post("/api/explain/generate", json=sent).status_code == 503                # 没有 Key
@@ -482,7 +482,7 @@ assert e is None and [d["answer"] for d in cd] == ["Bitte fahren Sie zu Tor zwei
 assert EX.clean_drills({"drills": dr["drills"][:2]}, s3["de"])[1] and EX.clean_drills(None, s3["de"])[1]
 EX.call_gemini = real_call
 ask3 = "/api/drills?de=" + urllib.parse.quote(s3["de"])
-assert J(c.get(ask3)) == {"items": None, "can": True, "ai": False}
+assert J(c.get(ask3)) == {"items": None, "report": None, "can": True, "ai": False}
 assert c.post("/api/drills/generate", json=s3).status_code == 503 and cb.post("/api/drills/generate", json=s3).status_code == 403
 calls = []
 def fake2(prompt):
@@ -580,6 +580,44 @@ assert rc["glossary"] and rc["id"] is None and dq(c, "笼车")[0]["german"] == "
 assert dq(cb, "Rollcontainer") == [] and dq(cb, "笼车") == []
 c.delete("/api/custom_lessons/" + ml["id"][1:])
 assert dq(c, "Rollcontainer") == []
+
+# 报错和重新生成: 问题会告诉 AI; 成功后替换内容并清掉报错; 失败时旧内容不动
+rep = lambda client, kind, de, reason: client.post("/api/report", json={"kind": kind, "de": de, "reason": reason})
+assert rep(cb, "note", sent["de"], "x").status_code == 400 and rep(cb, "x", sent["de"], "这里错了").status_code == 400
+assert rep(cb, "note", "Ohne Inhalt hier.", "这里错了").status_code == 404
+assert rep(cb, "note", sent["de"], "应该是第四格").status_code == 200      # 普通用户也能报错
+assert J(c.get(ask))["report"] == "应该是第四格"
+assert "应该是第四格" in J(c.post("/api/explain/prompt", json=sent))["prompt"]
+regen = lambda path, body: c.post(path, json=body)
+EX.call_gemini = real_call
+assert cb.post("/api/explain/regenerate", json=sent).status_code == 403
+assert regen("/api/explain/regenerate", sent).status_code == 503              # 没有 Key
+EX.call_gemini = lambda prompt: "坏结果"
+assert regen("/api/explain/regenerate", sent).status_code == 502
+assert J(c.get(ask))["note"] == cn and J(c.get(ask))["report"] == "应该是第四格"   # 失败时都不变
+calls = []
+def fake4(prompt):
+    calls.append(prompt)
+    return json.dumps({**note, "point": "新的讲解"})
+EX.call_gemini = fake4
+assert J(regen("/api/explain/regenerate", sent))["note"]["point"] == "新的讲解"
+assert "应该是第四格" in calls[0] and "必须改正" in calls[0]
+assert J(c.get(ask))["note"]["point"] == "新的讲解" and J(c.get(ask))["report"] is None
+assert rep(c, "drill", s3["de"], "第二题不自然").status_code == 200
+assert J(c.get(ask3))["report"] == "第二题不自然"
+EX.call_gemini = lambda prompt: "坏结果"
+assert regen("/api/drills/regenerate", s3).status_code == 502
+assert J(c.get(ask3))["items"] == di1
+calls = []
+def fake5(prompt):
+    calls.append(prompt)
+    return json.dumps({"drills": [dr["drills"][0], {"cue": "请开到五号门", "answer": "Bitte fahren Sie zu Tor fünf.", "answer_zh": "请开到五号门。"}]})
+EX.call_gemini = fake5
+new_items = J(regen("/api/drills/regenerate", s3))["items"]
+assert [i["answer"] for i in new_items] == ["Bitte fahren Sie zu Tor zwei.", "Bitte fahren Sie zu Tor fünf."]
+assert "第二题不自然" in calls[0] and J(c.get(ask3))["report"] is None
+assert new_items[0]["key"] == di1[0]["key"]                                    # 没变的题复习进度还在
+EX.call_gemini = real_call
 db.close()
 
 c.post("/api/logout", json={})

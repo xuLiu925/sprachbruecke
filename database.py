@@ -195,6 +195,15 @@ CREATE TABLE IF NOT EXISTS ai_words (
     data TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+-- AI 内容的报错: kind = note(讲解) / drill(替换练习), 每句每种只留最新一条。重新生成时告诉 AI, 保存新内容后删掉
+CREATE TABLE IF NOT EXISTS content_reports (
+    kind TEXT NOT NULL,
+    sent_key TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    reported_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (kind, sent_key)
+);
 -- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
 CREATE TABLE IF NOT EXISTS sentence_progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

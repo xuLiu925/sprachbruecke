@@ -4,7 +4,22 @@ function noteBlock(box, title) {
   box.appendChild(h);
 }
 
-function renderNote(box, note, body) {
+// 报错: 写下哪里有问题, 重新生成时会告诉 AI。返回写下的内容, 取消时返回 null
+async function reportContent(kind, de) {
+  const reason = (prompt("哪里有问题？比如：这里应该是第四格") || "").trim();
+  if (!reason) return null;
+  try { await api("/api/report", "POST", { kind, de, reason }); } catch (e) { toast(e.message); return null; }
+  toast("已记录，重新生成时 AI 会改正");
+  return reason;
+}
+
+function miniAction(label, fn) {
+  const b = document.createElement("button"); b.className = "secondary"; b.textContent = label; b.onclick = fn;
+  return b;
+}
+
+// meta = {can, ai, report}: can = 能重新生成, report = 已记录的问题
+function renderNote(box, note, body, meta = {}) {
   box.textContent = "";
   noteBlock(box, "词形和用法");
   for (const w of note.words) {
@@ -40,7 +55,43 @@ function renderNote(box, note, body) {
   drill.style.cssText = "width:100%;margin-top:10px";
   const drillBox = document.createElement("div");
   drill.onclick = () => openDrills(drillBox, drill, body);
-  box.append(tip, drill, drillBox);
+
+  const issue = document.createElement("div"); issue.className = "lzh";
+  const showIssue = t => { issue.textContent = t ? "⚠️ 已记录的问题：" + t : ""; };
+  showIssue(meta.report);
+  const row = document.createElement("div"); row.className = "row"; row.style.marginTop = "8px";
+  const fixBox = document.createElement("div");
+  row.appendChild(miniAction("⚠️ 报错", async () => {
+    const reason = await reportContent("note", body.de);
+    if (reason) showIssue(reason);
+  }));
+  if (meta.can) {
+    const regen = miniAction("🔄 重新生成", async () => {
+      if (!confirm("重新生成这句的讲解？成功后会替换现有内容。")) return;
+      regen.disabled = true; regen.textContent = "AI 正在重写…";
+      fixBox.textContent = "";
+      try {
+        const r = await api("/api/explain/regenerate", "POST", body);
+        renderNote(box, r.note, body, { ...meta, report: null });
+      } catch (e) {
+        regen.disabled = false; regen.textContent = "🔄 重新生成";
+        renderFallback(fixBox, body, e.message, "/api/explain", r => renderNote(box, r.note, body, { ...meta, report: null }));
+      }
+    });
+    row.appendChild(regen);
+  }
+  box.append(tip, issue, row, fixBox, drill, drillBox);
+  if (meta.can) {
+    const redo = miniAction("🔄 重新出替换题", async () => {
+      if (!confirm("重新出这句的替换练习？成功后会替换现有题目。")) return;
+      redo.disabled = true; redo.textContent = "AI 正在出题…"; drillBox.textContent = "";
+      try { rpOpenItems((await api("/api/drills/regenerate", "POST", body)).items); }
+      catch (e) { renderFallback(drillBox, body, e.message, "/api/drills", g => rpOpenItems(g.items)); }
+      finally { redo.disabled = false; redo.textContent = "🔄 重新出替换题"; }
+    });
+    redo.style.cssText = "width:100%;margin-top:8px";
+    drill.after(redo);
+  }
 }
 
 // 替换练习: 有保存的就直接开始, 没有就生成; 做题用角色扮演页面
@@ -59,7 +110,7 @@ async function openDrills(box, btn, body) {
   } finally { btn.disabled = false; btn.textContent = label; }
 }
 
-function renderFallback(box, body, msg, base = "/api/explain", done = r => renderNote(box, r.note, body)) {
+function renderFallback(box, body, msg, base = "/api/explain", done = r => renderNote(box, r.note, body, { can: true })) {
   box.textContent = "";
   const p = document.createElement("div"); p.className = "msg"; p.textContent = msg;
   const hint = document.createElement("div"); hint.className = "lzh";
@@ -88,13 +139,13 @@ async function openExplain(box, line, level) {
   let r;
   try { r = await api("/api/explain?de=" + encodeURIComponent(line.de)); }
   catch (e) { box.textContent = e.message; return; }
-  if (r.note) { box.dataset.loaded = "1"; renderNote(box, r.note, body); return; }
+  if (r.note) { box.dataset.loaded = "1"; renderNote(box, r.note, body, r); return; }
   if (!r.can) { box.textContent = "这句还没有讲解。"; return; }
   if (!r.ai) { renderFallback(box, body, "还没有配置 API Key。"); return; }
   box.textContent = "AI 正在讲解，大约要 10 秒…";
   try {
     const g = await api("/api/explain/generate", "POST", body);
     box.dataset.loaded = "1";
-    renderNote(box, g.note, body);
+    renderNote(box, g.note, body, r);
   } catch (e) { renderFallback(box, body, e.message); }
 }

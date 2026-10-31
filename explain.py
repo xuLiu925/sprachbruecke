@@ -33,12 +33,26 @@ def key_of(de):
     return hashlib.sha1(de.encode("utf-8")).hexdigest()
 
 
-def build_prompt(de, zh, level):
+def report_reason(kind, de):
+    row = get_db().execute("SELECT reason FROM content_reports WHERE kind = ? AND sent_key = ?",
+                           (kind, key_of(de))).fetchone()
+    return row["reason"] if row else None
+
+
+def clear_report(db, kind, de):
+    db.execute("DELETE FROM content_reports WHERE kind = ? AND sent_key = ?", (kind, key_of(de)))
+
+
+def feedback_text(reason):
+    return f"\n上一版有这个问题，这次必须改正：{reason}\n" if reason else ""
+
+
+def build_prompt(de, zh, level, reason=None):
     return f"""你是德语语法老师，学习者的母语是中文，水平 {level}，在德国海外仓工作。请讲解这句德语。
 
 德语：{de}
 中文：{zh}
-
+{feedback_text(reason)}
 规则：
 - 用简单的中文解释，德语术语后面加中文。
 - 讲解句子里的主要名词短语（第几格、单复数、冠词为什么这样变）、动词（人称、时态、是否可分）、介词（支配第几格）和固定搭配。
@@ -104,7 +118,34 @@ def save_note(de, note):
         "ON CONFLICT(sent_key) DO UPDATE SET data = excluded.data, created_at = excluded.created_at",
         (key_of(de), de, json.dumps(note, ensure_ascii=False), now_str()),
     )
+    clear_report(db, "note", de)
     db.commit()
+
+
+@bp.route("/api/report", methods=["POST"])
+@login_required
+def report():
+    """报错 {kind, de, reason}: 记下哪里有问题, 重新生成时告诉 AI"""
+    data = json_body()
+    if data is None:
+        return err("请求格式错误")
+    kind, de, reason = data.get("kind"), text(data.get("de"), MAX_SENTENCE), text(data.get("reason"), 200)
+    if kind not in ("note", "drill"):
+        return err("类型无效")
+    if len(reason) < 2:
+        return err("请写一下哪里有问题")
+    exists = load_note(de) if kind == "note" else load_drills(de)
+    if not exists:
+        return err("这句还没有内容", 404)
+    db = get_db()
+    db.execute(
+        "INSERT INTO content_reports (kind, sent_key, reason, reported_by, created_at) VALUES (?,?,?,?,?) "
+        "ON CONFLICT(kind, sent_key) DO UPDATE SET reason = excluded.reason, "
+        "reported_by = excluded.reported_by, created_at = excluded.created_at",
+        (kind, key_of(de), reason, current_user_id(), now_str()),
+    )
+    db.commit()
+    return jsonify({"ok": True})
 
 
 @bp.route("/api/explain")
@@ -114,7 +155,8 @@ def get_note():
     de = request.args.get("de", "").strip()
     if not de or len(de) > MAX_SENTENCE:
         return err("句子无效")
-    return jsonify({"note": load_note(de), "can": is_admin(current_user_id()), "ai": bool(api_key())})
+    return jsonify({"note": load_note(de), "report": report_reason("note", de),
+                    "can": is_admin(current_user_id()), "ai": bool(api_key())})
 
 
 @bp.route("/api/explain/prompt", methods=["POST"])
@@ -123,7 +165,7 @@ def prompt_text():
     de, zh, level, e = read_sentence(json_body())
     if e:
         return err(e)
-    return jsonify({"prompt": build_prompt(de, zh, level)})
+    return jsonify({"prompt": build_prompt(de, zh, level, report_reason("note", de))})
 
 
 @bp.route("/api/explain/generate", methods=["POST"])
@@ -143,6 +185,24 @@ def generate():
     note, e = clean_note(extract_json(raw), de)
     if e:
         return err("AI 讲解不完整（" + e + "），请再试一次", 502)
+    save_note(de, note)
+    return jsonify({"note": note})
+
+
+@bp.route("/api/explain/regenerate", methods=["POST"])
+@admin_required
+def regenerate():
+    """重新生成讲解, 带上报错内容。失败时旧讲解不动"""
+    de, zh, level, e = read_sentence(json_body())
+    if e:
+        return err(e)
+    try:
+        raw = call_gemini(build_prompt(de, zh, level, report_reason("note", de)))
+    except AiError as ex:
+        return err(ex.msg, ex.code)
+    note, e = clean_note(extract_json(raw), de)
+    if e:
+        return err("AI 讲解不完整（" + e + "），旧内容没有变，请再试一次", 502)
     save_note(de, note)
     return jsonify({"note": note})
 
@@ -175,12 +235,12 @@ DRILL_SCHEMA = """{
 }"""
 
 
-def build_drill_prompt(de, zh, level):
+def build_drill_prompt(de, zh, level, reason=None):
     return f"""你是德语老师，学习者的母语是中文，水平 {level}，在德国海外仓工作。请为这句德语出替换练习，帮助他举一反三。
 
 原句：{de}
 中文：{zh}
-
+{feedback_text(reason)}
 规则：
 - 出 3 道题。每道题保持原句的核心语法结构，只替换 1–2 个部分，如地点、物品、数量、人称、时间。
 - 替换后要逼学习者动脑：比如换一个不同性别的名词让冠词变化，或换人称让动词变位变化。
@@ -227,6 +287,7 @@ def save_drills(de, level, drills):
         "created_at = excluded.created_at",
         (key_of(de), de, level, json.dumps(drills, ensure_ascii=False), now_str()),
     )
+    clear_report(db, "drill", de)
     db.commit()
     return drill_items(de, level, drills)
 
@@ -238,7 +299,8 @@ def get_drills():
     de = request.args.get("de", "").strip()
     if not de or len(de) > MAX_SENTENCE:
         return err("句子无效")
-    return jsonify({"items": load_drills(de), "can": is_admin(current_user_id()), "ai": bool(api_key())})
+    return jsonify({"items": load_drills(de), "report": report_reason("drill", de),
+                    "can": is_admin(current_user_id()), "ai": bool(api_key())})
 
 
 @bp.route("/api/drills/prompt", methods=["POST"])
@@ -247,7 +309,7 @@ def drill_prompt():
     de, zh, level, e = read_sentence(json_body())
     if e:
         return err(e)
-    return jsonify({"prompt": build_drill_prompt(de, zh, level)})
+    return jsonify({"prompt": build_drill_prompt(de, zh, level, report_reason("drill", de))})
 
 
 @bp.route("/api/drills/generate", methods=["POST"])
@@ -267,6 +329,23 @@ def drill_generate():
     drills, e = clean_drills(extract_json(raw), de)
     if e:
         return err("AI 出题不完整（" + e + "），请再试一次", 502)
+    return jsonify({"items": save_drills(de, level, drills)})
+
+
+@bp.route("/api/drills/regenerate", methods=["POST"])
+@admin_required
+def drill_regenerate():
+    """重新出题, 带上报错内容。失败时旧题不动; 换掉的题的复习进度不再使用"""
+    de, zh, level, e = read_sentence(json_body())
+    if e:
+        return err(e)
+    try:
+        raw = call_gemini(build_drill_prompt(de, zh, level, report_reason("drill", de)))
+    except AiError as ex:
+        return err(ex.msg, ex.code)
+    drills, e = clean_drills(extract_json(raw), de)
+    if e:
+        return err("AI 出题不完整（" + e + "），旧题没有变，请再试一次", 502)
     return jsonify({"items": save_drills(de, level, drills)})
 
 

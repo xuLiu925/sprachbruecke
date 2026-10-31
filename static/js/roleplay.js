@@ -81,10 +81,12 @@ function rpReveal() {
   $("rpPromptZh").textContent = it.prompt_zh;
   $("rpAnswerDe").textContent = it.answer;
   $("rpAnswerZh").textContent = it.answer_zh;
+  $("rpReport").classList.toggle("hidden", !it.drill);
   $("rpAsk").classList.add("hidden");
   $("rpReveal").classList.remove("hidden");
   speakDe(it.answer);
 }
+$("rpReport").onclick = () => { if (rpI < rpItems.length) reportContent("drill", rpItems[rpI].prompt); };
 $("rpShow").onclick = rpReveal;
 $("rpSayAnswer").onclick = () => { if (rpI < rpItems.length) speakDe(rpItems[rpI].answer); };
 $("rpSayPrompt").onclick = () => rpPlay();
