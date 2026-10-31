@@ -1,12 +1,13 @@
 // 情景课: 读课文(点词看详情) → 练习 → 用德语写出来。内容在 static/lessons.json, 完成记录存本机
-let lessons = null, lessonNow = null, lessonShown = null, wsSeq = 0, wsWord = null;
+let lessons = null, lessonNow = null, lessonShown = null, wsSeq = 0, wsWord = null, lessonAi = false;
 const LESSON_LEVELS = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶" };
 
 async function loadLessons() {
   if (lessons) return lessons;
-  const r = await fetch("static/lessons.json");
+  const [r, mine] = await Promise.all([fetch("static/lessons.json"), api("/api/custom_lessons")]);
   if (!r.ok) throw new Error("课程加载失败");
-  lessons = (await r.json()).lessons;
+  lessons = [...mine.lessons, ...(await r.json()).lessons];
+  lessonAi = mine.ai;
   return lessons;
 }
 const lessonDone = () => getSetting("lessonDone") || {};
@@ -19,16 +20,21 @@ onShow.lessons = async () => {
   let all;
   try { all = await loadLessons(); } catch (e) { return toast(e.message); }
   const box = $("lessonList"), done = lessonDone(); box.textContent = "";
-  for (const [lv, name] of Object.entries(LESSON_LEVELS)) {
+  const section = (name, items, ico) => {
+    if (!items.length) return;
     const h = document.createElement("h2"); h.textContent = name;
     const list = document.createElement("div"); list.className = "list";
-    for (const l of all.filter(x => x.level === lv)) {
-      const it = listItem(done[l.id] ? "✅" : "📦", l.title, l.scene, () => { lessonNow = l; go("lesson"); });
-      list.appendChild(it);
+    for (const l of items) {
+      list.appendChild(listItem(done[l.id] ? "✅" : ico, l.title, l.scene, () => { lessonNow = l; go("lesson"); }));
     }
     box.append(h, list);
+  };
+  section("我的工作对话", all.filter(x => x.custom), "📝");
+  for (const [lv, name] of Object.entries(LESSON_LEVELS)) {
+    section(name, all.filter(x => x.level === lv && !x.custom), "📦");
   }
 };
+$("lNew").onclick = () => go("lnew");
 
 function lessonTokens(box, line) {
   const re = /[A-Za-zÄÖÜäöüß]+(?:-[A-Za-zÄÖÜäöüß]+)*/g;   // E-Mail 算一个词
@@ -65,7 +71,8 @@ onShow.lesson = () => {
   $("title").textContent = l.title;
   if (lessonShown === l.id) return;   // 从单词详情 / 练习回来: 写了一半的内容要保留
   lessonShown = l.id;
-  $("lLevel").textContent = LESSON_LEVELS[l.level];
+  $("lLevel").textContent = LESSON_LEVELS[l.level] + (l.custom ? " · AI 生成，未核对" : "");
+  $("lDelete").classList.toggle("hidden", !l.custom);
   $("lScene").textContent = l.scene;
   const box = $("lLines"); box.textContent = "";
   l.lines.forEach(x => box.appendChild(lessonLine(x)));
@@ -90,7 +97,15 @@ $("lShowModel").onclick = () => {
   $("lShowModel").classList.add("hidden");
   const d = lessonDone(); d[lessonNow.id] = true; setSetting("lessonDone", d);
 };
-$("lPlayAll").onclick = () => { lessonNow.lines.forEach((x, i) => speakDe(x.de, i > 0)); };
+$("lDelete").onclick = async () => {
+  const l = lessonNow;
+  if (!l || !l.custom || !confirm(`删除“${l.title}”？这一课的整句复习也会停止。`)) return;
+  try { await api("/api/custom_lessons/" + l.id.slice(1), "DELETE"); } catch (e) { return toast(e.message); }
+  lessons = null; lessonNow = null; lessonShown = null;
+  toast("已删除");
+  location.replace("#lessons");
+};
+$("lPlayAll").onclick =() => { lessonNow.lines.forEach((x, i) => speakDe(x.de, i > 0)); };
 
 // 把课文变成句子练习的题目, 用 sentence.js 的答题页
 function lessonGloss(c) { return { german: c.base, gender: c.gender, meaning: c.meaning }; }

@@ -89,10 +89,30 @@ def load_items():
     return _items
 
 
+def as_lesson(row):
+    """custom_lessons 的一行 → 和 lessons.json 里一样的结构, 编号是 u + 数字, 不会和自带课程重复"""
+    return {**json.loads(row["data"]), "id": f"u{row['id']}", "level": row["level"], "title": row["title"],
+            "scene": row["scene"], "custom": True}
+
+
+def my_lessons():
+    rows = get_db().execute("SELECT * FROM custom_lessons WHERE user_id = ? ORDER BY id DESC",
+                            (current_user_id(),)).fetchall()
+    return [as_lesson(r) for r in rows]
+
+
+def my_items():
+    """自带课程 + 当前用户自建课程的全部题目 → (按 key, 按课程)"""
+    base = load_items()
+    custom = {x["id"]: roleplay_items(x) for x in my_lessons()}
+    by_key = {**base["by_key"], **{i["key"]: i for items in custom.values() for i in items}}
+    return by_key, {**base["by_lesson"], **custom}
+
+
 @bp.route("/api/roleplay/lesson/<lesson_id>")
 @login_required
 def roleplay_lesson(lesson_id):
-    items = load_items()["by_lesson"].get(lesson_id)
+    items = my_items()[1].get(lesson_id)
     if items is None:
         return err("课程不存在", 404)
     return jsonify({"items": items})
@@ -106,7 +126,7 @@ def roleplay_due():
         "SELECT item_key FROM sentence_progress WHERE user_id = ? AND next_review <= ? ORDER BY next_review",
         (current_user_id(), now_str()),
     ).fetchall()
-    by_key = load_items()["by_key"]
+    by_key = my_items()[0]
     due = [by_key[r["item_key"]] for r in rows if r["item_key"] in by_key]
     return jsonify({"count": len(due), "items": due[:DUE_LIMIT]})
 
@@ -119,7 +139,7 @@ def roleplay_answer():
     if data is None:
         return err("请求格式错误")
     key, rating = data.get("key"), data.get("rating")
-    if not isinstance(key, str) or key not in load_items()["by_key"]:
+    if not isinstance(key, str) or key not in my_items()[0]:
         return err("句子不存在", 404)
     if isinstance(rating, bool) or rating not in (1, 2, 3):
         return err("rating 只能是 1-3")

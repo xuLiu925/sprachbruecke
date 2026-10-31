@@ -162,6 +162,17 @@ CREATE TABLE IF NOT EXISTS study_queue (
     added_at TEXT NOT NULL,
     PRIMARY KEY (user_id, word_id)
 );
+-- 用户自建的工作对话(AI 生成后确认保存的)。data = JSON: lines / glossary / cloze / task, 格式同 static/lessons.json
+CREATE TABLE IF NOT EXISTS custom_lessons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    level TEXT NOT NULL,
+    title TEXT NOT NULL,
+    scene TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_custom_lessons ON custom_lessons (user_id);
 -- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
 CREATE TABLE IF NOT EXISTS sentence_progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

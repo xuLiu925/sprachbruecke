@@ -179,6 +179,10 @@ table.forms.gtable td:first-child { font-size:14px; white-space:normal; min-widt
 .schips button { padding:8px 12px; font-size:17px; }
 .sline { min-height:56px; padding:8px 0; border-bottom:1px dashed var(--line); }
 #sqWord .art { margin-right:4px; }
+textarea.lnedit { min-height:0; height:64px; margin-top:4px; font-size:15px; }
+#lnManual { margin-top:10px; }
+#lnManual summary { cursor:pointer; }
+#lNew { margin-bottom:4px; }
 .rpbar { height:6px; margin:10px 0; overflow:hidden; border-radius:3px; background:var(--line); }
 .rpbar i { display:block; width:0; height:100%; background:var(--accent); }
 .lline { padding:10px 0; border-bottom:1px solid var(--line); }

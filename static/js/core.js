@@ -116,6 +116,7 @@ const PAGES = {
   gquiz:    { title: "语法练习", parent: "gtopic" },
   lessons:  { title: "情景课", parent: "home" },
   lesson:   { title: "情景课", parent: "lessons" },       // 标题在页面里换成课名
+  lnew:     { title: "新建工作对话", parent: "lessons" },
   roleplay: { title: "角色扮演", parent: "lessons" },     // 标题在页面里换(整句复习用同一页)
   sentence: { title: "句子练习", parent: "home" },
   squiz:    { title: "句子练习", parent: "sentence" },     // 标题在页面里换成题型名字

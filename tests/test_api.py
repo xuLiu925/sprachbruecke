@@ -382,6 +382,58 @@ assert J(cb.get("/api/roleplay/due"))["count"] == 0                     # 进度
 db.execute("INSERT INTO sentence_progress VALUES ((SELECT id FROM users WHERE username = 'alice'), 'gone', "
            "'2020-01-01 00:00:00', 1, 5, '2019-12-31 00:00:00', 1, 0)"); db.commit()
 assert J(c.get("/api/roleplay/due"))["count"] == 0
+
+# 自建工作对话: AI 的结果必须通过检查才能保存; 保存后能做角色扮演
+import custom_lessons as CL
+good = {"level": "A2", "title": "少了一托", "scene": "司机发现少了一托。",
+        "lines": [{"who": "司机", "de": "Hier fehlt eine Palette.", "zh": "这里少了一托。"},
+                  {"who": "Li", "de": "Ich prüfe den Lieferschein.", "zh": "我核对一下送货单。", "map": {"prüfe": "prüfen", "gar": "x"}, "evil": "<b>"},
+                  {"who": "司机", "de": "Danke, ich warte hier.", "zh": "谢谢，我在这里等。"},
+                  {"who": "Li", "de": "Ich rufe meine Chefin an.", "zh": "我给主管打电话。"}],
+        "glossary": [{"german": "Lieferschein", "gender": "der", "pos": "名词", "plural": "Lieferscheine", "meaning": "送货单"},
+                     {"german": "Kaputt", "gender": "xx", "pos": "形容词", "meaning": "坏"}],
+        "cloze": [{"line": 0, "answer": "Palette", "base": "Palette", "gender": "die", "meaning": "托盘"},
+                  {"line": 0, "answer": "NichtDa", "base": "x", "gender": "", "meaning": "y"}, {"line": 99, "answer": "x"}],
+        "task": {"prompt": "写 3 句", "tips": ["Ich …"], "model": [{"de": "Ich prüfe das.", "zh": "我检查。"}]}}
+ok, e = CL.clean_lesson(good)
+assert e is None and len(ok["cloze"]) == 1 and len(ok["glossary"]) == 1
+assert ok["lines"][1]["map"] == {"prüfe": "prüfen"} and "evil" not in ok["lines"][1]
+for bad, msg in (({**good, "level": "C2"}, "级别"), ({**good, "lines": good["lines"][:2]}, "4–16"),
+                 ({**good, "task": None}, "写作任务"), ({**good, "lines": [{**x, "who": "Tom"} for x in good["lines"]]}, "回答太少")):
+    assert msg in CL.clean_lesson(bad)[1], msg
+assert CL.extract_json("好的：\n```json\n" + json.dumps(good) + "\n```") == good and CL.extract_json("nope") is None
+os.environ.pop("GEMINI_API_KEY", None)
+assert J(c.get("/api/custom_lessons")) == {"lessons": [], "ai": False}
+want = {"level": "A2", "request": "司机来提货发现少了一托"}
+assert c.post("/api/custom_lessons/generate", json={"level": "A2", "request": "x"}).status_code == 400
+assert c.post("/api/custom_lessons/generate", json=want).status_code == 503      # 没有 Key
+assert cb.post("/api/custom_lessons/generate", json=want).status_code == 403     # 只有管理员能用
+assert "司机来提货" in J(cb.post("/api/custom_lessons/prompt", json=want))["prompt"]
+real_call = CL.call_gemini
+CL.call_gemini = lambda prompt: "```json\n" + json.dumps(good) + "\n```"
+draft = J(c.post("/api/custom_lessons/generate", json=want))["lesson"]
+assert draft["title"] == "少了一托"
+CL.call_gemini = lambda prompt: "不是 JSON"
+assert c.post("/api/custom_lessons/generate", json=want).status_code == 502
+def quota(prompt): raise CL.AiError("额度", 429)
+CL.call_gemini = quota
+assert c.post("/api/custom_lessons/generate", json=want).status_code == 429
+CL.call_gemini = real_call
+assert J(c.post("/api/custom_lessons/check", json={"level": "B1", "text": "结果：" + json.dumps(good)}))["lesson"]["level"] == "B1"
+assert c.post("/api/custom_lessons/check", json={"text": "abc"}).status_code == 400
+saved = J(c.post("/api/custom_lessons", json=draft))["lesson"]
+assert saved["id"].startswith("u") and saved["custom"] and J(c.get("/api/custom_lessons"))["lessons"][0]["id"] == saved["id"]
+assert J(cb.get("/api/custom_lessons"))["lessons"] == []                         # 别人看不到
+ri = J(c.get("/api/roleplay/lesson/" + saved["id"]))["items"]
+assert [i["answer"] for i in ri] == ["Ich prüfe den Lieferschein.", "Ich rufe meine Chefin an."]
+assert cb.get("/api/roleplay/lesson/" + saved["id"]).status_code == 404
+assert J(c.post("/api/roleplay/answer", json={"key": ri[0]["key"], "rating": 1}))["interval_days"] == 0
+assert cb.post("/api/roleplay/answer", json={"key": ri[0]["key"], "rating": 1}).status_code == 404
+assert [i["key"] for i in J(c.get("/api/roleplay/due"))["items"]] == [ri[0]["key"]]
+num = saved["id"][1:]
+assert cb.delete("/api/custom_lessons/" + num).status_code == 404
+assert c.delete("/api/custom_lessons/" + num).status_code == 200
+assert J(c.get("/api/custom_lessons"))["lessons"] == [] and J(c.get("/api/roleplay/due"))["count"] == 0   # 删课后不再复习
 db.close()
 
 c.post("/api/logout", json={})

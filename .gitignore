@@ -4,6 +4,7 @@ vocab.db.*
 *.db
 backups/
 .secret_key
+.gemini_key
 
 # 单词书和原始数据（很大，且有版权问题）
 data/
@@ -20,4 +21,5 @@ __pycache__/
 *.pyc
 *.log
 sb.tar.gz
+tts_cache/
 .claude/

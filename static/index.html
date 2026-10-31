@@ -306,6 +306,7 @@
     <section class="page" data-page="lessons">
       <p class="meta left">海外仓场景：读课文、做练习、开口说，再用德语写出来。点课文里的单词看释义，不会的词可以加入复习。</p>
       <button class="big hidden" id="lDue" style="margin-bottom:8px"></button>
+      <button class="big secondary" id="lNew">＋ 新建工作对话</button>
       <div id="lessonList"></div>
       <p class="meta left" style="font-size:12px">课文由 AI 编写，建议请老师或母语者抽查。</p>
     </section>
@@ -336,6 +337,34 @@
         </div>
         <button id="lShowModel" style="width:100%;margin-top:8px">写好了，看参考答案</button>
         <div class="hidden" id="lModel"></div>
+      </div>
+      <button class="danger hidden" id="lDelete" style="width:100%;margin-top:8px">删除这一课</button>
+    </section>
+
+    <section class="page" data-page="lnew">
+      <div class="card">
+        <p class="meta left" style="margin-top:0">用中文写下你想练的工作情况。不要写真实的客户、地址和订单号。</p>
+        <select id="lnLevel"><option value="A1">A1 入门</option><option value="A2" selected>A2 基础</option><option value="B1">B1 进阶</option></select>
+        <textarea id="lnWant" maxlength="500" placeholder="例如：司机来提货，发现少了一托，我要核对提货单并联系主管" style="min-height:100px;margin-top:8px"></textarea>
+        <button class="big" id="lnGen" style="margin-top:8px">✨ 生成对话</button>
+        <p id="lnMsg" class="msg"></p>
+        <details id="lnManual">
+          <summary class="meta left">不用 API：复制到免费 AI</summary>
+          <p class="meta left">① 复制提示词，粘贴到 Gemini、ChatGPT 或 Claude；② 把 AI 的回复全部粘贴到下面。</p>
+          <button class="secondary" id="lnCopy" style="width:100%">复制提示词</button>
+          <textarea id="lnPaste" spellcheck="false" placeholder="粘贴 AI 的回复" style="min-height:100px;margin-top:8px"></textarea>
+          <button class="secondary" id="lnCheck" style="width:100%;margin-top:8px">读取结果</button>
+        </details>
+      </div>
+      <div class="card hidden" id="lnPreview">
+        <p class="meta left" style="margin-top:0">检查一下，句子可以直接改。AI 可能写错德语，这一课会标为“未核对”。</p>
+        <input id="lnTitle" maxlength="40" placeholder="课名">
+        <textarea id="lnScene" maxlength="200" placeholder="场景" style="min-height:60px;margin-top:8px"></textarea>
+        <div id="lnLines"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="secondary" id="lnRegen">重新生成</button>
+          <button id="lnSave">保存成课程</button>
+        </div>
       </div>
     </section>
 
@@ -537,6 +566,7 @@
 <script src="static/js/sentence.js"></script>
 <script src="static/js/lessons.js"></script>
 <script src="static/js/roleplay.js"></script>
+<script src="static/js/lessonnew.js"></script>
 <script>boot();</script>
 </body>
 </html>
