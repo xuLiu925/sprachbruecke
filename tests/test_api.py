@@ -285,6 +285,29 @@ assert not J(c.get(f"/api/words/{zid}"))["hidden"]
 n_alice = db.execute("SELECT COUNT(*) FROM words WHERE owner_id = (SELECT id FROM users WHERE username = 'alice')").fetchone()[0]
 n_public = db.execute("SELECT COUNT(*) FROM words WHERE owner_id IS NULL").fetchone()[0]
 assert J(c.get("/api/stats"))["total"] == n_public + n_alice and J(cb.get("/api/stats"))["total"] == n_public + 1
+
+# 句子练习: 没有中文翻译 / 不适合出题的例句不用; 填空要能在句子里找到目标词(含变位)
+import sentences as S
+assert S.parse_sentence("Wir gehen heute nach Hause.\n我们今天回家。") == ("Wir gehen heute nach Hause.", "我们今天回家。", ["Wir", "gehen", "heute", "nach", "Hause"])
+assert S.parse_sentence("Ja, ich komme gern.\n好的。")[2] == ["Ja", "ich", "komme", "gern"]
+for bad in ("Ich lese ein Buch.", "Gib ihr/ihm bitte das Buch.\n请给。", "Hallo!\n你好", "Ich bin. Du bist auch.\n我是。",
+            "Sag \"Hallo\" zu ihm.\n说。", "Das ist z.B. gut.\n例如。", "Das ist gut\n好", ""):
+    assert S.parse_sentence(bad) is None, bad
+geh = S.word_shapes("gehen", "动词", "", json.dumps({"praesens": ["gehe", "gehst", "geht", "gehen", "geht", "gehen"], "past": ["ging", "ist gegangen"]}))
+assert S.find_blank("Er ist nach Hause gegangen.", geh) == {"before": "Er ist nach Hause ", "answer": "gegangen", "after": "."}
+assert S.find_blank("Ich gehe, du gehst.", geh) is None     # 出现两次
+assert "stehe" in S.word_shapes("aufstehen", "动词", "", json.dumps({"praesens": ["stehe auf"]}))
+assert S.find_blank("Das ist ein neues Auto.", S.word_shapes("neu", "形容词", "", None))["answer"] == "neues"
+assert S.find_blank("Die Söhne spielen.", S.word_shapes("Sohn", "名词", "Söhne", None))["answer"] == "Söhne"
+assert c.get("/api/sentences?mode=x").status_code == 400
+assert J(c.get("/api/sentences?mode=cloze"))["questions"] == []   # 示例词的例句都没有中文
+c.post("/api/words", json={"german": "lesen", "pos": "动词", "meaning": "读", "example": "Ich lese gern Bücher.\n我喜欢看书。",
+                           "forms": {"praesens": ["lese", "liest", "liest", "lesen", "lest", "lesen"]}})
+q = J(c.get("/api/sentences?mode=cloze"))["questions"]
+assert len(q) == 1 and q[0]["blank"]["answer"] == "lese" and q[0]["tokens"] == ["Ich", "lese", "gern", "Bücher"]
+assert J(cb.get("/api/sentences?mode=cloze"))["questions"] == []  # 别人的私有词不出现
+c.delete(f"/api/words/{q[0]['word_id']}")
+assert J(c.get("/api/sentences?mode=order"))["questions"] == []   # 删掉的词不出现
 db.close()
 
 c.post("/api/logout", json={})

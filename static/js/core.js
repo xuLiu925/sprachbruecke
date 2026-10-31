@@ -114,6 +114,8 @@ const PAGES = {
   grammar:  { title: "语法基础", parent: "home" },
   gtopic:   { title: "语法", parent: "grammar" },      // 标题在页面里换成知识点名字
   gquiz:    { title: "语法练习", parent: "gtopic" },
+  sentence: { title: "句子练习", parent: "home" },
+  squiz:    { title: "句子练习", parent: "sentence" },     // 标题在页面里换成题型名字
   add:      { title: "添加单词", parent: "words" },
   view:     { title: "单词详情", parent: "words" },
   edit:     { title: "编辑单词", parent: "words", section: "add" },   // 和添加单词共用一个界面

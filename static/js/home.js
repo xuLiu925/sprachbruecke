@@ -1,7 +1,8 @@
 // 首页、练习列表、我的
 const MODULES = [
   { ico: "🔤", name: "词汇", sub: "复习 · 拼写", page: "practice" },
-  { ico: "📐", name: "语法", sub: `${GRAMMAR_TOPICS.length} 个知识点`, page: "grammar" }, { ico: "💬", name: "句子" },
+  { ico: "📐", name: "语法", sub: `${GRAMMAR_TOPICS.length} 个知识点`, page: "grammar" },
+  { ico: "💬", name: "句子", sub: "填空 · 排序 · 中译德", page: "sentence" },
   { ico: "🎧", name: "听力" }, { ico: "📖", name: "阅读" }, { ico: "📝", name: "考试" },
 ];
 
@@ -94,7 +95,8 @@ function listItem(ico, title, sub, onclick, off) {
 const reviewItem = listItem("🗂️", "今日复习", "认词 + 拼写，按 FSRS 安排复习", () => go("review"));
 $("practiceList").append(reviewItem, listItem("🎨", "冠词练习", "der / die / das 选择题", () => go("drill")),
                         listItem("✍️", "听写", "听发音写单词，优先出学过的词", () => go("dictation")),
-                        listItem("📐", "语法基础", "冠词、代词、介词、动词、语序的速查表和练习", () => go("grammar")));
+                        listItem("📐", "语法基础", "冠词、代词、介词、动词、语序的速查表和练习", () => go("grammar")),
+                        listItem("💬", "句子练习", "填空、连词成句、中译德，用学过的词练完整的句子", () => go("sentence")));
 for (const [ico, t, s] of [["🔢", "复数练习", "看单数写复数"], ["🧩", "变格练习", "四个格的冠词和词尾"],
                            ["🔁", "动词变位", "不同人称的现在时"]]) {
   $("soonList").appendChild(listItem(ico, t, s, () => toast("即将推出"), true));

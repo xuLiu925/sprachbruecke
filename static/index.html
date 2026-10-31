@@ -301,6 +301,54 @@
       </div>
     </section>
 
+    <!-- ===== 句子练习 ===== -->
+    <section class="page" data-page="sentence">
+      <p class="meta left">用真实例句练习，优先用你学过的词。只是额外练习，不影响复习计划。</p>
+      <div class="list" id="sList"></div>
+      <p class="meta left" style="font-size:12px">例句的中文大多是机器翻译，可能不够准确，以德语原句为准。</p>
+    </section>
+
+    <section class="page" data-page="squiz">
+      <div class="card hidden" id="sqBox">
+        <div class="tag" id="sqProgress"></div>
+        <div class="gprompt" id="sqZh"></div>
+        <div class="scloze" id="sqCloze"></div>
+        <div class="meta" id="sqHint"></div>
+        <div id="sqTyping">
+          <textarea id="sqIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+          <div class="row umlauts" data-for="sqIn">
+            <button class="secondary" data-ch="ä">ä</button><button class="secondary" data-ch="ö">ö</button>
+            <button class="secondary" data-ch="ü">ü</button><button class="secondary" data-ch="ß">ß</button>
+          </div>
+        </div>
+        <div id="sqOrder">
+          <div class="schips sline" id="sqLine"></div>
+          <div class="schips" id="sqChips"></div>
+        </div>
+        <button id="sqCheck" style="width:100%;margin-top:8px">检查</button>
+        <div class="answer hidden" id="sqAnswer">
+          <p id="sqResult" style="font-weight:600"></p>
+          <p class="scloze" id="sqDe"></p>
+          <div class="row hidden" id="sqSelf">
+            <button class="bad" id="sqSelfNo">没写对</button>
+            <button class="good" id="sqSelfYes">我的也对</button>
+          </div>
+          <div class="meta" style="margin-top:10px"><span id="sqWord"></span> — <span id="sqMeaning"></span></div>
+          <div class="row" style="margin-top:10px">
+            <button class="secondary" id="sqSay" style="flex:0 0 110px">🔊 听整句</button>
+            <button id="sqNext">下一题</button>
+          </div>
+        </div>
+        <p class="kbd-hint"><kbd>回车</kbd> 检查 / 下一题 · 排序题 <kbd>1</kbd>–<kbd>9</kbd> 选词、<kbd>Backspace</kbd> 退回 · 对照时 <kbd>1</kbd> 我的也对、<kbd>2</kbd> 没写对 · <kbd>P</kbd> 听整句 · <kbd>Esc</kbd> 返回</p>
+      </div>
+      <div class="card hidden" id="sqDone" style="text-align:center">
+        <p style="font-size:20px" id="sqScore"></p>
+        <div class="meta left" id="sqWrong" style="line-height:1.8"></div>
+        <button id="sqAgain" style="width:100%;margin-top:12px">再来一组</button>
+      </div>
+      <button id="sqBack" class="mini hidden">‹ 上一题</button>
+    </section>
+
     <!-- ===== 冠词练习 ===== -->
     <section class="page" data-page="drill">
       <p class="meta">只是额外练习，不影响复习计划。优先出你学过的名词。</p>
@@ -389,6 +437,7 @@
 <script src="static/js/dictation.js"></script>
 <script src="static/js/words.js"></script>
 <script src="static/js/grammar.js"></script>
+<script src="static/js/sentence.js"></script>
 <script>boot();</script>
 </body>
 </html>
