@@ -4,7 +4,7 @@ function noteBlock(box, title) {
   box.appendChild(h);
 }
 
-function renderNote(box, note) {
+function renderNote(box, note, body) {
   box.textContent = "";
   noteBlock(box, "词形和用法");
   for (const w of note.words) {
@@ -36,10 +36,30 @@ function renderNote(box, note) {
     box.append(b, zh);
   }
   const tip = document.createElement("div"); tip.className = "lzh nfoot"; tip.textContent = "AI 生成，未核对，语法以教材或老师为准。";
-  box.appendChild(tip);
+  const drill = document.createElement("button"); drill.textContent = "🔁 替换练习：换个情况再说一遍";
+  drill.style.cssText = "width:100%;margin-top:10px";
+  const drillBox = document.createElement("div");
+  drill.onclick = () => openDrills(drillBox, drill, body);
+  box.append(tip, drill, drillBox);
 }
 
-function renderFallback(box, body, msg) {
+// 替换练习: 有保存的就直接开始, 没有就生成; 做题用角色扮演页面
+async function openDrills(box, btn, body) {
+  const label = btn.textContent;
+  box.textContent = ""; btn.disabled = true;
+  try {
+    const r = await api("/api/drills?de=" + encodeURIComponent(body.de));
+    if (r.items) return rpOpenItems(r.items);
+    if (!r.can) { box.textContent = "这句还没有替换练习。"; return; }
+    if (!r.ai) return renderFallback(box, body, "还没有配置 API Key。", "/api/drills", g => rpOpenItems(g.items));
+    btn.textContent = "AI 正在出题…";
+    rpOpenItems((await api("/api/drills/generate", "POST", body)).items);
+  } catch (e) {
+    renderFallback(box, body, e.message, "/api/drills", g => rpOpenItems(g.items));
+  } finally { btn.disabled = false; btn.textContent = label; }
+}
+
+function renderFallback(box, body, msg, base = "/api/explain", done = r => renderNote(box, r.note, body)) {
   box.textContent = "";
   const p = document.createElement("div"); p.className = "msg"; p.textContent = msg;
   const hint = document.createElement("div"); hint.className = "lzh";
@@ -47,14 +67,14 @@ function renderFallback(box, body, msg) {
   const copy = document.createElement("button"); copy.className = "secondary"; copy.textContent = "复制提示词";
   copy.style.cssText = "width:100%;margin-top:8px";
   copy.onclick = async () => {
-    try { copyText((await api("/api/explain/prompt", "POST", body)).prompt); } catch (e) { toast(e.message); }
+    try { copyText((await api(base + "/prompt", "POST", body)).prompt); } catch (e) { toast(e.message); }
   };
   const paste = document.createElement("textarea"); paste.placeholder = "粘贴 AI 的回复"; paste.spellcheck = false;
   paste.style.cssText = "min-height:90px;margin-top:8px";
   const read = document.createElement("button"); read.className = "secondary"; read.textContent = "读取结果";
   read.style.cssText = "width:100%;margin-top:8px";
   read.onclick = async () => {
-    try { renderNote(box, (await api("/api/explain/check", "POST", { ...body, text: paste.value })).note); }
+    try { done(await api(base + "/check", "POST", { ...body, text: paste.value })); }
     catch (e) { p.textContent = e.message; }
   };
   box.append(p, hint, copy, paste, read);
@@ -68,13 +88,13 @@ async function openExplain(box, line, level) {
   let r;
   try { r = await api("/api/explain?de=" + encodeURIComponent(line.de)); }
   catch (e) { box.textContent = e.message; return; }
-  if (r.note) { box.dataset.loaded = "1"; renderNote(box, r.note); return; }
+  if (r.note) { box.dataset.loaded = "1"; renderNote(box, r.note, body); return; }
   if (!r.can) { box.textContent = "这句还没有讲解。"; return; }
   if (!r.ai) { renderFallback(box, body, "还没有配置 API Key。"); return; }
   box.textContent = "AI 正在讲解，大约要 10 秒…";
   try {
     const g = await api("/api/explain/generate", "POST", body);
     box.dataset.loaded = "1";
-    renderNote(box, g.note);
+    renderNote(box, g.note, body);
   } catch (e) { renderFallback(box, body, e.message); }
 }

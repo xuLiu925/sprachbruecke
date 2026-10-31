@@ -469,6 +469,40 @@ n2 = {"words": [{"word": "hole", "base": "abholen", "form": "ich 的现在时", 
 assert c.post("/api/explain/check", json={**s2, "text": "abc"}).status_code == 400
 assert J(c.post("/api/explain/check", json={**s2, "text": json.dumps(n2)}))["note"]["words"][0]["base"] == "abholen"
 assert cb.post("/api/explain/check", json={**s2, "text": json.dumps(n2)}).status_code == 403
+
+# 替换练习: 每句只生成一次, 和原句相同或没有中文的题去掉; 练过的题进入整句复习
+dr = {"drills": [{"cue": "请司机开到二号门", "hint": "Tor zwei", "answer": "Bitte fahren Sie zu Tor zwei.", "answer_zh": "请开到二号门。"},
+                 {"cue": "和原句一样", "answer": "Bitte fahren Sie an Rampe vier.", "answer_zh": "一样"},
+                 {"cue": "no chinese", "answer": "Falsch.", "answer_zh": "错"},
+                 {"cue": "写成中文的", "answer": "中文答案", "answer_zh": "错"},
+                 {"cue": "请同事开到一号月台", "answer": "Bitte fahr an Rampe eins.", "answer_zh": "请开到一号月台。"}]}
+s3 = {"de": "Bitte fahren Sie an Rampe vier.", "zh": "请开到四号月台。", "level": "A2"}
+cd, e = EX.clean_drills(dr, s3["de"])
+assert e is None and [d["answer"] for d in cd] == ["Bitte fahren Sie zu Tor zwei.", "Bitte fahr an Rampe eins."] and cd[1]["hint"] == ""
+assert EX.clean_drills({"drills": dr["drills"][:2]}, s3["de"])[1] and EX.clean_drills(None, s3["de"])[1]
+EX.call_gemini = real_call
+ask3 = "/api/drills?de=" + urllib.parse.quote(s3["de"])
+assert J(c.get(ask3)) == {"items": None, "can": True, "ai": False}
+assert c.post("/api/drills/generate", json=s3).status_code == 503 and cb.post("/api/drills/generate", json=s3).status_code == 403
+calls = []
+def fake2(prompt):
+    calls.append(prompt); return json.dumps(dr)
+EX.call_gemini = fake2
+di1 = J(c.post("/api/drills/generate", json=s3))["items"]
+di2 = J(c.post("/api/drills/generate", json=s3))["items"]
+assert di1 == di2 and len(calls) == 1 and s3["de"] in calls[0]
+assert di1[0]["drill"] and di1[0]["prompt"] == s3["de"] and di1[0]["prompt_zh"] == "请司机开到二号门" and di1[0]["hint"] == "Tor zwei"
+assert J(cb.get(ask3))["items"] == di1                                              # 保存后大家都能看
+EX.call_gemini = lambda prompt: "没有 JSON"
+s4 = {**s3, "de": "Ich rufe meine Chefin an."}
+assert c.post("/api/drills/generate", json=s4).status_code == 502
+assert s4["de"] in J(c.post("/api/drills/prompt", json=s4))["prompt"]
+assert len(J(c.post("/api/drills/check", json={**s4, "text": json.dumps(dr)}))["items"]) == 3   # 换了原句, 第二题不再和原句相同
+assert c.post("/api/drills/check", json={**s4, "text": "abc"}).status_code == 400
+assert J(c.post("/api/roleplay/answer", json={"key": di1[0]["key"], "rating": 1}))["interval_days"] == 0
+back = J(c.get("/api/roleplay/due"))["items"]
+assert [i["key"] for i in back] == [di1[0]["key"]] and back[0]["drill"]
+assert J(c.post("/api/roleplay/answer", json={"key": di1[0]["key"], "rating": 3}))["interval_days"] >= 1
 db.close()
 
 c.post("/api/logout", json={})

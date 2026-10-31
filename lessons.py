@@ -101,11 +101,24 @@ def my_lessons():
     return [as_lesson(r) for r in rows]
 
 
+def drill_items(de, level, drills):
+    """替换练习的题, 字段和角色扮演一样, 多了 drill / hint。prompt 是原句, prompt_zh 是新情况"""
+    out = []
+    for d in drills:
+        key = hashlib.sha1(f"drill|{de}|{d['answer']}".encode("utf-8")).hexdigest()[:16]
+        out.append({"key": key, "drill": True, "lesson": "", "level": level, "title": "替换练习", "who": "",
+                    "prompt": de, "prompt_zh": d["cue"], "hint": d.get("hint", ""),
+                    "answer": d["answer"], "answer_zh": d["answer_zh"]})
+    return out
+
+
 def my_items():
-    """自带课程 + 当前用户自建课程的全部题目 → (按 key, 按课程)"""
+    """自带课程 + 当前用户自建课程 + 替换练习的全部题目 → (按 key, 按课程)"""
     base = load_items()
     custom = {x["id"]: roleplay_items(x) for x in my_lessons()}
     by_key = {**base["by_key"], **{i["key"]: i for items in custom.values() for i in items}}
+    for r in get_db().execute("SELECT de, level, data FROM sentence_drills"):
+        by_key.update({i["key"]: i for i in drill_items(r["de"], r["level"], json.loads(r["data"]))})
     return by_key, {**base["by_lesson"], **custom}
 
 

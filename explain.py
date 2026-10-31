@@ -1,6 +1,6 @@
-"""句子讲解: 词形、第几格、语序、为什么这样用、类似用法
+"""句子讲解(词形、第几格、语序、为什么这样用、类似用法)和替换练习(换一个情况, 用同样的结构再说一遍)
 
-讲解按句子保存在 sentence_notes(用德语原句的哈希做主键), 每句只生成一次, 所有课程共用。
+都按句子保存(sentence_notes / sentence_drills, 用德语原句的哈希做主键), 每句只生成一次, 所有课程共用。
 生成和保存只有管理员能做(会消耗额度, 而且保存的内容大家共用); 没有 Key 时可以复制提示词到免费 AI, 再粘贴回来。
 """
 import hashlib
@@ -13,6 +13,7 @@ from auth import admin_required, is_admin
 from custom_lessons import CHINESE, LEVELS, TOKEN, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
+from lessons import drill_items
 
 bp = Blueprint("explain", __name__)
 
@@ -162,3 +163,125 @@ def check():
         return err(e)
     save_note(de, note)
     return jsonify({"note": note})
+
+
+# ---------- 替换练习 ----------
+MIN_DRILLS = 2
+DRILL_SCHEMA = """{
+  "drills": [{"cue": "用中文说明新情况，如：请司机开到二号门",
+              "hint": "可选的德语关键词提示，如：Tor zwei",
+              "answer": "德语答案",
+              "answer_zh": "答案的中文翻译"}]
+}"""
+
+
+def build_drill_prompt(de, zh, level):
+    return f"""你是德语老师，学习者的母语是中文，水平 {level}，在德国海外仓工作。请为这句德语出替换练习，帮助他举一反三。
+
+原句：{de}
+中文：{zh}
+
+规则：
+- 出 3 道题。每道题保持原句的核心语法结构，只替换 1–2 个部分，如地点、物品、数量、人称、时间。
+- 替换后要逼学习者动脑：比如换一个不同性别的名词让冠词变化，或换人称让动词变位变化。
+- cue 用中文说明新情况，不要写出德语答案。
+- answer 必须是语法正确、自然的德语，水平不超过 {level}，和原句不能相同。
+- 内容是仓库工作场景，不要写真实公司、客户和订单信息。
+- 只输出一个 JSON 对象，不要 Markdown 代码块，不要其他文字。
+
+JSON 格式：
+{DRILL_SCHEMA}"""
+
+
+def clean_drills(data, de):
+    """返回 (题目列表, 错误)"""
+    if not isinstance(data, dict) or not isinstance(data.get("drills"), list):
+        return None, "内容格式不对"
+    out, seen = [], {de.lower()}
+    for d in data["drills"]:
+        if not isinstance(d, dict):
+            continue
+        cue, hint = text(d.get("cue"), 200), text(d.get("hint"), 100)
+        answer, answer_zh = text(d.get("answer"), 300), text(d.get("answer_zh"), 300)
+        if not CHINESE.search(cue) or not CHINESE.search(answer_zh):
+            continue
+        if not TOKEN.search(answer) or CHINESE.search(answer) or answer.lower() in seen:
+            continue
+        seen.add(answer.lower())
+        out.append({"cue": cue, "hint": hint, "answer": answer, "answer_zh": answer_zh})
+    if len(out) < MIN_DRILLS:
+        return None, f"可用的题少于 {MIN_DRILLS} 道"
+    return out[:4], None
+
+
+def load_drills(de):
+    row = get_db().execute("SELECT level, data FROM sentence_drills WHERE sent_key = ?", (key_of(de),)).fetchone()
+    return drill_items(de, row["level"], json.loads(row["data"])) if row else None
+
+
+def save_drills(de, level, drills):
+    db = get_db()
+    db.execute(
+        "INSERT INTO sentence_drills (sent_key, de, level, data, created_at) VALUES (?,?,?,?,?) "
+        "ON CONFLICT(sent_key) DO UPDATE SET level = excluded.level, data = excluded.data, "
+        "created_at = excluded.created_at",
+        (key_of(de), de, level, json.dumps(drills, ensure_ascii=False), now_str()),
+    )
+    db.commit()
+    return drill_items(de, level, drills)
+
+
+@bp.route("/api/drills")
+@login_required
+def get_drills():
+    """?de=句子 → 已保存的题 items(没有是 null); can / ai 同 /api/explain"""
+    de = request.args.get("de", "").strip()
+    if not de or len(de) > MAX_SENTENCE:
+        return err("句子无效")
+    return jsonify({"items": load_drills(de), "can": is_admin(current_user_id()), "ai": bool(api_key())})
+
+
+@bp.route("/api/drills/prompt", methods=["POST"])
+@admin_required
+def drill_prompt():
+    de, zh, level, e = read_sentence(json_body())
+    if e:
+        return err(e)
+    return jsonify({"prompt": build_drill_prompt(de, zh, level)})
+
+
+@bp.route("/api/drills/generate", methods=["POST"])
+@admin_required
+def drill_generate():
+    """已经有题就直接返回, 不再调用 AI"""
+    de, zh, level, e = read_sentence(json_body())
+    if e:
+        return err(e)
+    saved = load_drills(de)
+    if saved:
+        return jsonify({"items": saved})
+    try:
+        raw = call_gemini(build_drill_prompt(de, zh, level))
+    except AiError as ex:
+        return err(ex.msg, ex.code)
+    drills, e = clean_drills(extract_json(raw), de)
+    if e:
+        return err("AI 出题不完整（" + e + "），请再试一次", 502)
+    return jsonify({"items": save_drills(de, level, drills)})
+
+
+@bp.route("/api/drills/check", methods=["POST"])
+@admin_required
+def drill_check():
+    """保存用户从免费 AI 粘贴回来的题 {de, zh, level, text}"""
+    body = json_body()
+    de, _zh, level, e = read_sentence(body)
+    if e:
+        return err(e)
+    data = extract_json(body.get("text"))
+    if data is None:
+        return err("没有找到完整的 JSON，请把 AI 的回复全部复制过来")
+    drills, e = clean_drills(data, de)
+    if e:
+        return err(e)
+    return jsonify({"items": save_drills(de, level, drills)})

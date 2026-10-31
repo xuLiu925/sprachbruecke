@@ -180,6 +180,14 @@ CREATE TABLE IF NOT EXISTS sentence_notes (
     data TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+-- 替换练习(AI 生成): 按原句保存, 每句只生成一次。data = JSON 数组: [{cue, answer, answer_zh, hint}]
+CREATE TABLE IF NOT EXISTS sentence_drills (
+    sent_key TEXT PRIMARY KEY,   -- 德语原句的 sha1
+    de TEXT NOT NULL,
+    level TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 -- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
 CREATE TABLE IF NOT EXISTS sentence_progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

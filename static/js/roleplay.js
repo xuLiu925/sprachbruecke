@@ -1,8 +1,11 @@
 // 角色扮演和整句复习: 只听对方的话, 限时开口回答, 再和参考回答对照、自评。评分进 FSRS
+// 替换练习也用这一页: 题目带 drill = true, 看原句和新情况, 不放对方的声音
 let rpSource = null;     // 课程编号; null = 整句复习(到期的句子)
+let rpPreset = null;     // 替换练习: 已经拿到的题目, 不用再请求
 let rpItems = [], rpI = 0, rpTimer = null, rpRevealed = false, rpDone = 0, rpAgain = new Set();
 
-function rpOpen(lessonId) { rpSource = lessonId; go("roleplay"); }
+function rpOpen(lessonId) { rpPreset = null; rpSource = lessonId; go("roleplay"); }
+function rpOpenItems(items) { rpPreset = items; rpSource = null; go("roleplay"); }
 
 function rpStopTimer() {
   clearTimeout(rpTimer); rpTimer = null;
@@ -11,12 +14,12 @@ function rpStopTimer() {
 window.addEventListener("hashchange", rpStopTimer);
 
 onShow.roleplay = async () => {
-  $("title").textContent = rpSource ? "角色扮演" : "整句复习";
+  $("title").textContent = rpPreset ? "替换练习" : rpSource ? "角色扮演" : "整句复习";
   $("rpBox").classList.add("hidden");
   $("rpDone").classList.add("hidden");
   try {
     const url = rpSource ? "/api/roleplay/lesson/" + rpSource : "/api/roleplay/due";
-    rpItems = (await api(url)).items;
+    rpItems = rpPreset ? rpPreset.slice() : (await api(url)).items;
   } catch (e) { return toast(e.message); }
   rpI = 0; rpDone = 0; rpAgain = new Set();
   rpRender();
@@ -47,12 +50,16 @@ function rpRender() {
   const it = rpItems[rpI];
   rpRevealed = false;
   $("rpProgress").textContent = `第 ${rpI + 1} / ${rpItems.length} 句 · ${it.level} ${it.title}`;
-  $("rpWho").textContent = it.who + " 对你说：";
+  $("rpWho").textContent = it.drill ? "原句：" + it.prompt : it.who + " 对你说：";
+  $("rpAskTitle").textContent = it.drill ? "新情况：" + it.prompt_zh : "🎧 听完，开口回答";
   $("rpHint").classList.add("hidden");
-  $("rpHint").textContent = "你要表达：" + it.answer_zh;
+  $("rpHint").textContent = it.drill ? (it.hint ? "提示：" + it.hint : "这题没有更多提示。") : "你要表达：" + it.answer_zh;
+  $("rpShowHint").textContent = it.drill ? "提示" : "中文提示";
+  $("rpPromptLabel").textContent = it.drill ? "原句" : "对方说";
+  $("rpAnswerLabel").textContent = it.drill ? "参考说法" : "参考回答";
   $("rpReveal").classList.add("hidden");
   $("rpAsk").classList.remove("hidden");
-  speakDe(it.prompt);
+  if (it.drill) stopSpeak(); else speakDe(it.prompt);   // 替换练习要自己组句, 不放声音
   rpStartTimer(it);
 }
 

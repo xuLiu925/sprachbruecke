@@ -375,7 +375,7 @@
         <div class="rpbar"><i id="rpBar"></i></div>
         <div id="rpAsk">
           <p class="meta" id="rpWho"></p>
-          <p class="gprompt">🎧 听完，开口回答</p>
+          <p class="gprompt" id="rpAskTitle"></p>
           <div class="row">
             <button class="secondary" id="rpReplay">🔊 重听</button>
             <button class="secondary" id="rpSlow">🐢 慢速</button>
@@ -386,12 +386,12 @@
         </div>
         <div class="hidden" id="rpReveal">
           <div class="lline">
-            <div class="lwho">对方说</div>
+            <div class="lwho" id="rpPromptLabel"></div>
             <button class="lmodel" id="rpSayPrompt">🔊 <span id="rpPromptDe"></span></button>
             <div class="lzh" id="rpPromptZh"></div>
           </div>
           <div class="lline">
-            <div class="lwho">参考回答</div>
+            <div class="lwho" id="rpAnswerLabel"></div>
             <button class="lmodel" id="rpSayAnswer">🔊 <span id="rpAnswerDe"></span></button>
             <div class="lzh" id="rpAnswerZh"></div>
           </div>
