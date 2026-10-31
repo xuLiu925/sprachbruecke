@@ -228,6 +228,23 @@ CREATE TABLE IF NOT EXISTS gender_memos (
     created_at TEXT NOT NULL,
     PRIMARY KEY (german, gender)
 );
+-- 定冠词练习记录: streak = 连续答对次数。错过且连续答对不到 3 次的词算“错过的词”
+CREATE TABLE IF NOT EXISTS noun_practice (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    seen INTEGER NOT NULL DEFAULT 0,
+    wrong INTEGER NOT NULL DEFAULT 0,
+    streak INTEGER NOT NULL DEFAULT 0,
+    last_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, word_id)
+);
+-- 我的词性本: 用户自己挑的名词
+CREATE TABLE IF NOT EXISTS noun_list (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, word_id)
+);
 -- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
 CREATE TABLE IF NOT EXISTS sentence_progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

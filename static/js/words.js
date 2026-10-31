@@ -122,6 +122,7 @@ onShow.view = async () => {
   renderForms(w.forms, $("vForms"));
   renderDetails(w.details, $("vDetails"));
   $("vStatus").textContent = studyText(w);
+  $("vNoun").classList.toggle("hidden", !w.gender || w.hidden);
   $("vQueue").classList.toggle("hidden", w.status !== "new" || w.hidden);
   $("vQueue").disabled = !!w.queued;
   $("vQueue").textContent = w.queued ? "已加入复习" : "加入复习";
@@ -134,6 +135,12 @@ $("vQueue").onclick = async () => {
   try { await api("/api/review/queue", "POST", { word_id: viewingId }); } catch (e) { return toast(e.message); }
   $("vQueue").disabled = true; $("vQueue").textContent = "已加入复习";
   toast("已加入复习");
+};
+$("vNoun").onclick = async () => {
+  try {
+    const r = await api("/api/grammar/nouns/list", "POST", { word_id: viewingId });
+    toast(r.added ? "已加入词性本" : "已经在词性本里了");
+  } catch (e) { toast(e.message); }
 };
 $("vEdit").onclick = () => openEdit(viewingId);
 

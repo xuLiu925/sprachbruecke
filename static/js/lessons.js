@@ -191,7 +191,7 @@ async function openWordSheet(token, line) {
   $("wsExample").textContent = "";
   genderReason($("wsGender"), "", "");
   $("wsAdd").classList.add("hidden"); $("wsView").classList.add("hidden"); $("wsSay").classList.add("hidden");
-  $("wsAi").classList.add("hidden");
+  $("wsAi").classList.add("hidden"); $("wsNoun").classList.add("hidden");
   try { await loadLessons(); } catch (e) {}   // 复习页里可能还没加载过课程; 没有仓储词表也能查词
   if (seq !== wsSeq) return;
   const gl = lessonGlossary(lemma);
@@ -224,6 +224,7 @@ async function openWordSheet(token, line) {
   if (gl && found && gl.meaning !== found.meaning) $("wsLesson").textContent = "在仓库里：" + gl.meaning;
   $("wsSay").classList.remove("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
+  $("wsNoun").classList.toggle("hidden", !w.gender);
   $("wsView").classList.toggle("hidden", !found || !wsCanLeave());
   if (getSetting("autoWord")) speakDe(wordText(w));
 }
@@ -242,6 +243,7 @@ function openGlossaryWord(g) {
   $("wsSay").classList.remove("hidden");
   $("wsView").classList.add("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
+  $("wsNoun").classList.toggle("hidden", !g.gender);
   if (getSetting("autoWord")) speakDe(wordText(g));
 }
 $("wsAi").onclick = async () => {
@@ -257,6 +259,15 @@ $("wsAi").onclick = async () => {
   if (r.word) return openGlossaryWord(r.word);
   btn.classList.add("hidden");
   $("wsMeaning").textContent = "AI 也没有查到这个词";
+};
+// 加入我的词性本: 词库里的词用编号, 情景课的仓储词用德语词
+$("wsNoun").onclick = async () => {
+  const w = wsWord;
+  if (!w) return;
+  try {
+    const r = await api("/api/grammar/nouns/list", "POST", w.id ? { word_id: w.id } : { text: w.german });
+    toast(r.added ? "已加入词性本" : r.skipped ? "已经在词性本里了" : "没有加入");
+  } catch (e) { toast(e.message); }
 };
 $("wsSay").onclick = () => { if (wsWord) speakDe(wordText(wsWord)); };
 $("wsView").onclick = () => {

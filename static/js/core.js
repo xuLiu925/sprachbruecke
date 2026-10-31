@@ -39,7 +39,7 @@ function toast(msg) {
 function needArticle() {
   try { return localStorage.getItem("sb_needArticle") !== "0"; } catch (e) { return true; }
 }
-const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "warehouse" };
+const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "learned" };
 function getSetting(k) {
   try { const v = localStorage.getItem("sb_" + k); return v === null ? SETTING_DEFAULTS[k] : JSON.parse(v); }
   catch (e) { return SETTING_DEFAULTS[k]; }
@@ -162,6 +162,7 @@ const PAGES = {
   gtopic:   { title: "语法", parent: "grammar" },      // 标题在页面里换成知识点名字
   gquiz:    { title: "语法练习", parent: "gtopic" },
   gbank:    { title: "题库", parent: "gtopic" },           // 标题在页面里换成知识点名字
+  gnouns:   { title: "我的词性本", parent: "gtopic" },
   lessons:  { title: "情景课", parent: "home" },
   lesson:   { title: "情景课", parent: "lessons" },       // 标题在页面里换成课名
   lnew:     { title: "新建工作对话", parent: "lessons" },

@@ -226,6 +226,7 @@
       <h2>我的学习情况</h2>
       <div class="card meta left" id="vStatus" style="line-height:1.7"></div>
       <button class="secondary hidden" id="vQueue" style="width:100%;margin-bottom:8px">加入复习</button>
+      <button class="secondary hidden" id="vNoun" style="width:100%;margin-bottom:8px">📒 加入词性本</button>
       <button id="vEdit" style="width:100%">✏️ 编辑这个词</button>
     </section>
 
@@ -276,16 +277,24 @@
       <h2>例句</h2>
       <div class="card" id="gExamples"></div>
       <div class="card hidden" id="gScopeRow">
-        <label class="meta left">练习范围</label>
-        <select id="gScope" style="margin-top:6px">
-          <option value="warehouse">海外仓题库</option>
-          <option value="learned">学过的词</option>
-          <option value="book">当前单词书</option>
-          <option value="all">全部名词</option>
-        </select>
+        <div class="meta left">练习范围</div>
+        <div class="chips" id="gScope" style="margin-top:6px"></div>
+        <button class="secondary" id="gNouns" style="width:100%;margin-top:8px">📒 我的词性本</button>
       </div>
       <button class="big" id="gStart"></button>
       <button class="big secondary hidden" id="gBank" style="margin-top:8px">📚 管理题库</button>
+    </section>
+
+    <section class="page" data-page="gnouns">
+      <div class="card">
+        <p class="meta left" style="margin-top:0">写下想练的名词，用逗号或空格分开。变化形式也能找到原形。</p>
+        <textarea id="gnText" spellcheck="false" placeholder="例如：Palette, Karton, Tor" style="min-height:80px"></textarea>
+        <button id="gnAdd" style="width:100%;margin-top:8px">加入词性本</button>
+        <p id="gnMsg" class="meta left"></p>
+      </div>
+      <button class="big" id="gnStart">练习我的词性本</button>
+      <h2 id="gnCount"></h2>
+      <div class="card hidden" id="gnList"></div>
     </section>
 
     <section class="page" data-page="gbank">
@@ -591,6 +600,7 @@
         <button class="hidden" id="wsAdd">加入复习</button>
         <button class="hidden" id="wsAi">✨ 用 AI 查询</button>
       </div>
+      <button class="secondary hidden" id="wsNoun" style="width:100%;margin-top:8px">📒 加入词性本</button>
     </div>
   </div>
 
@@ -615,6 +625,7 @@
 <script src="static/js/words.js"></script>
 <script src="static/js/grammar.js"></script>
 <script src="static/js/gbank.js"></script>
+<script src="static/js/gnouns.js"></script>
 <script src="static/js/sentence.js"></script>
 <script src="static/js/explain.js"></script>
 <script src="static/js/lessons.js"></script>

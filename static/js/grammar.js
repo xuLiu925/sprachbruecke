@@ -33,8 +33,7 @@ async function bankQuiz(topic, n, local) {
   const scope = getSetting("gScope");
   try {
     if (scope !== "warehouse") {       // 从词库的名词自动出题
-      const r = await api(`/api/grammar/nouns?scope=${scope}&n=14`);
-      if (r.questions.length) return r.questions;
+      return (await api(`/api/grammar/nouns?scope=${scope}&n=14`)).questions;
     }
     return shuffle([...local, ...(await api(`/api/grammar/${topic}/quiz?n=${n}`)).questions]);
   } catch (e) { toast("题库加载失败，先做基础题"); return shuffle(local); }
@@ -233,10 +232,24 @@ onShow.gtopic = () => {
   $("gStart").textContent = "开始练习" + (best ? `（上次最好 ${best[0]} / ${best[1]}）` : "");
   $("gBank").classList.toggle("hidden", !(t.bank && isAdmin));
   $("gScopeRow").classList.toggle("hidden", !t.bank);
-  $("gScope").value = getSetting("gScope");
+  gScopeShow();
 };
 $("gBank").onclick = () => go("gbank");
-$("gScope").onchange = () => setSetting("gScope", $("gScope").value);
+$("gNouns").onclick = () => go("gnouns");
+
+// 练习范围: 放在开始按钮前, 一眼能看到现在练的是什么
+const G_SCOPES = [["learned", "学过的词"], ["book", "当前单词书"], ["warehouse", "海外仓题库"],
+                  ["mine", "我的词性本"], ["wrong", "错过的词"], ["all", "全部名词"]];
+for (const [value, label] of G_SCOPES) {
+  const b = document.createElement("button");
+  b.textContent = label; b.dataset.scope = value;
+  b.onclick = () => { setSetting("gScope", value); gScopeShow(); };
+  $("gScope").appendChild(b);
+}
+function gScopeShow() {
+  const now = getSetting("gScope");
+  document.querySelectorAll("#gScope button").forEach(b => b.classList.toggle("on", b.dataset.scope === now));
+}
 $("gStart").onclick = () => go("gquiz");
 
 // ---------- 练习 ----------
@@ -314,8 +327,10 @@ function gChoose(value) {
   if (gAnswered) return;
   const q = gQs[gi];
   if (!q.retry) {                        // 得分只算第一次; 题库知识点的错题排到最后再练一次
-    if (value === q.answer) gScore++;
+    const ok = value === q.answer;
+    if (ok) gScore++;
     else if (gTopic.bank) gQs.push({ ...q, retry: true });
+    if (q.word_id) api("/api/grammar/nouns/result", "POST", { word_id: q.word_id, ok }).catch(() => {});
   }
   gPicks[gi] = { value, opts: gOpts };
   gShowAnswer(value);
@@ -367,6 +382,13 @@ function gDone() {
   $("gqBox").classList.add("hidden");
   $("gqDone").classList.remove("hidden");
   const total = gQs.filter(q => !q.retry).length;      // 错题重练不计入总分
+  if (!total) {
+    const scope = getSetting("gScope");
+    $("gqScore").textContent = "这个范围还没有词";
+    $("gqDoneMsg").textContent = scope === "mine" ? "先把想练的名词加入“我的词性本”。"
+      : scope === "wrong" ? "没有错过的词 🎉 换个范围继续练。" : "换个练习范围试试。";
+    return;
+  }
   $("gqScore").textContent = `得分 ${gScore} / ${total}`;
   const best = bestScore(gTopic.id);
   if (!best || gScore / total > best[0] / best[1]) {

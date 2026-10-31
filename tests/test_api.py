@@ -764,7 +764,8 @@ def nr(forms=nf, example="", gender="der", german="Mann", details=None):
     return {"id": 7, "german": german, "gender": gender, "meaning": "男人", "example": example,
             "forms": json.dumps(forms) if forms else None, "details": json.dumps(details) if details else None}
 assert NQ.split_form("des Mannes / des Manns") == ("des", "Mannes") and NQ.split_form("kein Mann") is None
-assert len(NQ.table(nr())) == 8 and NQ.table(nr(gender="die")) == [] and NQ.table(nr(forms=None)) == []
+assert len(NQ.table(nr())) == 8 and NQ.table(nr(gender="die")) == []
+assert NQ.table(nr(forms=None)) == [("单数", 0, "der", "Mann")]                  # 没有变格表只考第一格
 eq = NQ.make_question(nr(example="Ich sehe den Mann im Lager.\n我在仓库里看见那个男人。"))
 assert eq["prompt"] == "Ich sehe ___ Mann im Lager." and eq["answer"] == "den" and eq["source"] == "example"
 assert eq["must"] == "单数" and "第四格" in eq["explain"] and eq["zh"] == "我在仓库里看见那个男人。"
@@ -779,7 +780,7 @@ assert NQ.make_question(nr(example="Der Mann ist hier."))["source"] == "template
 for _ in range(60):
     tq = NQ.template_question(nr(), NQ.table(nr()))
     assert tq["prompt"].count("___") == 1 and tq["answer"] in NQ.OPTIONS and tq["must"] in ("单数", "复数") and tq["zh"].endswith("男人")
-assert NQ.make_question(nr(forms=None, example="Der Mann ist hier.\n他在这里。")) is None
+assert NQ.make_question(nr(forms=None, german="Zwei Worte")) is None
 assert c.get("/api/grammar/nouns?scope=x").status_code == 400 and c.get("/api/grammar/nouns?n=x").status_code == 400
 assert A.app.test_client().get("/api/grammar/nouns").status_code == 401
 na = J(cb.get("/api/grammar/nouns?scope=all&n=10"))["questions"]
@@ -792,6 +793,43 @@ assert nrep(cb, reason="x").status_code == 400 and nrep(cb, word_id="1").status_
 assert nrep(cb).status_code == 200 and cb.get("/api/grammar/nouns/reports").status_code == 403
 assert J(c.get("/api/grammar/nouns/reports"))["reports"][0]["id"] == nid
 assert c.delete(f"/api/grammar/nouns/reports/{nid}").status_code == 200 and J(c.get("/api/grammar/nouns/reports"))["reports"] == []
+
+# 练习记录: 错过的词优先; 连续答对 3 次移出“错过的词”; 按用户分开
+nq = lambda client, scope, n=30: J(client.get(f"/api/grammar/nouns?scope={scope}&n={n}"))["questions"]
+assert nq(cb, "wrong") == [] and nq(cb, "mine") == []
+res = lambda client, wid, ok: client.post("/api/grammar/nouns/result", json={"word_id": wid, "ok": ok})
+assert res(cb, nid, "x").status_code == 400 and res(cb, "1", True).status_code == 400 and res(cb, 999999, True).status_code == 404
+assert res(cb, nid, False).status_code == 200
+assert [x["word_id"] for x in nq(cb, "wrong")] == [nid] and nq(c, "wrong") == []
+assert nq(cb, "all", 1)[0]["word_id"] == nid                                    # 错过的词排最前
+res(cb, nid, True); res(cb, nid, True)
+assert [x["word_id"] for x in nq(cb, "wrong")] == [nid]                         # 才连对 2 次
+res(cb, nid, True)
+assert nq(cb, "wrong") == []
+ps = db.execute("SELECT seen, wrong, streak FROM noun_practice WHERE word_id = ?", (nid,)).fetchone()
+assert ps == (4, 1, 3), ps
+done_ids = {x["word_id"] for x in nq(cb, "all", 5)}
+assert nid not in done_ids                                                      # 没练过的词优先于练过的
+
+# 我的词性本: 粘贴多个词、变化形式、仓储词; 只出本子里的词; 按用户分开
+ladd = lambda client, **b: client.post("/api/grammar/nouns/list", json=b)
+assert ladd(cb).status_code == 400 and ladd(cb, text=" ").status_code == 400
+rl = J(ladd(cb, text="Tisch, Katzen，der Hund Nichtda gehen"))
+assert rl["added"] == 3 and rl["missing"] == ["Nichtda", "gehen"], rl
+assert J(ladd(cb, text="Tisch"))  == {"added": 0, "skipped": 1, "missing": []}
+assert {x["german"] for x in J(cb.get("/api/grammar/nouns/list"))["words"]} == {"Tisch", "Katze", "Hund"}
+assert {x["german"] for x in J(c.get("/api/grammar/nouns/list"))["words"]} == set()
+assert {x["word_id"] for x in nq(cb, "mine")} == {x["id"] for x in J(cb.get("/api/grammar/nouns/list"))["words"]}
+gl_add = J(ladd(cb, text="Gabelstapler"))                                        # 只在情景课词表里: 加成私有词
+assert gl_add["added"] == 1 and db.execute("SELECT 1 FROM words WHERE german = 'Gabelstapler' AND owner_id IS NOT NULL").fetchone()
+fork = [x for x in nq(cb, "mine") if "Gabelstapler" in x["hint"]][0]
+assert fork["prompt"] == "Das ist ___ Gabelstapler." and fork["answer"] == "der"  # 没有变格表, 只考第一格
+ltid = J(cb.get("/api/grammar/nouns/list"))["words"][0]["id"]
+assert ladd(cb, word_id="1").status_code == 400 and ladd(cb, word_id=999999).status_code == 404
+gehen_id = db.execute("SELECT id FROM words WHERE german = 'gehen'").fetchone()[0]
+assert ladd(cb, word_id=gehen_id).status_code == 400                              # 不是名词
+assert cb.delete(f"/api/grammar/nouns/list/{ltid}").status_code == 200
+assert ltid not in [x["id"] for x in J(cb.get("/api/grammar/nouns/list"))["words"]]
 db.close()
 
 c.post("/api/logout", json={})
