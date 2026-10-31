@@ -100,15 +100,51 @@ function speakSystem(text, queue, rate) {
 }
 const wordText = w => (w.gender ? w.gender + " " : "") + w.german;   // 名词连冠词一起读
 
-// 显示词性解释; 不是名词或查询失败时留空。切到下一个词后, 上一个词迟到的结果不显示
-async function genderReason(el, german, gender) {
+// 显示词性解释和同类词; 不是名词或查询失败时留空。切到下一个词后, 上一个词迟到的结果不显示
+// 没有规律的词, 下面可以生成联想记忆(第二层)。meaning 给 AI 参考
+async function genderReason(el, german, gender, meaning = "") {
   el.textContent = "";
   el.dataset.word = german || "";
   if (!german || !gender) return;
-  try {
-    const r = await api(`/api/gender_reason?german=${encodeURIComponent(german)}&gender=${gender}`);
-    if (el.dataset.word === german) el.textContent = "💡 " + r.reason;
-  } catch (e) {}
+  let r;
+  try { r = await api(`/api/gender_reason?german=${encodeURIComponent(german)}&gender=${gender}`); }
+  catch (e) { return; }
+  if (el.dataset.word !== german) return;
+  const line = document.createElement("div"); line.textContent = "💡 " + r.reason;
+  el.appendChild(line);
+  if (r.examples.length) {
+    const row = document.createElement("div"); row.append("同类词：");
+    r.examples.forEach((w, i) => {
+      if (i) row.append("、");
+      const b = document.createElement("button"); b.className = "tok"; b.textContent = `${w.gender} ${w.german}`;
+      b.onclick = () => openWordSheet(w.german, { de: "" });
+      row.append(b, `（${w.meaning}）`);
+    });
+    el.appendChild(row);
+  }
+  if (r.no_rule) genderMemo(el, german, gender, meaning, r);
+}
+
+function genderMemo(el, german, gender, meaning, r) {
+  const box = document.createElement("div"); el.appendChild(box);
+  const show = memo => {
+    box.textContent = "";
+    if (memo) {
+      const m = document.createElement("div"); m.textContent = "🧠 " + memo;
+      const tip = document.createElement("div"); tip.className = "lzh"; tip.textContent = "这是记忆法，不是语法原因";
+      box.append(m, tip);
+    }
+    if (!r.can || !r.ai) return;
+    const b = document.createElement("button"); b.className = "mini";
+    b.textContent = memo ? "换一个" : "✨ 帮我记住这个词性";
+    b.onclick = async () => {
+      b.disabled = true; b.textContent = "AI 正在想…";
+      try { show((await api("/api/gender_memo", "POST", { german, gender, meaning, again: !!memo })).memo); }
+      catch (e) { toast(e.message); show(memo); }
+    };
+    box.appendChild(b);
+  };
+  show(r.memo);
 }
 const exampleDe = ex => (ex || "").split("\n")[0];                  // 例句第一行是德语, 第二行是中文
 

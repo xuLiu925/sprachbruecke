@@ -723,6 +723,38 @@ assert gr("Hausbuch", "der") == "这个词没有明显规律，要和冠词一�
 assert gr("Xyzbuch", "das") == "这个词没有明显规律，要和冠词一起记"              # 前半段不是真词
 assert "动词" in gr("Gehen", "das") and "星期" in gr("Montag", "der") and "-e" in gr("Lampe", "die")
 assert gr("die Lieferung", "die").startswith("以 -ung")                           # 带冠词也能查
+# 第一层补充: 新词尾、动词加 -er、情景课词表; 同类词能点
+import gender_hint as GH
+rw = lambda german, gender, client=c: J(client.get(f"/api/gender_reason?german={urllib.parse.quote(german)}&gender={gender}"))
+assert "-ei" in gr("Bäckerei", "die") and "-ik" in gr("Musik", "die") and "-um" in gr("Zentrum", "das") and "-ie" in gr("Familie", "die")
+assert "-er" in gr("Lerner", "der") and gr("Raum", "der") == GH.NO_RULE
+# 动词加 -er 的同类词: Vater 只是碰巧以 -er 结尾, 不算
+wdb = sqlite3.connect(os.environ["DB_PATH"]); wdb.executemany("INSERT INTO words (german, pos, gender, plural, meaning) VALUES (?,?,?,?,?)",
+    [("Vater", "名词", "der", "", "父亲"), ("Geher", "名词", "der", "", "步行者")]); wdb.commit(); wdb.close()
+with A.app.test_request_context():
+    assert [e["german"] for e in GH.examples_of("Lerner", "der", "er", None)] == ["Geher"]
+assert gr("Staplerschein", "der") == "这个词没有明显规律，要和冠词一起记" or "Schein" in gr("Staplerschein", "der")
+assert gr("Staplerpalette", "die") == "复合词，词性看最后一个词：die Palette"       # 前后都只在情景课词表里
+assert rw("Hausapfel", "der")["examples"][0] == {"german": "Apfel", "gender": "der", "meaning": "苹果"}   # 最后一个词排最前
+assert [e["german"] for e in rw("Lampe", "die")["examples"]] != [] and all(e["german"] != "Lampe" for e in rw("Lampe", "die")["examples"])
+assert rw("Hund", "der")["no_rule"] and rw("Hund", "der")["examples"] == [] and rw("Hund", "der")["can"]
+assert not rw("Hund", "der", cb)["can"] and "memo" not in rw("Zeitung", "die")
+# 第二层: 没有规律的词才生成, 点了才调用, 保存后不重复, 可以换一个
+mm = lambda client, **b: client.post("/api/gender_memo", json={"german": "Hund", "gender": "der", "meaning": "狗", **b})
+assert mm(c).status_code == 503 and mm(cb).status_code == 403
+assert mm(c, gender="x").status_code == 400 and mm(c, german="Zeitung", gender="die").status_code == 400
+calls = []
+def fake7(prompt):
+    calls.append(prompt); return json.dumps({"memo": "蓝色的 der 狗看守仓库"})
+GH.call_gemini = fake7
+assert J(mm(c))["memo"] == "蓝色的 der 狗看守仓库" and J(mm(c))["memo"] == "蓝色的 der 狗看守仓库" and len(calls) == 1
+assert "der Hund" in calls[0] and "狗" in calls[0] and "蓝色" in calls[0]
+assert rw("Hund", "der", cb)["memo"] == "蓝色的 der 狗看守仓库"                     # 保存后大家都能看
+GH.call_gemini = lambda prompt: json.dumps({"memo": "新的联想：der 狗"})
+assert J(mm(c, again=True))["memo"] == "新的联想：der 狗" and rw("Hund", "der")["memo"] == "新的联想：der 狗"
+GH.call_gemini = lambda prompt: json.dumps({"memo": "no"})
+assert mm(c, again=True).status_code == 502 and rw("Hund", "der")["memo"] == "新的联想：der 狗"   # 失败时旧的不动
+GH.call_gemini = real_call
 db.close()
 
 c.post("/api/logout", json={})

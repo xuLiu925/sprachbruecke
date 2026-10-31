@@ -220,7 +220,7 @@ async function openWordSheet(token, line) {
   $("wsPlural").textContent = [w.pos, w.plural ? "复数 " + w.plural : "", token !== w.german ? "文中是 " + token : ""]
     .filter(Boolean).join(" · ");
   $("wsMeaning").textContent = w.meaning;
-  genderReason($("wsGender"), w.german, w.gender);
+  genderReason($("wsGender"), w.german, w.gender, w.meaning);
   if (gl && found && gl.meaning !== found.meaning) $("wsLesson").textContent = "在仓库里：" + gl.meaning;
   $("wsSay").classList.remove("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
@@ -236,7 +236,7 @@ function openGlossaryWord(g) {
   wordInto($("wsWord"), g);
   $("wsPlural").textContent = [g.pos, g.plural ? "复数 " + g.plural : ""].filter(Boolean).join(" · ");
   $("wsMeaning").textContent = g.meaning;
-  genderReason($("wsGender"), g.german, g.gender);
+  genderReason($("wsGender"), g.german, g.gender, g.meaning);
   $("wsExample").textContent = g.example || "";
   $("wsLesson").textContent = g.ai_word ? "AI 生成，未核对" : "";
   $("wsSay").classList.remove("hidden");

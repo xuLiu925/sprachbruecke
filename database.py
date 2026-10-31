@@ -220,6 +220,14 @@ CREATE TABLE IF NOT EXISTS grammar_questions (
     created_at TEXT NOT NULL,
     UNIQUE (topic, prompt)
 );
+-- AI 联想记忆: 没有规律的名词, 用户点了才生成。只帮助记忆, 不是语法原因
+CREATE TABLE IF NOT EXISTS gender_memos (
+    german TEXT NOT NULL,
+    gender TEXT NOT NULL,
+    memo TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (german, gender)
+);
 -- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
 CREATE TABLE IF NOT EXISTS sentence_progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
