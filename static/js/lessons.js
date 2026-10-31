@@ -159,6 +159,7 @@ async function openWordSheet(token, line) {
   $("wsheet").classList.remove("hidden");
   $("wsWord").textContent = token;
   $("wsPlural").textContent = ""; $("wsMeaning").textContent = "查询中…"; $("wsLesson").textContent = "";
+  $("wsExample").textContent = "";
   $("wsAdd").classList.add("hidden"); $("wsView").classList.add("hidden"); $("wsSay").classList.add("hidden");
   let found = null;
   try { found = (await api("/api/lookup?w=" + encodeURIComponent(gl ? gl.german : lemma))).word; }
@@ -189,7 +190,8 @@ function openGlossaryWord(g) {
   wordInto($("wsWord"), g);
   $("wsPlural").textContent = [g.pos, g.plural ? "复数 " + g.plural : ""].filter(Boolean).join(" · ");
   $("wsMeaning").textContent = g.meaning;
-  $("wsLesson").textContent = "";
+  $("wsExample").textContent = g.example || "";
+  $("wsLesson").textContent = g.ai_word ? "AI 生成，未核对" : "";
   $("wsSay").classList.remove("hidden");
   $("wsView").classList.add("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
@@ -200,7 +202,8 @@ $("wsView").onclick = () => { if (wsWord && wsWord.id) openView(wsWord.id); };
 $("wsAdd").onclick = async () => {
   const w = wsWord;
   if (!w) return;
-  const body = w.id ? { word_id: w.id } : { german: w.german, gender: w.gender, pos: w.pos, plural: w.plural, meaning: w.meaning };
+  const body = w.id ? { word_id: w.id }
+    : { german: w.german, gender: w.gender, pos: w.pos, plural: w.plural, meaning: w.meaning, example: w.example || "" };
   try {
     const r = await api("/api/review/queue", "POST", body);
     w.id = r.word_id; w.learned = r.learned; w.queued = r.queued;

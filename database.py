@@ -188,6 +188,13 @@ CREATE TABLE IF NOT EXISTS sentence_drills (
     data TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+-- AI 查词的结果: lookup_key = 去空格的小写查询词, 同一个查询只调用一次 AI。data = JSON: german / gender / pos / plural / meaning / example
+CREATE TABLE IF NOT EXISTS ai_words (
+    lookup_key TEXT PRIMARY KEY,
+    query TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 -- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
 CREATE TABLE IF NOT EXISTS sentence_progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -45,6 +45,7 @@ async function loadWords() {
   const q = $("wSearch").value.trim();
   // 在“全部”里输入内容 = 查词(能查变位变格, 最相关的在前); 选了级别 = 在这个范围里筛选
   const dict = q && !wLevel;
+  $("wAi").classList.add("hidden");
   const url = dict ? "/api/dict?q=" + encodeURIComponent(q) : "/api/words?q=" + encodeURIComponent(q) + "&level=" + wLevel;
   let r;
   try { r = await api(url); } catch (e) { if (seq === searchSeq) toast(e.message); return; }
@@ -54,13 +55,19 @@ async function loadWords() {
   $("wCount").textContent = q && !r.words.length ? `没有找到“${q}”`
     : (q ? "找到 " : "共 ") + r.words.length + " 个" + (r.words.length >= limit ? `（最多显示 ${limit} 个）` : "");
   box.classList.toggle("hidden", !r.words.length);
+  if (dict && !r.words.length && r.can && r.ai) {     // 查不到: 用户点了才调用 AI
+    $("wAi").dataset.q = q; $("wAi").disabled = false;
+    $("wAi").textContent = `✨ 用 AI 查询“${q}”`;
+    $("wAi").classList.remove("hidden");
+  }
   for (const w of r.words) {
     const row = document.createElement("button"); row.className = "item wordrow";
     row.onclick = () => w.id ? openView(w.id) : openGlossaryWord(w);   // 情景课的仓储词还不在词库里, 用单词卡显示
     const body = document.createElement("span"); body.className = "body";
     const t = document.createElement("b"); wordInto(t, w);
     const s = document.createElement("small");
-    s.textContent = [w.form ? `${w.form} 的原形` : "", w.glossary ? "📦 仓储词" : "", w.private ? "🔒 我加的" : "", w.edited ? "✏️ 已改" : "",
+    s.textContent = [w.form ? `${w.form} 的原形` : "", w.glossary ? "📦 仓储词" : "", w.ai_word ? "✨ AI" : "",
+                     w.private ? "🔒 我加的" : "", w.edited ? "✏️ 已改" : "",
                      w.level, w.pos, w.meaning].filter(Boolean).join(" · ");
     body.append(t, s);
     if (w.hidden) {
@@ -71,7 +78,18 @@ async function loadWords() {
   }
 }
 onShow.words = loadWords;
-$("wSearch").oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadWords, 250); };
+$("wAi").onclick = async () => {
+  const btn = $("wAi"), q = btn.dataset.q;
+  btn.disabled = true; btn.textContent = "AI 正在查询…";
+  let r;
+  try { r = await api("/api/dict/ai", "POST", { q }); }
+  catch (e) { toast(e.message); btn.disabled = false; btn.textContent = `✨ 用 AI 查询“${q}”`; return; }
+  if ($("wSearch").value.trim() !== q) return;        // 查询期间已经换了别的词
+  if (!r.word) { btn.classList.add("hidden"); $("wCount").textContent = `AI 也没有查到“${q}”`; return; }
+  await loadWords();
+  openGlossaryWord(r.word);
+};
+$("wSearch").oninput =() => { clearTimeout(searchTimer); searchTimer = setTimeout(loadWords, 250); };
 
 // ---- 单词详情(查看) ----
 function studyText(w) {

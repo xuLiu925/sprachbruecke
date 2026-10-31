@@ -5,14 +5,21 @@
 
 情景课的仓储词(glossary)也能查到。它们不在 words 表里, 所以 id 是 null, glossary = true;
 用户加入复习后就变成他的私有词, 那时词库里有了, 这里不再重复显示。
+
+查不到时可以用 AI 查询(/api/dict/ai): 用户点了才调用, 只有管理员能用, 结果存 ai_words,
+同样的查询不再调用 AI。AI 的结果也是 id 为 null, ai_word = true, 同样要加入复习才进词库。
 """
+import json
 import re
 
 from flask import Blueprint, jsonify, request
 
-from helpers import err, login_required
+from auth import admin_required, is_admin
+from custom_lessons import TOKEN, AiError, api_key, call_gemini, extract_json, text
+from database import get_db, now_str
+from helpers import current_user_id, err, json_body, login_required
 from lessons import find_word, like_escape, load_items
-from vocab import query, word_status
+from vocab import GENDERS, query, word_status
 
 bp = Blueprint("dictionary", __name__)
 
@@ -133,6 +140,86 @@ def search_chinese(q):
     return merge(words, glossary)
 
 
+# ---------- AI 查词 ----------
+def lookup_key(q):
+    return "".join(q.split()).lower()
+
+
+def build_prompt(q):
+    return f"""你是德汉词典编辑，读者是在德国海外仓工作的中文学习者。请查这个词：{q}
+
+规则：
+- 输入可能是德语（可能是变化形式）或中文。给出对应德语词的原形。中文输入时选仓库工作中最常用的德语词。
+- 如果不是真实存在的词，或你不确定，只输出 {{"found": false}}，不要编造。
+- gender 只能是 der、die、das 或空字符串，名词必须填写。pos 用中文，如 名词、动词、形容词。
+- plural 是名词复数，其他词性留空。meaning 是简短的中文释义。
+- example 是一句简单、正确的例句，格式：德语 + 换行 + 中文翻译。
+- 只输出一个 JSON 对象，不要 Markdown 代码块，不要其他文字。
+
+JSON 格式：
+{{"found": true, "german": "Lieferschein", "gender": "der", "pos": "名词", "plural": "Lieferscheine", "meaning": "送货单", "example": "Hier ist der Lieferschein.\\n这是送货单。"}}"""
+
+
+def clean_example(raw):
+    lines = [x.strip() for x in raw.split("\n") if x.strip()] if isinstance(raw, str) else []
+    if len(lines) != 2 or CHINESE.search(lines[0]) or not CHINESE.search(lines[1]) or len(raw) > 300:
+        return ""
+    return "\n".join(lines)
+
+
+def clean_ai_word(data):
+    """返回 (词, 错误)。只留下认识的字段"""
+    if not isinstance(data, dict):
+        return None, "内容不是 JSON 对象"
+    german, pos = text(data.get("german"), 100), text(data.get("pos"), 20)
+    meaning, gender = text(data.get("meaning"), 300), data.get("gender", "")
+    if not TOKEN.search(german) or CHINESE.search(german):
+        return None, "德语词无效"
+    if not CHINESE.search(meaning):
+        return None, "缺少中文释义"
+    if gender not in GENDERS or (pos.startswith("名词") and not gender):
+        return None, "冠词无效"
+    return {"german": german, "gender": gender, "pos": pos, "plural": text(data.get("plural"), 100),
+            "meaning": meaning, "example": clean_example(data.get("example"))}, None
+
+
+def load_ai_word(q):
+    row = get_db().execute("SELECT data FROM ai_words WHERE lookup_key = ?", (lookup_key(q),)).fetchone()
+    return json.loads(row["data"]) if row else None
+
+
+def ai_row(word):
+    return {**glossary_row(word), "glossary": False, "ai_word": True, "example": word["example"]}
+
+
+@bp.route("/api/dict/ai", methods=["POST"])
+@admin_required
+def ai_lookup():
+    """用 AI 查一个词 {q}: 已保存就直接返回。AI 说没有这个词时 word 是 null, 不保存, 以后可以再试"""
+    data = json_body()
+    q = text(data.get("q"), 51) if data else ""
+    if not q or len(q) > 50:
+        return err("请输入要查的词")
+    saved = load_ai_word(q)
+    if saved:
+        return jsonify({"word": ai_row(saved)})
+    try:
+        raw = call_gemini(build_prompt(q))
+    except AiError as ex:
+        return err(ex.msg, ex.code)
+    parsed = extract_json(raw)
+    if parsed is not None and parsed.get("found") is False:
+        return jsonify({"word": None})
+    word, e = clean_ai_word(parsed)
+    if e:
+        return err("AI 查询结果不完整（" + e + "），请再试一次", 502)
+    db = get_db()
+    db.execute("INSERT OR REPLACE INTO ai_words (lookup_key, query, data, created_at) VALUES (?,?,?,?)",
+               (lookup_key(q), q, json.dumps(word, ensure_ascii=False), now_str()))
+    db.commit()
+    return jsonify({"word": ai_row(word)})
+
+
 @bp.route("/api/dict")
 @login_required
 def lookup():
@@ -140,4 +227,7 @@ def lookup():
     if not q or len(q) > 50:
         return err("请输入要查的词")
     words = search_chinese(q) if CHINESE.search(q) else search_german(q)
-    return jsonify({"words": words})
+    saved = load_ai_word(q)
+    if saved and not_in_words(saved):
+        words = [ai_row(saved)] + words[:LIMIT - 1]
+    return jsonify({"words": words, "can": is_admin(current_user_id()), "ai": bool(api_key())})

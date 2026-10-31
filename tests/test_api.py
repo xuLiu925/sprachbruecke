@@ -533,6 +533,39 @@ assert len(alice_pal) == 1 and alice_pal[0]["id"] and "glossary" not in alice_pa
 assert J(cb.post("/api/review/queue", json={k: pw[k] for k in ("german", "gender", "pos", "plural", "meaning")}))["queued"]
 bob_pal = [w for w in dq(cb, "Palette") if w["german"] == "Palette"]
 assert len(bob_pal) == 1 and bob_pal[0]["id"]
+
+# AI 查词: 点了才调用, 同样的查询只调用一次; 不是真实的词不保存; 加入复习后不重复显示
+import dictionary as DI
+dai = lambda client, q: client.post("/api/dict/ai", json={"q": q})
+meta = J(c.get("/api/dict?q=Kommissionierer"))
+assert meta["words"] == [] and meta["can"] and not meta["ai"] and not J(cb.get("/api/dict?q=x"))["can"]
+assert dai(c, "Kommissionierer").status_code == 503 and dai(cb, "Kommissionierer").status_code == 403
+assert dai(c, "").status_code == 400 and dai(c, "a" * 51).status_code == 400
+kom = {"found": True, "german": "Kommissionierer", "gender": "der", "pos": "名词", "plural": "Kommissionierer",
+       "meaning": "拣货员", "example": "Der Kommissionierer holt die Ware.\n拣货员去取货。", "evil": "x"}
+calls = []
+def fake3(prompt):
+    calls.append(prompt); return "```json\n" + json.dumps(kom) + "\n```"
+DI.call_gemini = fake3
+kw = J(dai(c, "Kommissionierer"))["word"]
+assert kw["german"] == "Kommissionierer" and kw["ai_word"] and kw["id"] is None and kw["example"] == kom["example"] and "evil" not in kw
+assert J(dai(c, " Kommissionierer"))["word"]["german"] == "Kommissionierer" and len(calls) == 1   # 第二次不再调用
+assert "Kommissionierer" in calls[0]
+assert dq(cb, "Kommissionierer")[0]["ai_word"]                                       # 保存后大家都能查到
+DI.call_gemini = lambda prompt: json.dumps({**kom, "german": "Kommissionierer", "gender": "der"})
+assert J(dai(c, "拣货员"))["word"]["german"] == "Kommissionierer"                     # 中文也能查
+assert dq(c, "拣货员")[0]["ai_word"]
+for bad, status in (("没有 JSON", 502), (json.dumps({**kom, "gender": ""}), 502), (json.dumps({**kom, "meaning": "picker"}), 502),
+                    (json.dumps({**kom, "german": "中文"}), 502), (json.dumps({"found": False}), 200)):
+    DI.call_gemini = lambda prompt, b=bad: b
+    assert dai(c, "Schmarrnwort").status_code == status, bad
+assert J(dai(c, "Schmarrnwort"))["word"] is None and dq(c, "Schmarrnwort") == []      # 没有的词不保存
+assert DI.clean_ai_word({**kom, "example": "没有德语行"})[0]["example"] == ""
+DI.call_gemini = real_call
+qk = J(c.post("/api/review/queue", json={k: kw[k] for k in ("german", "gender", "pos", "plural", "meaning", "example")}))["word_id"]
+assert J(c.get(f"/api/words/{qk}"))["example"] == kom["example"]
+same = [w for w in dq(c, "Kommissionierer") if w["german"] == "Kommissionierer"]
+assert len(same) == 1 and same[0]["id"] == qk and "ai_word" not in same[0]
 db.close()
 
 c.post("/api/logout", json={})
