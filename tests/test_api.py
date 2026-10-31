@@ -1,4 +1,4 @@
-import json, os, sqlite3, sys, tempfile
+import json, os, sqlite3, sys, tempfile, urllib.parse
 d = tempfile.mkdtemp()
 os.environ["DB_PATH"] = os.path.join(d, "t.db")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -434,6 +434,41 @@ num = saved["id"][1:]
 assert cb.delete("/api/custom_lessons/" + num).status_code == 404
 assert c.delete("/api/custom_lessons/" + num).status_code == 200
 assert J(c.get("/api/custom_lessons"))["lessons"] == [] and J(c.get("/api/roleplay/due"))["count"] == 0   # 删课后不再复习
+
+# 句子讲解: 每句只调用一次 AI; 讲解的词必须来自这句话; 只有管理员能生成
+import explain as EX
+sent = {"de": "Mit dem Hubwagen bewegen wir die Paletten.", "zh": "我们用液压车搬托盘。", "level": "A2"}
+note = {"words": [{"word": "dem Hubwagen", "base": "der Hubwagen", "form": "单数第三格", "why": "mit 接第三格"},
+                  {"word": "Gabelstapler", "base": "der Gabelstapler", "form": "第一格", "why": "不在句子里"}],
+        "order": "动词在第二位", "point": "mit + 第三格", "evil": "x",
+        "similar": [{"de": "Mit dem Scanner prüfe ich die Ware.", "zh": "我用扫描枪检查货物。"}, {"de": "没有德语", "zh": "错的"}]}
+cn, e = EX.clean_note(note, sent["de"])
+assert e is None and [w["word"] for w in cn["words"]] == ["dem Hubwagen"] and len(cn["similar"]) == 1 and "evil" not in cn
+assert "词" in EX.clean_note({"words": [], "similar": note["similar"]}, sent["de"])[1]
+assert "类似" in EX.clean_note({**note, "similar": []}, sent["de"])[1]
+ask = "/api/explain?de=" + urllib.parse.quote(sent["de"])
+assert J(c.get(ask)) == {"note": None, "can": True, "ai": False} and not J(cb.get(ask))["can"]
+assert c.post("/api/explain/generate", json={**sent, "level": "C2"}).status_code == 400
+assert c.post("/api/explain/generate", json={**sent, "de": "中文句子"}).status_code == 400
+assert c.post("/api/explain/generate", json=sent).status_code == 503                # 没有 Key
+assert cb.post("/api/explain/generate", json=sent).status_code == 403
+calls = []
+def fake(prompt):
+    calls.append(prompt); return "```json\n" + json.dumps(note) + "\n```"
+EX.call_gemini = fake
+assert J(c.post("/api/explain/generate", json=sent))["note"] == cn
+assert J(c.post("/api/explain/generate", json=sent))["note"] == cn and len(calls) == 1   # 第二次不再调用
+assert sent["de"] in calls[0]
+assert J(cb.get(ask))["note"] == cn                                                 # 保存后大家都能看
+EX.call_gemini = lambda prompt: "没有 JSON"
+s2 = {**sent, "de": "Ich hole die Ware ab."}
+assert c.post("/api/explain/generate", json=s2).status_code == 502
+assert J(c.get("/api/explain?de=" + urllib.parse.quote(s2["de"])))["note"] is None   # 坏结果不保存
+assert s2["de"] in J(c.post("/api/explain/prompt", json=s2))["prompt"]
+n2 = {"words": [{"word": "hole", "base": "abholen", "form": "ich 的现在时", "why": "可分动词"}], "similar": note["similar"]}
+assert c.post("/api/explain/check", json={**s2, "text": "abc"}).status_code == 400
+assert J(c.post("/api/explain/check", json={**s2, "text": json.dumps(n2)}))["note"]["words"][0]["base"] == "abholen"
+assert cb.post("/api/explain/check", json={**s2, "text": json.dumps(n2)}).status_code == 403
 db.close()
 
 c.post("/api/logout", json={})

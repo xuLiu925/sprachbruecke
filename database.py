@@ -173,6 +173,13 @@ CREATE TABLE IF NOT EXISTS custom_lessons (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_custom_lessons ON custom_lessons (user_id);
+-- 句子讲解(AI 生成): 按德语原句保存, 每句只生成一次。data = JSON: words / order / point / similar
+CREATE TABLE IF NOT EXISTS sentence_notes (
+    sent_key TEXT PRIMARY KEY,   -- 德语原句的 sha1
+    de TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 -- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
 CREATE TABLE IF NOT EXISTS sentence_progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

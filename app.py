@@ -17,6 +17,7 @@
   sentences.py   句子练习(用例句出题)
   lessons.py     情景课(点词查词、加入复习、角色扮演; 课文在 static/lessons.json)
   custom_lessons.py  自建工作对话(AI 生成, 确认后保存)
+  explain.py     句子讲解(AI 生成, 每句保存一次)
   tts.py         在线德语发音(设备没有德语语音时用)
   vocab_seed.py  示例词和变格 / 变位
 """
@@ -28,6 +29,7 @@ from flask import Flask, send_from_directory
 
 import auth
 import custom_lessons
+import explain
 import lessons
 import sentences
 import tts
@@ -73,6 +75,7 @@ app.register_blueprint(vocab.bp)
 app.register_blueprint(sentences.bp)
 app.register_blueprint(lessons.bp)
 app.register_blueprint(custom_lessons.bp)
+app.register_blueprint(explain.bp)
 app.register_blueprint(tts.bp)
 
 init_db()

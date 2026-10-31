@@ -60,8 +60,11 @@ function lessonLine(line) {
   say.onclick = () => speakDe(line.de);
   const tr = document.createElement("button"); tr.className = "mini"; tr.textContent = "中文";
   tr.onclick = () => zh.classList.toggle("hidden");
-  acts.append(say, tr);
-  row.append(who, de, zh, acts);
+  const note = document.createElement("div"); note.className = "lnote hidden";
+  const ex = document.createElement("button"); ex.className = "mini"; ex.textContent = "📖 讲解";
+  ex.onclick = () => openExplain(note, line, lessonNow.level);
+  acts.append(say, tr, ex);
+  row.append(who, de, zh, acts, note);
   return row;
 }
 

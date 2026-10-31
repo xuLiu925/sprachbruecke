@@ -193,7 +193,7 @@ def call_gemini(prompt):
     key = api_key()
     if not key:
         raise AiError("还没有配置 Gemini API Key", 503)
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
     body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json"}}
     req = urllib.request.Request(
