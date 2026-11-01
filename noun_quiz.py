@@ -186,17 +186,19 @@ def nouns():
 @bp.route("/api/grammar/nouns/books")
 @login_required
 def noun_books():
-    """练习范围: 各单词书的名词数(没有名词的书不列出来)、错题本的词数、当前单词书"""
+    """练习范围: 各单词书的名词数和进度(没有名词的书不列出来)、错题本的词数、当前单词书。
+    practiced = 练过的名词, weak = 其中还在错题本里的。和今日学习的进度是两回事"""
+    counts = ("COUNT(*) AS nouns, COUNT(np.word_id) AS practiced, "
+              f"COALESCE(SUM(CASE WHEN 1 {IN_WRONG} THEN 1 ELSE 0 END), 0) AS weak")
     by = {}
     for table_name, key in (("word_levels", "level"), ("word_books", "book")):
-        for r in query(f"SELECT l.{key} AS book, COUNT(*) AS n FROM my_words w JOIN {table_name} l ON l.word_id = w.id "
-                       f"WHERE w.gender != '' GROUP BY l.{key}").fetchall():
-            by[r["book"]] = r["n"]
-    by["all"] = query("SELECT COUNT(*) FROM my_words w WHERE w.gender != ''").fetchone()[0]
-    wrong = query(f"SELECT COUNT(*) FROM my_words w {MARKS} WHERE w.gender != '' {IN_WRONG}",
-                  done=STREAK_DONE).fetchone()[0]
-    return jsonify({"current": current_book(current_user_id()), "wrong": wrong,
-                    "books": [{"book": b, "nouns": by[b]} for b in BOOKS if by.get(b)]})
+        for r in query(f"SELECT l.{key} AS book, {counts} FROM my_words w JOIN {table_name} l ON l.word_id = w.id "
+                       f"{MARKS} WHERE w.gender != '' GROUP BY l.{key}", done=STREAK_DONE).fetchall():
+            by[r["book"]] = dict(r)
+    whole = query(f"SELECT {counts} FROM my_words w {MARKS} WHERE w.gender != ''", done=STREAK_DONE).fetchone()
+    by["all"] = {**dict(whole), "book": "all"}
+    return jsonify({"current": current_book(current_user_id()), "wrong": whole["weak"],
+                    "books": [by[b] for b in BOOKS if b in by]})
 
 
 @bp.route("/api/grammar/nouns/words")

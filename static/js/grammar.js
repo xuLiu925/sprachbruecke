@@ -224,7 +224,8 @@ onShow.gtopic = () => {
     row.append(b, p); ex.appendChild(row);
   }
   const best = bestScore(t.id);
-  $("gStart").textContent = "开始练习" + (best ? `（上次最好 ${best[0]} / ${best[1]}）` : "");
+  // 题库知识点的进度显示在练习范围里; 每组固定题数, 最好成绩很快就满分, 没有参考价值
+  $("gStart").textContent = "开始练习" + (best && !t.bank ? `（上次最好 ${best[0]} / ${best[1]}）` : "");
   $("gBank").classList.toggle("hidden", !(t.bank && isAdmin));
   $("gScopeRow").classList.toggle("hidden", !t.bank);
   if (t.bank) gScopeLoad();
@@ -237,8 +238,9 @@ const G_SCOPE_ICONS = { wrong: "📕", warehouse: "📦", all: "🗃️" };
 async function gScopeLoad() {
   let r;
   try { r = await api("/api/grammar/nouns/books"); } catch (e) { return toast(e.message); }
-  gScopeList = [...r.books.map(b => ({ id: b.book, name: BOOK_NAMES[b.book] || b.book, n: b.nouns })),
-                { id: "wrong", name: "错题本", n: r.wrong }];
+  gScopeList = [...r.books.map(b => ({ id: b.book, name: BOOK_NAMES[b.book] || b.book,
+                                       sub: `已练 ${b.practiced} / ${b.nouns}` + (b.weak ? ` · 待巩固 ${b.weak}` : "") })),
+                { id: "wrong", name: "错题本", sub: `${r.wrong} 个词` }];
   const saved = getSetting("gScope");
   gScopeNow = gScopeList.some(x => x.id === saved) ? saved : r.current;   // 以前选的“学过的词”这类范围已经没有了
   gScopeShow();
@@ -246,7 +248,7 @@ async function gScopeLoad() {
 function gScopeShow() {
   const box = $("gScope"); box.textContent = "";
   for (const s of gScopeList) {
-    const it = listItem(G_SCOPE_ICONS[s.id] || "📘", s.name, `${s.n} 个名词`, () => {
+    const it = listItem(G_SCOPE_ICONS[s.id] || "📘", s.name, s.sub, () => {
       gScopeNow = s.id; setSetting("gScope", s.id); gScopeShow();
     });
     it.classList.toggle("current", s.id === gScopeNow);

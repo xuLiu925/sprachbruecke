@@ -896,7 +896,7 @@ assert db.execute("SELECT seen, wrong FROM noun_practice WHERE word_id = ?", (ni
 # 练习范围: 只列有名词的书和错题本; 查看单词分页; 选书不改变首页的当前单词书
 nb = J(cb.get("/api/grammar/nouns/books"))
 all_nouns = db.execute("SELECT COUNT(*) FROM words WHERE gender != '' AND status = 'public'").fetchone()[0]
-assert {"book": "all", "nouns": nb["books"][-1]["nouns"]} == nb["books"][-1] and nb["books"][-1]["book"] == "all"
+assert nb["books"][-1]["book"] == "all" and nb["books"][-1]["practiced"] >= 1 and nb["books"][-1]["weak"] == nb["wrong"]
 assert nb["books"][-1]["nouns"] >= all_nouns and nb["wrong"] == wrongs(cb)["total"]
 assert cb.get("/api/grammar/nouns/words?scope=x").status_code == 400 and cb.get("/api/grammar/nouns/words?scope=all&page=x").status_code == 400
 wa = J(cb.get("/api/grammar/nouns/words?scope=all&page=1"))
@@ -913,7 +913,8 @@ wdb.commit(); wdb.close()
 wq = nq(cb, "warehouse")
 assert len(wq) == 1 and wq[0]["prompt"] == "___ Tische stehen hier." and wq[0]["word_id"] == Tid and wq[0]["id"]
 assert wq[0]["fill"] == "Die" and wq[0]["must"] == "复数" and wq[0]["source"] == "seed" and wq[0]["zh"] == "桌子在这里。"
-assert J(cb.get("/api/grammar/nouns/books"))["books"][-2:][0] == {"book": "warehouse", "nouns": 1}
+res(cb, Tid, False)                                                               # 练错一次: 已练 1, 待巩固 1
+assert J(cb.get("/api/grammar/nouns/books"))["books"][-2:][0] == {"book": "warehouse", "nouns": 1, "practiced": 1, "weak": 1}
 assert [x["id"] for x in J(cb.get("/api/grammar/nouns/words?scope=warehouse"))["words"]] == [Tid]
 assert J(c.get("/api/books"))["themes"][-1]["level"] == "warehouse"
 
