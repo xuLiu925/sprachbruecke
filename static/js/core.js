@@ -60,8 +60,11 @@ function useOnlineVoice() {
   return getSetting("voice") === ONLINE_VOICE || !germanVoices().length;
 }
 let ttsAudio = null, ttsQueue = [];
+let spellRun = 0, spellOn = false, spellAudio = null;        // 拼读(spell.js); 任何朗读打断时都要停下
 function stopSpeak() {
   ttsQueue = [];
+  spellRun++; spellOn = false;
+  if (spellAudio) spellAudio.pause();
   if (ttsAudio) { ttsAudio.onended = ttsAudio.onerror = null; ttsAudio.pause(); ttsAudio = null; }
   if ("speechSynthesis" in window) speechSynthesis.cancel();
 }
@@ -87,16 +90,18 @@ function speakDe(text, queue = false, rate = null) {   // queue: 排在正在读
   if (!queue) stopSpeak();
   speakSystem(text, queue, rate);
 }
-function speakSystem(text, queue, rate) {
-  if (!("speechSynthesis" in window)) return;
+function speakSystem(text, queue, rate, onEnd = null) {
+  if (!("speechSynthesis" in window)) return onEnd && onEnd();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "de-DE";
   u.rate = rate;
   const vs = germanVoices();
   const v = vs.find(x => x.name === getSetting("voice")) || vs[0];
   if (v) u.voice = v;
+  if (onEnd) u.onend = u.onerror = onEnd;
   if (!queue) speechSynthesis.cancel();
   speechSynthesis.speak(u);
+  return u;
 }
 const wordText = w => (w.gender ? w.gender + " " : "") + w.german;   // 名词连冠词一起读
 

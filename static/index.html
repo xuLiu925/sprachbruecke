@@ -210,6 +210,8 @@
         <div class="word" id="vWord"></div>
         <div class="meta" id="vPos"></div>
         <button class="secondary" id="vSpeak" style="margin-top:8px">🔊 发音</button>
+        <button class="secondary" id="vSpellBtn" style="margin-top:8px">🔤 拼读</button>
+        <div class="spell" id="vSpell"></div>
         <div class="answer">
           <p id="vMeaning" style="font-size:20px"></p>
           <p id="vPlural" class="meta"></p>
@@ -593,6 +595,8 @@
       <button class="mini" id="wsClose">✕</button>
       <div class="word" id="wsWord"></div>
       <div class="meta" id="wsPlural"></div>
+      <div style="text-align:center"><button class="mini hidden" id="wsSpellBtn">🔤 拼读</button></div>
+      <div class="spell" id="wsSpell"></div>
       <p id="wsMeaning"></p>
       <div class="meta" id="wsGender"></div>
       <div class="meta" id="wsParts"></div>
@@ -642,6 +646,7 @@
 <script src="static/js/roleplay.js"></script>
 <script src="static/js/lessonnew.js"></script>
 <script src="static/js/parts.js"></script>
+<script src="static/js/spell.js"></script>
 <script>boot();</script>
 </body>
 </html>

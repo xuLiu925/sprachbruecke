@@ -212,6 +212,9 @@ button.lmodel { display:block; width:100%; padding:0; background:none; color:var
 .sheetbox .word { font-size:26px; margin:6px 30px 6px; }
 .sheetbox .row { margin-top:12px; }
 #wsClose { position:absolute; top:10px; right:10px; }
+.spell { text-align:center; font-size:20px; letter-spacing:2px; overflow-wrap:anywhere; }
+.spell:not(:empty) { margin:8px 0; }
+.spell .on { color:var(--accent); font-weight:700; border-bottom:2px solid var(--accent); }
 #wsBack { position:absolute; top:10px; left:10px; max-width:65%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 #wsBack:not(.hidden) ~ .word { margin-top:36px; }
 #wsMeaning { text-align:center; font-size:17px; margin:8px 0; }

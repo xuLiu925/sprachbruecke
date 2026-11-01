@@ -135,6 +135,7 @@ $("lOrder").onclick = () => { sPreset = { mode: "order", name: "本课连词成�
 function closeWordSheet() {
   $("wsheet").classList.add("hidden"); wsWord = null; wsSeq++; wsMoreReset();
   wsStack = []; wsNow = null; wsBackShow();
+  spellReset($("wsSpell"));
 }
 const wsBox = () => $("wsheet").firstElementChild;
 function wsBackShow() {
@@ -230,6 +231,7 @@ async function openWordSheet(token, line, back = false) {
   wsMoreReset();
   genderReason($("wsGender"), "", "");
   wordParts($("wsParts"), "");
+  spellReset($("wsSpell")); $("wsSpellBtn").classList.add("hidden");
   $("wsAdd").classList.add("hidden"); $("wsView").classList.add("hidden"); $("wsSay").classList.add("hidden");
   $("wsAi").classList.add("hidden"); $("wsNoun").classList.add("hidden");
   try { await loadLessons(); } catch (e) {}   // 复习页里可能还没加载过课程; 没有仓储词表也能查词
@@ -263,7 +265,7 @@ async function openWordSheet(token, line, back = false) {
   wsLoads = Promise.all([genderReason($("wsGender"), w.german, w.gender, w.meaning),
                          wordParts($("wsParts"), w.german, w.meaning)]);
   if (gl && found && gl.meaning !== found.meaning) $("wsLesson").textContent = "在仓库里：" + gl.meaning;
-  $("wsSay").classList.remove("hidden");
+  $("wsSay").classList.remove("hidden"); $("wsSpellBtn").classList.remove("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
   $("wsNoun").classList.toggle("hidden", !w.gender);
   $("wsView").classList.toggle("hidden", !found);
@@ -285,7 +287,8 @@ function openGlossaryWord(g, keep = false, back = false) {
                          wordParts($("wsParts"), g.german, g.meaning)]);
   $("wsExample").textContent = g.example || "";
   $("wsLesson").textContent = g.ai_word ? "AI 生成，未核对" : "";
-  $("wsSay").classList.remove("hidden");
+  spellReset($("wsSpell"));
+  $("wsSay").classList.remove("hidden"); $("wsSpellBtn").classList.remove("hidden");
   $("wsView").classList.add("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
   $("wsNoun").classList.toggle("hidden", !g.gender);
@@ -315,6 +318,7 @@ $("wsNoun").onclick = async () => {
   } catch (e) { toast(e.message); }
 };
 $("wsSay").onclick = () => { if (wsWord) speakDe(wordText(wsWord)); };
+$("wsSpellBtn").onclick = () => { if (wsWord) spellWord(wsWord.german, $("wsSpell")); };
 // 详情在单词卡里展开, 不离开当前页面, 练习进度不受影响
 function wsMoreReset() {
   $("wsMore").classList.add("hidden");

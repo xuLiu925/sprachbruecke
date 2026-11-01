@@ -118,6 +118,7 @@ onShow.view = async () => {
   $("vPlural").textContent = w.plural && !(w.forms && w.forms.cases) ? "复数：" + w.plural : "";
   genderReason($("vGender"), w.german, w.gender, w.meaning);
   wordParts($("vParts"), w.german, w.meaning);
+  spellReset($("vSpell"));
   exampleInto($("vExample"), w.example, w.level || "B1");
   $("vSpeakEx").classList.toggle("hidden", !w.example);
   renderForms(w.forms, $("vForms"));
@@ -131,6 +132,7 @@ onShow.view = async () => {
   if (getSetting("autoWord")) speakDe(wordText(w));
 };
 $("vSpeak").onclick = () => viewWord && speakDe(wordText(viewWord));
+$("vSpellBtn").onclick = () => viewWord && spellWord(viewWord.german, $("vSpell"));
 $("vSpeakEx").onclick = () => viewWord && speakDe(exampleDe(viewWord.example));
 $("vQueue").onclick = async () => {
   try { await api("/api/review/queue", "POST", { word_id: viewingId }); } catch (e) { return toast(e.message); }
