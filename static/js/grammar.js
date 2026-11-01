@@ -408,6 +408,7 @@ function gShowAnswer(value) {
   $("gqExplain").textContent = q.explain || "";
   const noun = (q.hint || "").match(/^(der|die|das) ([^ ·]+)/);     // 提示写着 die Palette · 阴性 的题
   genderReason($("gqGender"), noun && noun[2], noun && noun[1], q.meaning || "");
+  exampleExplain($("gqGender"), gTopic.id === "art-def" ? `${gSentence()}\n${q.zh || ""}` : "");   // 讲解填好答案的整句
   $("gqGiveUp").classList.add("hidden");
   $("gqReport").classList.toggle("hidden", !q.id && !q.word_id);     // 题库题和自动出的题能报错
   $("gqFeedback").classList.remove("hidden");
