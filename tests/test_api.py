@@ -899,22 +899,68 @@ assert nrep(cb).status_code == 200 and cb.get("/api/grammar/nouns/reports").stat
 assert J(c.get("/api/grammar/nouns/reports"))["reports"][0]["id"] == nid
 assert c.delete(f"/api/grammar/nouns/reports/{nid}").status_code == 200 and J(c.get("/api/grammar/nouns/reports"))["reports"] == []
 
-# 练习记录: 错过的词优先; 连续答对 3 次移出“错过的词”; 按用户分开
+# 词性错还是格错: 选了别的词性在这个格的冠词 = 词性错; 复数不分词性; 不知道第几格时都算词性错
+assert NQ.gender_picks("der", "单数", [3]) == ["das", "die"] and NQ.gender_picks("die", "单数", [2]) == ["dem"]
+assert NQ.gender_picks("die", "单数", [0, 3]) == ["das", "den", "der"]
+assert NQ.gender_picks("der", "复数", [3]) == [] and NQ.gender_picks("der", "单数", None) == NQ.OPTIONS
+assert NQ.memory_rating(True, "单数", False, None) == 3 and NQ.memory_rating(False, "单数", False, "gender") == 1
+assert NQ.memory_rating(False, "单数", False, None) == 1 and NQ.memory_rating(False, "单数", False, "case") is None
+assert NQ.memory_rating(True, "复数", False, None) is None and NQ.memory_rating(False, "复数", False, "gender") is None
+assert NQ.memory_rating(True, "单数", True, None) is None and NQ.memory_rating(False, "单数", True, "gender") is None
+# 要考词性时只出单数; 只有复数形式的词也能出题
+for _ in range(30):
+    assert NQ.make_question(nr(example="Ich sehe die Männer.\n我看见那些男人。"), None, True)["must"] == "单数"
+only_pl = {"cases": {"sg": ["", "", "", ""], "pl": ["die Leute", "der Leute", "den Leuten", "die Leute"]}}
+assert NQ.make_question(nr(forms=only_pl, gender="die", german="Leute"), None, True) is None    # 第一格和词性对不上的不出
+# 一组的配额: 到期最多 n - 4 个, 新词补上; 新词不够时用到期的补, 再用未到期的
+ids = lambda qs: sorted(x["word_id"] for x in qs)
+fake = lambda *xs: [{"word_id": x} for x in xs]
+assert ids(NQ.pick_round(fake(*range(20)), fake(*range(100, 120)), [], 14)) == list(range(10)) + list(range(100, 104))
+assert ids(NQ.pick_round(fake(1, 2), fake(*range(100, 120)), [], 14)) == [1, 2] + list(range(100, 112))
+assert ids(NQ.pick_round(fake(*range(20)), fake(100), [], 14)) == list(range(13)) + [100]
+assert ids(NQ.pick_round(fake(1), fake(100), fake(200, 201), 3)) == [1, 100, 200] and len(NQ.pick_round(fake(1, 2), [], [], 1)) == 1
+
+# 练习记录: 词性答错进错题本, 稳定性到 7 天才移出; 按用户分开
 nq = lambda client, scope, n=30: J(client.get(f"/api/grammar/nouns?scope={scope}&n={n}"))["questions"]
 assert nq(cb, "wrong") == []
-res = lambda client, wid, ok: client.post("/api/grammar/nouns/result", json={"word_id": wid, "ok": ok})
+res = lambda client, wid, ok, **b: client.post("/api/grammar/nouns/result", json={"word_id": wid, "ok": ok, **b})
+def days_ago(wid, n=1):    # 假装上次作答是 n 天前, 现在到期了
+    wd = sqlite3.connect(os.environ["DB_PATH"])
+    wd.execute("UPDATE noun_practice SET last_review = datetime(last_review, ?), next_review = datetime(next_review, ?) WHERE word_id = ?",
+               (f"-{n} days", f"-{n + 40} days", wid))
+    wd.commit(); wd.close()
+npr = lambda wid, user=None: db.execute("SELECT stability, next_review, weak, wrong, streak FROM noun_practice WHERE word_id = ?"
+                                        + (" AND user_id = ?" if user else ""), (wid, user) if user else (wid,)).fetchone()
 assert res(cb, nid, "x").status_code == 400 and res(cb, "1", True).status_code == 400 and res(cb, 999999, True).status_code == 404
-assert res(cb, nid, False).status_code == 200
+assert res(cb, nid, False, kind="gender").status_code == 200
 assert [x["word_id"] for x in nq(cb, "wrong")] == [nid] and nq(c, "wrong") == []
-assert nq(cb, "all", 1)[0]["word_id"] == nid                                    # 错过的词排最前
-res(cb, nid, True); res(cb, nid, True)
-assert [x["word_id"] for x in nq(cb, "wrong")] == [nid]                         # 才连对 2 次
-res(cb, nid, True)
-assert nq(cb, "wrong") == []
-ps = db.execute("SELECT seen, wrong, streak FROM noun_practice WHERE word_id = ?", (nid,)).fetchone()
-assert ps == (4, 1, 3), ps
-done_ids = {x["word_id"] for x in nq(cb, "all", 5)}
-assert nid not in done_ids                                                      # 没练过的词优先于练过的
+assert npr(nid)[2] == 1 and npr(nid)[1] > database.now_str()                    # 答错: 最早明天再出
+assert nid not in [x["word_id"] for x in nq(cb, "all", 5)]                      # 今天不再出, 新词够用时不拿它补
+res(cb, nid, True); res(cb, nid, True); res(cb, nid, True)
+assert [x["word_id"] for x in nq(cb, "wrong")] == [nid]                         # 同一天答对多少次都不算数
+s0 = npr(nid)[0]
+days_ago(nid)
+assert nid in [x["word_id"] for x in nq(cb, "all", 14)]                         # 到期了优先出
+for i in range(6):
+    if not npr(nid)[2]: break
+    res(cb, nid, True); days_ago(nid, 5)
+assert npr(nid)[0] >= 7 > s0 and npr(nid)[2] == 0 and nq(cb, "wrong") == []     # 隔天答对, 稳定性上来才移出
+ps = db.execute("SELECT seen, wrong FROM noun_practice WHERE word_id = ?", (nid,)).fetchone()
+assert ps[1] == 1 and ps[0] >= 5, ps
+# 格错、复数题、开提示: 不改记忆状态, 不进错题本, 今天别再出
+cw = db.execute("SELECT id FROM words WHERE german = 'Hund'").fetchone()[0]
+for b in ({"ok": False, "kind": "case", "case": 3, "must": "单数"}, {"ok": True, "must": "复数"}, {"ok": False, "must": "复数", "kind": "gender"},
+          {"ok": True, "hinted": True, "must": "单数"}):
+    res(cb, cw, b.pop("ok"), **b)
+ca = npr(cw)
+assert ca[0] is None and ca[2] == 0 and ca[3] == 0 and ca[1] > database.now_str(), ca
+assert db.execute("SELECT kind FROM noun_answers WHERE word_id = ? ORDER BY id", (cw,)).fetchall()[0] == ("case",)
+# 老记录: 没有记忆状态算到期, 优先出; 第一次作答时开始算
+wd = sqlite3.connect(os.environ["DB_PATH"])
+wd.execute("UPDATE noun_practice SET next_review = NULL WHERE word_id = ?", (cw,)); wd.commit(); wd.close()
+assert cw in [x["word_id"] for x in nq(cb, "all", 14)]
+res(cb, cw, True, must="单数")
+assert npr(cw)[0] > 3 and npr(cw)[2] == 0
 
 # 错题本: 手动加的词(粘贴多个词、变化形式、情景课的词); 只出本子里的词; 按用户分开
 ladd = lambda client, **b: client.post("/api/grammar/nouns/list", json=b)
@@ -940,24 +986,17 @@ assert ltid not in [x["id"] for x in wrongs(cb)["words"]]
 res(cb, nid, False)
 assert [x for x in wrongs(cb)["words"] if x["id"] == nid][0]["wrong"] >= 1
 assert cb.delete(f"/api/grammar/nouns/list/{nid}").status_code == 200 and nid not in [x["id"] for x in wrongs(cb)["words"]]
-assert db.execute("SELECT seen, wrong FROM noun_practice WHERE word_id = ?", (nid,)).fetchone() == (5, 0)
+assert db.execute("SELECT seen, wrong FROM noun_practice WHERE word_id = ?", (nid,)).fetchone() == (ps[0] + 1, 0)
 
-# 已掌握: 连续 3 个不同的日子答对; 同一天不重复算; 答错清零。每次作答记下单复数和第几格
+# 已掌握: 稳定性到 21 天; 答错就退回。每次作答记下单复数和第几格
 mw = db.execute("SELECT id FROM words WHERE german = 'Lampe'").fetchone()[0]
-au = db.execute("SELECT id FROM users WHERE username = 'alice'").fetchone()[0]
-gd = lambda: db.execute("SELECT good_days FROM noun_practice WHERE word_id = ? AND user_id = ?", (mw, au)).fetchone()[0]
-def next_day():    # 假装上次答对是昨天
-    wd = sqlite3.connect(os.environ["DB_PATH"])
-    wd.execute("UPDATE noun_practice SET last_good_day = 'gestern' WHERE word_id = ? AND user_id = ?", (mw, au)); wd.commit(); wd.close()
 masters = lambda: J(c.get("/api/grammar/nouns/books"))["books"][-1]["mastered"]
 m0 = masters()
-res(c, mw, True); res(c, mw, True); assert gd() == 1                              # 同一天两次只算一天
-next_day(); res(c, mw, True); assert gd() == 2 and masters() == m0
-res(c, mw, False); assert gd() == 0                                               # 答错清零
-for i in range(3):
-    next_day(); res(c, mw, True)
-assert gd() == 3 and masters() == m0 + 1
-next_day(); res(c, mw, False); assert gd() == 0 and masters() == m0               # 掌握后答错就退回
+res(c, mw, True); s1 = npr(mw)[0]; assert masters() == m0                         # 第一次答对约 3 天
+for gap in (3, 11):
+    days_ago(mw, gap); res(c, mw, True)
+assert npr(mw)[0] >= 21 > s1 and masters() == m0 + 1, npr(mw)
+days_ago(mw, 30); res(c, mw, False, kind="gender"); assert masters() == m0 and npr(mw)[2] == 1   # 答错退回, 进错题本
 ra = c.post("/api/grammar/nouns/result", json={"word_id": mw, "ok": True, "must": "复数", "case": 2})
 rb = c.post("/api/grammar/nouns/result", json={"word_id": mw, "ok": False, "must": "x", "case": 9})
 assert ra.status_code == 200 and rb.status_code == 200
@@ -982,11 +1021,13 @@ Tid = db.execute("SELECT id FROM words WHERE german = 'Tisch'").fetchone()[0]
 wdb = sqlite3.connect(os.environ["DB_PATH"])
 wdb.execute("INSERT INTO word_books (book, word_id, rank) VALUES ('warehouse', ?, 1)", (Tid,))
 wdb.execute("INSERT INTO grammar_questions (topic, prompt, answer, hint, explain, zh, source, created_at) VALUES "
+            "('art-def', '___ Tisch steht hier.', 'der', 'der Tisch · 这里是第一格', '主语 → 第一格', '桌子在这里。', 'seed', 'x'), "
             "('art-def', '___ Tische stehen hier.', 'die', 'der Tisch · 这里是复数', '复数 → die', '桌子在这里。', 'seed', 'x')")
 wdb.commit(); wdb.close()
-wq = nq(cb, "warehouse")
-assert len(wq) == 1 and wq[0]["prompt"] == "___ Tische stehen hier." and wq[0]["word_id"] == Tid and wq[0]["id"]
-assert wq[0]["fill"] == "Die" and wq[0]["must"] == "复数" and wq[0]["source"] == "seed" and wq[0]["zh"] == "桌子在这里。"
+wq = nq(cb, "warehouse")                                                          # 新词要考词性, 不出复数的手写题
+assert len(wq) == 1 and wq[0]["prompt"] == "___ Tisch steht hier." and wq[0]["word_id"] == Tid and wq[0]["id"]
+assert wq[0]["fill"] == "Der" and wq[0]["must"] == "单数" and wq[0]["source"] == "seed" and wq[0]["zh"] == "桌子在这里。"
+assert wq[0]["case"] == 0 and wq[0]["gender_picks"] == ["das", "die"]
 res(cb, Tid, False)                                                               # 练错一次: 已练 1, 待巩固 1
 assert J(cb.get("/api/grammar/nouns/books"))["books"][-2:][0] == {"book": "warehouse", "nouns": 1, "practiced": 1, "weak": 1, "mastered": 0}
 assert [x["id"] for x in J(cb.get("/api/grammar/nouns/words?scope=warehouse"))["words"]] == [Tid]

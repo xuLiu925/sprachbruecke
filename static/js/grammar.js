@@ -30,7 +30,7 @@ function articleQuiz(form, nouns, cases, genders) {
 
 // 题库在后端的知识点: 从选中的单词书或错题本出题, 取不到时用程序生成的题。fixed = 选项每题都一样, 按钮不换位置
 async function bankQuiz(local) {
-  try { return (await api(`/api/grammar/nouns?scope=${gScopeNow}&n=14`)).questions; }
+  try { return (await api(`/api/grammar/nouns?scope=${gScopeNow}&n=14&` + tzQuery())).questions; }
   catch (e) { toast("题库加载失败，先做基础题"); return shuffle(local); }
 }
 
@@ -356,6 +356,13 @@ function gRender() {
   if (seen) gShowAnswer(seen.value);
 }
 
+// 定冠词题答错的原因: gender = 词性记错了, case = 词性没错, 格用错了(复数的冠词不分词性, 只可能是格)
+function gErrKind(q, value) {
+  if (!q.gender_picks || value === q.answer) return null;
+  if (value === null) return q.must === "复数" ? "case" : "gender";
+  return q.gender_picks.includes(value) ? "gender" : "case";
+}
+
 // value = null 表示点了“不会”: 直接看答案, 算答错
 function gChoose(value) {
   if (gAnswered) return;
@@ -364,7 +371,8 @@ function gChoose(value) {
     const ok = value === q.answer;
     if (ok) gScore++;
     else if (gTopic.bank) gQs.push({ ...q, retry: true });
-    if (q.word_id) api("/api/grammar/nouns/result?" + tzQuery(), "POST", { word_id: q.word_id, ok, must: q.must, case: q.case }).catch(() => {});
+    if (q.word_id) api("/api/grammar/nouns/result?" + tzQuery(), "POST", { word_id: q.word_id, ok, must: q.must, case: q.case,
+                       kind: gErrKind(q, value), hinted: !!getSetting("gHints") }).catch(() => {});
   }
   gPicks[gi] = { value, opts: gOpts };
   gShowAnswer(value);
@@ -380,7 +388,8 @@ function gShowAnswer(value) {
   });
   if (!q.wide) promptInto($("gqPrompt"), q.prompt, q.fill || q.answer);
   gHint();
-  $("gqResult").textContent = ok ? "✔ 正确" : (value === null ? "不会，正确答案：" : "✘ 正确答案：") + q.answer;
+  const why = { gender: "词性错了，", case: "格用错了，" }[gErrKind(q, value)] || "";
+  $("gqResult").textContent = ok ? "✔ 正确" : (value === null ? "不会，正确答案：" : `✘ ${why}正确答案：`) + q.answer;
   $("gqResult").className = ok ? "ok" : "msg";
   $("gqZh").textContent = gTopic.bank ? "" : q.zh || "";
   $("gqExplain").textContent = q.explain || "";

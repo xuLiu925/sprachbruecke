@@ -4,24 +4,29 @@
 通用句型 + 词库的变格表。不是每个名词都有例句, 但几乎都有变格表, 所以能覆盖全部名词。
 没有变格表的词(如自己加的词)只考第一格。
 单复数同形的词不用例句出题(填 den 和 die 都说得通); 通用句型会写明单数还是复数。
-练习记录在 noun_practice: 出题时优先错过的词, 其次没练过的, 再次很久没练的, 减少重复。
-错题本 = 错过的词(连续答对 3 次自动移出) + 用户手动加的词(noun_list, 手动移除才走)。
+词性的记忆用 FSRS 排期(noun_practice), 和词义的 progress 分开。答对 = 良好, 词性答错 = 忘了;
+复数题、格用错、开着提示作答都不能说明记没记住词性, 只记明细, 这个词明天再出。
+每组出题: 到期的词(最容易忘的优先, 最多 n - 4 个) > 没练过的(今日学习学过的优先, 再按词频) > 未到期里最容易忘的。
+错题本 = 词性答错过的词(稳定性到 7 天才移出) + 用户手动加的词(noun_list, 手动移除才走)。
+已掌握 = 稳定性 ≥ 21 天。
 """
 import collections
 import json
 import random
 import re
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, request
 
 from auth import admin_required
 from custom_lessons import CHINESE, text
-from database import get_db, now_str
+from database import fmt_time, get_db, now_str, parse_time
 from dictionary import all_glossary
 from gender_hint import short_meaning
 from grammar import HINT_NOUN
 from helpers import current_user_id, err, json_body, login_required
 from lessons import find_word
+from srs import day_gap, fsrs_review
 from today import local_day, read_tz
 from vocab import BOOKS, book_filter, current_book, query
 from word_store import word_id_for
@@ -30,18 +35,23 @@ bp = Blueprint("noun_quiz", __name__)
 
 OPTIONS = ["der", "die", "das", "den", "dem", "des"]
 SCOPES = BOOKS + ["wrong"]
-STREAK_DONE = 3       # 错过的词连续答对几次后移出错题本
 POOL = 60             # 一次取多少个词来出题
 MAX_ROUND = 30
+MIN_NEW = 4           # 每组至少留几题给没练过的词, 错题多时新词也出得来
+PLURAL_CHANCE = 0.25  # 已有记忆状态的词出复数题的概率; 复数题不考词性, 新词只出单数
 PAGE_SIZE = 100       # 查看单词时一页多少个
-MASTER_DAYS = 3       # 连续几天答对算已掌握
+MASTER_S = 21         # 稳定性到多少天算已掌握, 和词汇模块一样
+WEAK_DONE_S = 7       # 稳定性到多少天移出错题本
 CASE_IN_TEXT = re.compile("第([一二三四])格")
 # 练习记录和手动加的词; 下面的查询都带这两张表, 错题本的条件要用到
 MARKS = ("LEFT JOIN noun_practice np ON np.word_id = w.id AND np.user_id = :uid "
          "LEFT JOIN noun_list nl ON nl.word_id = w.id AND nl.user_id = :uid")
-IN_WRONG = "AND ((np.wrong > 0 AND np.streak < :done) OR nl.word_id IS NOT NULL)"
+IN_WRONG = "AND (np.weak = 1 OR nl.word_id IS NOT NULL)"
+# 记忆保持率只取决于 隔了多久 / 稳定性, 所以直接按这个比值排: 越大越容易忘。老记录没有状态, 排最前
+RISK = "COALESCE((julianday(:now) - julianday(np.last_review)) / np.stability, 1e9) DESC, np.last_at"
 GENDER_ZH = {"der": "阳性", "die": "阴性", "das": "中性"}
 CASE_NAMES = ["第一格", "第二格", "第三格", "第四格"]
+ARTICLES = {"der": ["der", "des", "dem", "den"], "die": ["die", "der", "der", "die"], "das": ["das", "des", "dem", "das"]}
 # 通用句型, 下标同 forms 里的格(一、二、三、四格): (单数句子, 复数句子, 解释, 单数翻译, 复数翻译)。几乎任何名词都说得通
 FRAMES = [
     ("Das ist {x}.", "Das sind {x}.", "Das ist / sind … 后面是第一格", "这是{m}。", "这些是{m}。"),
@@ -74,18 +84,32 @@ def table(row):
     return out
 
 
-def base_question(row, prompt, answer, number, explain, zh, source, case_no, fill=None):
+def gender_picks(gender, number, cases):
+    """选了这些冠词 = 把词性记错了(是别的词性在这个格的冠词); 选别的是格用错了。
+    复数的冠词不分词性, 返回空; 不知道第几格时分不清, 都算词性错"""
+    if number != "单数":
+        return []
+    if not cases:
+        return OPTIONS
+    mine = {ARTICLES[gender][i] for i in cases}
+    return sorted({ARTICLES[g][i] for g in ARTICLES for i in cases} - mine)
+
+
+def base_question(row, prompt, answer, number, explain, zh, source, cases, fill=None):
     gender = row["gender"]
     return {"word_id": row["id"], "meaning": row["meaning"], "prompt": prompt, "answer": answer, "fill": fill or answer,
-            "options": OPTIONS, "fixed": True, "explain": explain, "zh": zh, "source": source,
-            "must": number, "case": case_no, "hint": f"{gender} {row['german']} · {GENDER_ZH[gender]} · {number}"}
+            "options": OPTIONS, "fixed": True, "explain": explain, "zh": zh, "source": source, "must": number,
+            "case": cases[0] if len(cases) == 1 else None, "gender_picks": gender_picks(gender, number, cases),
+            "hint": f"{gender} {row['german']} · {GENDER_ZH[gender]} · {number}"}
 
 
-def example_question(row, forms):
+def example_question(row, forms, singular_only=False):
     """真实例句: 冠词紧挨名词, 而且能在变格表里查到是第几格。查不到的不出题"""
     singular = {n for num, _i, _a, n in forms if num == "单数"}
     if row["german"] in {n for num, _i, _a, n in forms if num == "复数"} and row["german"] in singular:
         return None           # 单复数同形
+    if singular_only:
+        forms = [f for f in forms if f[0] == "单数"]
     details = json.loads(row["details"]) if row["details"] else {}
     texts = [row["example"]] + list(details.get("examples") or [])
     random.shuffle(texts)
@@ -103,8 +127,7 @@ def example_question(row, forms):
             cases = [i for num, i in hits if num == number]
             where = "或".join(CASE_NAMES[i] for i in cases)
             return base_question(row, de[:m.start()] + "___" + de[m.start() + len(m.group(1)):], art, number,
-                                 f"这里是{number}{where} → {art}", zh, "example", cases[0] if len(cases) == 1 else None,
-                                 m.group(1))
+                                 f"这里是{number}{where} → {art}", zh, "example", cases, m.group(1))
     return None
 
 
@@ -115,7 +138,7 @@ def template_question(row, forms):
     plural = number != "单数"
     frame = FRAMES[i][1 if plural else 0].format(x="___ " + noun)
     zh = FRAMES[i][4 if plural else 3].format(m=short_meaning(row["meaning"]) or row["meaning"])
-    return base_question(row, frame, art, number, f"{FRAMES[i][2]}；{number} → {art}", zh, "template", i)
+    return base_question(row, frame, art, number, f"{FRAMES[i][2]}；{number} → {art}", zh, "template", [i])
 
 
 def written_questions():
@@ -141,19 +164,28 @@ def written_case(explain):
 def written_question(row, q):
     """id 让报错记到这道手写题上, word_id 让作答记到这个词上"""
     fill = q["answer"].capitalize() if q["prompt"].startswith("___") else q["answer"]
+    number = "复数" if "复数" in q["hint"] else "单数"
+    case_no = written_case(q["explain"])
     return {"id": q["id"], "word_id": row["id"], "meaning": row["meaning"], "prompt": q["prompt"], "answer": q["answer"],
             "fill": fill, "options": OPTIONS, "fixed": True, "explain": q["explain"], "zh": q["zh"],
-            "source": q["source"], "must": "复数" if "复数" in q["hint"] else "单数", "hint": q["hint"],
-            "case": written_case(q["explain"])}
+            "source": q["source"], "must": number, "hint": q["hint"], "case": case_no,
+            "gender_picks": gender_picks(row["gender"], number, None if case_no is None else [case_no])}
 
 
-def make_question(row, written=None):
-    hits = (written or {}).get((row["gender"], row["german"]))
+def make_question(row, written=None, singular_only=False):
+    """singular_only: 要考词性时不出复数题; 这个词没有单数(只有复数形式的词)时除外"""
+    hits = (written or {}).get((row["gender"], row["german"])) or []
+    if singular_only:
+        hits = [q for q in hits if "复数" not in q["hint"]]
     if hits:
         return written_question(row, random.choice(hits))
     forms = table(row)
     if not forms:
         return None
+    if singular_only:
+        one = [f for f in forms if f[0] == "单数"]
+        if one:
+            return example_question(row, forms, True) or template_question(row, one)
     return example_question(row, forms) or template_question(row, forms)
 
 
@@ -162,10 +194,29 @@ def make_round(rows, n, written=None):
     for r in rows:
         if len(out) >= n:
             break
-        q = make_question(r, written)
+        q = make_question(r, written, r["stability"] is None or random.random() >= PLURAL_CHANCE)
         if q:
             out.append(q)
     return out
+
+
+def pick_round(due, new, spare, n):
+    """到期的词最多 n - MIN_NEW 个, 新词补上; 新词不够时再用到期的、未到期的补满"""
+    head = due[:max(n - MIN_NEW, 1)]
+    fresh = new[:n - len(head)]
+    rest = (due[len(head):] + spare)[:n - len(head) - len(fresh)]
+    out = head + fresh + rest
+    random.shuffle(out)
+    return out
+
+
+def memory_rating(ok, number, hinted, kind):
+    """这次作答对词性记忆算什么: 3 = 良好, 1 = 忘了, None = 不能说明记没记住"""
+    if hinted or number == "复数":
+        return None
+    if ok:
+        return 3
+    return None if kind == "case" else 1
 
 
 @bp.route("/api/grammar/nouns")
@@ -179,37 +230,42 @@ def nouns():
         n = min(max(int(request.args.get("n", "14")), 1), MAX_ROUND)
     except ValueError:
         return err("题数无效")
-    if scope == "wrong":
-        join, where, args = "", IN_WRONG, {}
-    else:
-        join, args, _order = book_filter(scope)
-        where = ""
-    # 错过的词 > 没练过的 > 很久没练的; 同一档随机
-    rows = query(
-        f"SELECT w.id, w.german, w.gender, w.meaning, w.example, w.forms, d.details FROM my_words w {join} "
-        f"LEFT JOIN word_details d ON d.word_id = w.id {MARKS} WHERE w.gender != '' {where} "
-        "ORDER BY CASE WHEN np.wrong > 0 AND np.streak < :done THEN 0 WHEN np.word_id IS NULL THEN 1 ELSE 2 END, "
-        "np.last_at, RANDOM() LIMIT :pool",
-        pool=POOL, done=STREAK_DONE, **args,
-    ).fetchall()
-    return jsonify({"questions": make_round(rows, n, written_questions())})
+    written = written_questions()
+    base = ("SELECT w.id, w.german, w.gender, w.meaning, w.example, w.forms, d.details, np.stability FROM my_words w {join} "
+            f"LEFT JOIN word_details d ON d.word_id = w.id {MARKS} "
+            "LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid WHERE w.gender != '' {where}")
+    now = now_str()
+    if scope == "wrong":                 # 自己选了错题本: 到没到期都出, 最容易忘的优先
+        rows = query(base.format(join="", where=IN_WRONG) + f" ORDER BY {RISK} LIMIT :pool", pool=POOL, now=now).fetchall()
+        questions = make_round(rows, n, written)
+        random.shuffle(questions)
+        return jsonify({"questions": questions})
+    join, args, order = book_filter(scope)
+    end = local_day(read_tz())[2]        # 到期按本地日期, 和今日学习一样
+    def rows(where, tail):
+        return query(base.format(join=join, where=where) + f" ORDER BY {tail} LIMIT :pool",
+                     pool=POOL, now=now, end=end, **args).fetchall()
+    due = rows("AND np.word_id IS NOT NULL AND (np.next_review IS NULL OR np.next_review < :end)", RISK)
+    new = rows("AND np.word_id IS NULL", f"p.word_id IS NULL, {order}")
+    spare = rows("AND np.next_review >= :end", RISK)
+    return jsonify({"questions": pick_round(make_round(due, n, written), make_round(new, n, written),
+                                            make_round(spare, n, written), n)})
 
 
 @bp.route("/api/grammar/nouns/books")
 @login_required
 def noun_books():
     """练习范围: 各单词书的名词数和进度(没有名词的书不列出来)、错题本的词数、当前单词书。
-    practiced = 练过的名词, weak = 还在错题本里的, mastered = 连续 3 天答对的。和今日学习的进度是两回事"""
+    practiced = 练过的名词, weak = 还在错题本里的, mastered = 词性稳定性到 21 天的。和今日学习的进度是两回事"""
     counts = ("COUNT(*) AS nouns, COUNT(np.word_id) AS practiced, "
               f"COALESCE(SUM(CASE WHEN 1 {IN_WRONG} THEN 1 ELSE 0 END), 0) AS weak, "
-              "COALESCE(SUM(np.good_days >= :days), 0) AS mastered")
+              "COALESCE(SUM(np.stability >= :master), 0) AS mastered")
     by = {}
     for table_name, key in (("word_levels", "level"), ("word_books", "book")):
         for r in query(f"SELECT l.{key} AS book, {counts} FROM my_words w JOIN {table_name} l ON l.word_id = w.id "
-                       f"{MARKS} WHERE w.gender != '' GROUP BY l.{key}", done=STREAK_DONE, days=MASTER_DAYS).fetchall():
+                       f"{MARKS} WHERE w.gender != '' GROUP BY l.{key}", master=MASTER_S).fetchall():
             by[r["book"]] = dict(r)
-    whole = query(f"SELECT {counts} FROM my_words w {MARKS} WHERE w.gender != ''", done=STREAK_DONE,
-                  days=MASTER_DAYS).fetchone()
+    whole = query(f"SELECT {counts} FROM my_words w {MARKS} WHERE w.gender != ''", master=MASTER_S).fetchone()
     by["all"] = {**dict(whole), "book": "all"}
     return jsonify({"current": current_book(current_user_id()), "wrong": whole["weak"],
                     "books": [by[b] for b in BOOKS if b in by]})
@@ -232,11 +288,11 @@ def noun_words():
         join, args, order = book_filter(scope)
         where = ""
     source = f"FROM my_words w {join} {MARKS} WHERE w.gender != '' {where}"
-    total = query(f"SELECT COUNT(*) {source}", done=STREAK_DONE, **args).fetchone()[0]
+    total = query(f"SELECT COUNT(*) {source}", **args).fetchone()[0]
     rows = query(
         "SELECT w.id, w.german, w.gender, w.meaning, COALESCE(np.wrong, 0) AS wrong, COALESCE(np.streak, 0) AS streak, "
         f"nl.word_id IS NOT NULL AS manual {source} ORDER BY {order} LIMIT :lim OFFSET :off",
-        done=STREAK_DONE, lim=PAGE_SIZE, off=(page - 1) * PAGE_SIZE, **args,
+        lim=PAGE_SIZE, off=(page - 1) * PAGE_SIZE, **args,
     ).fetchall()
     words = [{**dict(r), "manual": bool(r["manual"])} for r in rows]
     return jsonify({"words": words, "total": total, "page": page, "pages": max((total + PAGE_SIZE - 1) // PAGE_SIZE, 1)})
@@ -245,7 +301,8 @@ def noun_words():
 @bp.route("/api/grammar/nouns/result", methods=["POST"])
 @login_required
 def result():
-    """记一次作答 {word_id, ok, must, case}: 只记每组第一次作答, 不影响复习计划。?tz= 决定“今天”是哪一天"""
+    """记一次作答 {word_id, ok, must, case, kind, hinted}: 只记每组第一次作答, 不影响今日学习。
+    kind = 答错的原因 gender / case, hinted = 开着词性提示。词性的记忆用 FSRS 排期, 见 memory_rating()"""
     data = json_body()
     word_id, ok = (data.get("word_id"), data.get("ok")) if data else (None, None)
     if isinstance(word_id, bool) or not isinstance(word_id, int) or not isinstance(ok, bool):
@@ -254,21 +311,41 @@ def result():
         return err("单词不存在", 404)
     db = get_db()
     uid = current_user_id()
-    day = local_day(read_tz())[0]
+    must, case_no, kind = data.get("must"), data.get("case"), data.get("kind")
+    rating = memory_rating(ok, must, data.get("hinted") is True, kind)
+    row = db.execute("SELECT * FROM noun_practice WHERE user_id = ? AND word_id = ?", (uid, word_id)).fetchone()
+    p = dict(row) if row else {"seen": 0, "wrong": 0, "streak": 0, "stability": None, "difficulty": None,
+                               "last_review": None, "next_review": None, "weak": 0}
+    now = datetime.now(timezone.utc)
+    tomorrow = fmt_time(now + timedelta(days=1))
+    last = parse_time(p["last_review"]) if p["last_review"] else None
+    if rating is None:                   # 不改记忆状态, 只是今天别再出
+        p["next_review"] = max(p["next_review"] or "", tomorrow)
+    else:
+        p["wrong"] += rating == 1
+        p["streak"] = 0 if rating == 1 else p["streak"] + 1
+        if rating == 1 or last is None or day_gap(last, now) >= 1:     # 同一天再答对不算数, 错题一天内刷不掉
+            s, d, days = fsrs_review(p["stability"], p["difficulty"], last, rating, now)
+            p.update(stability=s, difficulty=d, last_review=fmt_time(now),
+                     next_review=fmt_time(now + timedelta(days=max(days, 1))))   # 答错这一组里已重练, 最早明天再出
+        if rating == 1:
+            p["weak"] = 1
+        elif p["stability"] >= WEAK_DONE_S:
+            p["weak"] = 0
     db.execute(
-        "INSERT INTO noun_practice (user_id, word_id, seen, wrong, streak, last_at, good_days, last_good_day) "
-        "VALUES (?,?,1,?,?,?,?,?) "
-        "ON CONFLICT(user_id, word_id) DO UPDATE SET seen = seen + 1, wrong = wrong + excluded.wrong, "
-        "streak = CASE WHEN excluded.wrong = 1 THEN 0 ELSE streak + 1 END, last_at = excluded.last_at, "
-        "good_days = CASE WHEN excluded.wrong = 1 THEN 0 WHEN last_good_day = excluded.last_good_day THEN good_days "
-        "ELSE good_days + 1 END, last_good_day = excluded.last_good_day",
-        (uid, word_id, 0 if ok else 1, 1 if ok else 0, now_str(), 1 if ok else 0, day if ok else ""),
+        "INSERT INTO noun_practice (user_id, word_id, seen, wrong, streak, last_at, stability, difficulty, "
+        "last_review, next_review, weak) VALUES (?,?,1,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(user_id, word_id) DO UPDATE SET seen = seen + 1, wrong = excluded.wrong, streak = excluded.streak, "
+        "last_at = excluded.last_at, stability = excluded.stability, difficulty = excluded.difficulty, "
+        "last_review = excluded.last_review, next_review = excluded.next_review, weak = excluded.weak",
+        (uid, word_id, p["wrong"], p["streak"], fmt_time(now), p["stability"], p["difficulty"], p["last_review"],
+         p["next_review"], p["weak"]),
     )
-    must, case_no = data.get("must"), data.get("case")
     db.execute(
-        "INSERT INTO noun_answers (user_id, word_id, number, case_no, ok, answered_at) VALUES (?,?,?,?,?,?)",
+        "INSERT INTO noun_answers (user_id, word_id, number, case_no, ok, answered_at, kind) VALUES (?,?,?,?,?,?,?)",
         (uid, word_id, must if must in ("单数", "复数") else None,
-         case_no if case_no in (0, 1, 2, 3) and not isinstance(case_no, bool) else None, ok, now_str()),
+         case_no if case_no in (0, 1, 2, 3) and not isinstance(case_no, bool) else None, ok, fmt_time(now),
+         kind if kind in ("gender", "case") and not ok else None),
     )
     db.commit()
     return jsonify({"ok": True})
@@ -331,7 +408,7 @@ def remove_noun(word_id):
     """移出错题本: 手动加的删掉, 错过的记录清零; 练过几次还留着"""
     db = get_db()
     db.execute("DELETE FROM noun_list WHERE user_id = ? AND word_id = ?", (current_user_id(), word_id))
-    db.execute("UPDATE noun_practice SET wrong = 0, streak = 0 WHERE user_id = ? AND word_id = ?",
+    db.execute("UPDATE noun_practice SET wrong = 0, streak = 0, weak = 0 WHERE user_id = ? AND word_id = ?",
                (current_user_id(), word_id))
     db.commit()
     return jsonify({"ok": True})

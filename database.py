@@ -245,8 +245,9 @@ CREATE TABLE IF NOT EXISTS word_parts (
     data TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
--- 定冠词练习记录: streak = 连续答对次数。错过且连续答对不到 3 次的词在错题本里
---   good_days = 连续答对的天数(同一天只算一次, 答错清零), 到 3 天算已掌握; last_good_day = 上次算进去的本地日期
+-- 定冠词练习记录: 词性的记忆进度, 和 progress(词义)分开。wrong / streak 只算词性答对答错, 复数题、格错、开提示不算
+--   stability / difficulty / last_review / next_review = FSRS 状态, 为空 = 老记录, 算到期
+--   weak = 1 在错题本里: 词性答错时进, 稳定性到 7 天才出。good_days / last_good_day 已不用
 CREATE TABLE IF NOT EXISTS noun_practice (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
@@ -256,9 +257,15 @@ CREATE TABLE IF NOT EXISTS noun_practice (
     last_at TEXT NOT NULL,
     good_days INTEGER NOT NULL DEFAULT 0,
     last_good_day TEXT NOT NULL DEFAULT '',
+    stability REAL,
+    difficulty REAL,
+    last_review TEXT,
+    next_review TEXT,
+    weak INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, word_id)
 );
 -- 定冠词每次作答的明细, 以后统计每个格的正确率用。number = 单数 / 复数, case_no = 0–3(一到四格), 不确定时为空
+-- kind = 答错的原因 gender(词性) / case(格), 答对或老记录为空
 CREATE TABLE IF NOT EXISTS noun_answers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -266,7 +273,8 @@ CREATE TABLE IF NOT EXISTS noun_answers (
     number TEXT,
     case_no INTEGER,
     ok INTEGER NOT NULL,
-    answered_at TEXT NOT NULL
+    answered_at TEXT NOT NULL,
+    kind TEXT
 );
 -- 我的词性本: 用户自己挑的名词
 CREATE TABLE IF NOT EXISTS noun_list (
@@ -427,9 +435,15 @@ def migrate(db):
         db.execute("ALTER TABLE words ADD COLUMN status TEXT NOT NULL DEFAULT 'public'")
     share_private_words(db)
     cols = {r[1] for r in db.execute("PRAGMA table_info(noun_practice)")}
-    for name, typ in (("good_days", "INTEGER NOT NULL DEFAULT 0"), ("last_good_day", "TEXT NOT NULL DEFAULT ''")):
+    for name, typ in (("good_days", "INTEGER NOT NULL DEFAULT 0"), ("last_good_day", "TEXT NOT NULL DEFAULT ''"),
+                      ("stability", "REAL"), ("difficulty", "REAL"), ("last_review", "TEXT"), ("next_review", "TEXT"),
+                      ("weak", "INTEGER NOT NULL DEFAULT 0")):
         if name not in cols:
             db.execute(f"ALTER TABLE noun_practice ADD COLUMN {name} {typ}")
+    if "weak" not in cols:                     # 老错题按原来的规则留在错题本里
+        db.execute("UPDATE noun_practice SET weak = 1 WHERE wrong > 0 AND streak < 3")
+    if "kind" not in {r[1] for r in db.execute("PRAGMA table_info(noun_answers)")}:
+        db.execute("ALTER TABLE noun_answers ADD COLUMN kind TEXT")
     if "bonus" not in {r[1] for r in db.execute("PRAGMA table_info(study_queue)")}:
         db.execute("ALTER TABLE study_queue ADD COLUMN bonus INTEGER NOT NULL DEFAULT 0")
     db.execute("CREATE INDEX IF NOT EXISTS idx_review_log_day ON review_log (user_id, reviewed_at)")

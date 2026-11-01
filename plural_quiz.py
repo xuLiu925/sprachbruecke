@@ -14,7 +14,7 @@ from custom_lessons import text
 from database import get_db, now_str
 from form_drills import question
 from helpers import current_user_id, err, json_body, login_required
-from noun_quiz import MASTER_DAYS, OPTIONS, PAGE_SIZE, POOL, STREAK_DONE, resolve_noun
+from noun_quiz import OPTIONS, PAGE_SIZE, POOL, resolve_noun
 from today import local_day, read_tz
 from vocab import BOOKS, book_filter, current_book, query
 
@@ -22,6 +22,8 @@ bp = Blueprint("plural_quiz", __name__)
 
 SCOPES = BOOKS + ["wrong"]
 ROUND_SIZE = 10
+STREAK_DONE = 3       # 错过的词连续答对几次后移出错题本
+MASTER_DAYS = 3       # 连续几天答对算已掌握
 HAS_PLURAL = "w.gender != '' AND w.plural != '' AND w.plural NOT GLOB '*[^A-Za-zÄÖÜäöüßé-]*'"   # 挡掉 Poulets(CH) 这类数据; é 是 Cafés
 MARKS = ("LEFT JOIN plural_practice pp ON pp.word_id = w.id AND pp.user_id = :uid "
          "LEFT JOIN plural_list pl ON pl.word_id = w.id AND pl.user_id = :uid")
