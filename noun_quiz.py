@@ -22,6 +22,7 @@ from gender_hint import short_meaning
 from grammar import HINT_NOUN
 from helpers import current_user_id, err, json_body, login_required
 from lessons import find_word
+from today import local_day, read_tz
 from vocab import BOOKS, book_filter, current_book, query
 from word_store import word_id_for
 
@@ -33,6 +34,8 @@ STREAK_DONE = 3       # 错过的词连续答对几次后移出错题本
 POOL = 60             # 一次取多少个词来出题
 MAX_ROUND = 30
 PAGE_SIZE = 100       # 查看单词时一页多少个
+MASTER_DAYS = 3       # 连续几天答对算已掌握
+CASE_IN_TEXT = re.compile("第([一二三四])格")
 # 练习记录和手动加的词; 下面的查询都带这两张表, 错题本的条件要用到
 MARKS = ("LEFT JOIN noun_practice np ON np.word_id = w.id AND np.user_id = :uid "
          "LEFT JOIN noun_list nl ON nl.word_id = w.id AND nl.user_id = :uid")
@@ -71,11 +74,11 @@ def table(row):
     return out
 
 
-def base_question(row, prompt, answer, number, explain, zh, source, fill=None):
+def base_question(row, prompt, answer, number, explain, zh, source, case_no, fill=None):
     gender = row["gender"]
     return {"word_id": row["id"], "meaning": row["meaning"], "prompt": prompt, "answer": answer, "fill": fill or answer,
             "options": OPTIONS, "fixed": True, "explain": explain, "zh": zh, "source": source,
-            "must": number, "hint": f"{gender} {row['german']} · {GENDER_ZH[gender]} · {number}"}
+            "must": number, "case": case_no, "hint": f"{gender} {row['german']} · {GENDER_ZH[gender]} · {number}"}
 
 
 def example_question(row, forms):
@@ -97,9 +100,11 @@ def example_question(row, forms):
             if not hits or de.count(m.group(0)) != 1:
                 continue
             number = hits[0][0]
-            where = "或".join(CASE_NAMES[i] for num, i in hits if num == number)
+            cases = [i for num, i in hits if num == number]
+            where = "或".join(CASE_NAMES[i] for i in cases)
             return base_question(row, de[:m.start()] + "___" + de[m.start() + len(m.group(1)):], art, number,
-                                 f"这里是{number}{where} → {art}", zh, "example", m.group(1))
+                                 f"这里是{number}{where} → {art}", zh, "example", cases[0] if len(cases) == 1 else None,
+                                 m.group(1))
     return None
 
 
@@ -110,7 +115,7 @@ def template_question(row, forms):
     plural = number != "单数"
     frame = FRAMES[i][1 if plural else 0].format(x="___ " + noun)
     zh = FRAMES[i][4 if plural else 3].format(m=short_meaning(row["meaning"]) or row["meaning"])
-    return base_question(row, frame, art, number, f"{FRAMES[i][2]}；{number} → {art}", zh, "template")
+    return base_question(row, frame, art, number, f"{FRAMES[i][2]}；{number} → {art}", zh, "template", i)
 
 
 def written_questions():
@@ -127,12 +132,19 @@ def written_questions():
     return out
 
 
+def written_case(explain):
+    """手写题的解释里写着第几格; 没写就不计入统计"""
+    m = CASE_IN_TEXT.search(explain)
+    return "一二三四".index(m.group(1)) if m else None
+
+
 def written_question(row, q):
     """id 让报错记到这道手写题上, word_id 让作答记到这个词上"""
     fill = q["answer"].capitalize() if q["prompt"].startswith("___") else q["answer"]
     return {"id": q["id"], "word_id": row["id"], "meaning": row["meaning"], "prompt": q["prompt"], "answer": q["answer"],
             "fill": fill, "options": OPTIONS, "fixed": True, "explain": q["explain"], "zh": q["zh"],
-            "source": q["source"], "must": "复数" if "复数" in q["hint"] else "单数", "hint": q["hint"]}
+            "source": q["source"], "must": "复数" if "复数" in q["hint"] else "单数", "hint": q["hint"],
+            "case": written_case(q["explain"])}
 
 
 def make_question(row, written=None):
@@ -187,15 +199,17 @@ def nouns():
 @login_required
 def noun_books():
     """练习范围: 各单词书的名词数和进度(没有名词的书不列出来)、错题本的词数、当前单词书。
-    practiced = 练过的名词, weak = 其中还在错题本里的。和今日学习的进度是两回事"""
+    practiced = 练过的名词, weak = 还在错题本里的, mastered = 连续 3 天答对的。和今日学习的进度是两回事"""
     counts = ("COUNT(*) AS nouns, COUNT(np.word_id) AS practiced, "
-              f"COALESCE(SUM(CASE WHEN 1 {IN_WRONG} THEN 1 ELSE 0 END), 0) AS weak")
+              f"COALESCE(SUM(CASE WHEN 1 {IN_WRONG} THEN 1 ELSE 0 END), 0) AS weak, "
+              "COALESCE(SUM(np.good_days >= :days), 0) AS mastered")
     by = {}
     for table_name, key in (("word_levels", "level"), ("word_books", "book")):
         for r in query(f"SELECT l.{key} AS book, {counts} FROM my_words w JOIN {table_name} l ON l.word_id = w.id "
-                       f"{MARKS} WHERE w.gender != '' GROUP BY l.{key}", done=STREAK_DONE).fetchall():
+                       f"{MARKS} WHERE w.gender != '' GROUP BY l.{key}", done=STREAK_DONE, days=MASTER_DAYS).fetchall():
             by[r["book"]] = dict(r)
-    whole = query(f"SELECT {counts} FROM my_words w {MARKS} WHERE w.gender != ''", done=STREAK_DONE).fetchone()
+    whole = query(f"SELECT {counts} FROM my_words w {MARKS} WHERE w.gender != ''", done=STREAK_DONE,
+                  days=MASTER_DAYS).fetchone()
     by["all"] = {**dict(whole), "book": "all"}
     return jsonify({"current": current_book(current_user_id()), "wrong": whole["weak"],
                     "books": [by[b] for b in BOOKS if b in by]})
@@ -231,7 +245,7 @@ def noun_words():
 @bp.route("/api/grammar/nouns/result", methods=["POST"])
 @login_required
 def result():
-    """记一次作答 {word_id, ok}: 只记每组第一次作答, 不影响复习计划"""
+    """记一次作答 {word_id, ok, must, case}: 只记每组第一次作答, 不影响复习计划。?tz= 决定“今天”是哪一天"""
     data = json_body()
     word_id, ok = (data.get("word_id"), data.get("ok")) if data else (None, None)
     if isinstance(word_id, bool) or not isinstance(word_id, int) or not isinstance(ok, bool):
@@ -239,11 +253,22 @@ def result():
     if query("SELECT 1 FROM all_my_words WHERE id = :id", id=word_id).fetchone() is None:
         return err("单词不存在", 404)
     db = get_db()
+    uid = current_user_id()
+    day = local_day(read_tz())[0]
     db.execute(
-        "INSERT INTO noun_practice (user_id, word_id, seen, wrong, streak, last_at) VALUES (?,?,1,?,?,?) "
+        "INSERT INTO noun_practice (user_id, word_id, seen, wrong, streak, last_at, good_days, last_good_day) "
+        "VALUES (?,?,1,?,?,?,?,?) "
         "ON CONFLICT(user_id, word_id) DO UPDATE SET seen = seen + 1, wrong = wrong + excluded.wrong, "
-        "streak = CASE WHEN excluded.wrong = 1 THEN 0 ELSE streak + 1 END, last_at = excluded.last_at",
-        (current_user_id(), word_id, 0 if ok else 1, 1 if ok else 0, now_str()),
+        "streak = CASE WHEN excluded.wrong = 1 THEN 0 ELSE streak + 1 END, last_at = excluded.last_at, "
+        "good_days = CASE WHEN excluded.wrong = 1 THEN 0 WHEN last_good_day = excluded.last_good_day THEN good_days "
+        "ELSE good_days + 1 END, last_good_day = excluded.last_good_day",
+        (uid, word_id, 0 if ok else 1, 1 if ok else 0, now_str(), 1 if ok else 0, day if ok else ""),
+    )
+    must, case_no = data.get("must"), data.get("case")
+    db.execute(
+        "INSERT INTO noun_answers (user_id, word_id, number, case_no, ok, answered_at) VALUES (?,?,?,?,?,?)",
+        (uid, word_id, must if must in ("单数", "复数") else None,
+         case_no if case_no in (0, 1, 2, 3) and not isinstance(case_no, bool) else None, ok, now_str()),
     )
     db.commit()
     return jsonify({"ok": True})

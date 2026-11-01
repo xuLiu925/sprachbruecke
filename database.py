@@ -245,7 +245,8 @@ CREATE TABLE IF NOT EXISTS word_parts (
     data TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
--- 定冠词练习记录: streak = 连续答对次数。错过且连续答对不到 3 次的词算“错过的词”
+-- 定冠词练习记录: streak = 连续答对次数。错过且连续答对不到 3 次的词在错题本里
+--   good_days = 连续答对的天数(同一天只算一次, 答错清零), 到 3 天算已掌握; last_good_day = 上次算进去的本地日期
 CREATE TABLE IF NOT EXISTS noun_practice (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
@@ -253,7 +254,19 @@ CREATE TABLE IF NOT EXISTS noun_practice (
     wrong INTEGER NOT NULL DEFAULT 0,
     streak INTEGER NOT NULL DEFAULT 0,
     last_at TEXT NOT NULL,
+    good_days INTEGER NOT NULL DEFAULT 0,
+    last_good_day TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (user_id, word_id)
+);
+-- 定冠词每次作答的明细, 以后统计每个格的正确率用。number = 单数 / 复数, case_no = 0–3(一到四格), 不确定时为空
+CREATE TABLE IF NOT EXISTS noun_answers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    number TEXT,
+    case_no INTEGER,
+    ok INTEGER NOT NULL,
+    answered_at TEXT NOT NULL
 );
 -- 我的词性本: 用户自己挑的名词
 CREATE TABLE IF NOT EXISTS noun_list (
@@ -394,6 +407,10 @@ def migrate(db):
     if "status" not in {r[1] for r in db.execute("PRAGMA table_info(words)")}:
         db.execute("ALTER TABLE words ADD COLUMN status TEXT NOT NULL DEFAULT 'public'")
     share_private_words(db)
+    cols = {r[1] for r in db.execute("PRAGMA table_info(noun_practice)")}
+    for name, typ in (("good_days", "INTEGER NOT NULL DEFAULT 0"), ("last_good_day", "TEXT NOT NULL DEFAULT ''")):
+        if name not in cols:
+            db.execute(f"ALTER TABLE noun_practice ADD COLUMN {name} {typ}")
     if "bonus" not in {r[1] for r in db.execute("PRAGMA table_info(study_queue)")}:
         db.execute("ALTER TABLE study_queue ADD COLUMN bonus INTEGER NOT NULL DEFAULT 0")
     db.execute("CREATE INDEX IF NOT EXISTS idx_review_log_day ON review_log (user_id, reviewed_at)")

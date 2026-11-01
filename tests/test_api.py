@@ -893,6 +893,31 @@ assert [x for x in wrongs(cb)["words"] if x["id"] == nid][0]["wrong"] >= 1
 assert cb.delete(f"/api/grammar/nouns/list/{nid}").status_code == 200 and nid not in [x["id"] for x in wrongs(cb)["words"]]
 assert db.execute("SELECT seen, wrong FROM noun_practice WHERE word_id = ?", (nid,)).fetchone() == (5, 0)
 
+# 已掌握: 连续 3 个不同的日子答对; 同一天不重复算; 答错清零。每次作答记下单复数和第几格
+mw = db.execute("SELECT id FROM words WHERE german = 'Lampe'").fetchone()[0]
+au = db.execute("SELECT id FROM users WHERE username = 'alice'").fetchone()[0]
+gd = lambda: db.execute("SELECT good_days FROM noun_practice WHERE word_id = ? AND user_id = ?", (mw, au)).fetchone()[0]
+def next_day():    # 假装上次答对是昨天
+    wd = sqlite3.connect(os.environ["DB_PATH"])
+    wd.execute("UPDATE noun_practice SET last_good_day = 'gestern' WHERE word_id = ? AND user_id = ?", (mw, au)); wd.commit(); wd.close()
+masters = lambda: J(c.get("/api/grammar/nouns/books"))["books"][-1]["mastered"]
+m0 = masters()
+res(c, mw, True); res(c, mw, True); assert gd() == 1                              # 同一天两次只算一天
+next_day(); res(c, mw, True); assert gd() == 2 and masters() == m0
+res(c, mw, False); assert gd() == 0                                               # 答错清零
+for i in range(3):
+    next_day(); res(c, mw, True)
+assert gd() == 3 and masters() == m0 + 1
+next_day(); res(c, mw, False); assert gd() == 0 and masters() == m0               # 掌握后答错就退回
+ra = c.post("/api/grammar/nouns/result", json={"word_id": mw, "ok": True, "must": "复数", "case": 2})
+rb = c.post("/api/grammar/nouns/result", json={"word_id": mw, "ok": False, "must": "x", "case": 9})
+assert ra.status_code == 200 and rb.status_code == 200
+assert db.execute("SELECT number, case_no, ok FROM noun_answers ORDER BY id DESC LIMIT 2").fetchall() == [(None, None, 0), ("复数", 2, 1)]
+# 题目带第几格: 例句能确定的、通用句型; 手写题从解释里读; 同形时不确定
+assert NQ.template_question(nr(), NQ.table(nr()))["case"] in (0, 1, 2, 3)
+assert NQ.make_question(nr(example="Ich gebe dem Mann Tee.\n我给那个男人茶。"))["case"] == 2
+assert NQ.make_question(nr(example="Ich sehe die Männer.\n我看见那些男人。"))["case"] is None      # 第一或第四格
+assert NQ.written_case("in 表示位置 + 第三格；阴性第三格 → der") == 2 and NQ.written_case("复数 → die") is None
 # 练习范围: 只列有名词的书和错题本; 查看单词分页; 选书不改变首页的当前单词书
 nb = J(cb.get("/api/grammar/nouns/books"))
 all_nouns = db.execute("SELECT COUNT(*) FROM words WHERE gender != '' AND status = 'public'").fetchone()[0]
@@ -914,7 +939,7 @@ wq = nq(cb, "warehouse")
 assert len(wq) == 1 and wq[0]["prompt"] == "___ Tische stehen hier." and wq[0]["word_id"] == Tid and wq[0]["id"]
 assert wq[0]["fill"] == "Die" and wq[0]["must"] == "复数" and wq[0]["source"] == "seed" and wq[0]["zh"] == "桌子在这里。"
 res(cb, Tid, False)                                                               # 练错一次: 已练 1, 待巩固 1
-assert J(cb.get("/api/grammar/nouns/books"))["books"][-2:][0] == {"book": "warehouse", "nouns": 1, "practiced": 1, "weak": 1}
+assert J(cb.get("/api/grammar/nouns/books"))["books"][-2:][0] == {"book": "warehouse", "nouns": 1, "practiced": 1, "weak": 1, "mastered": 0}
 assert [x["id"] for x in J(cb.get("/api/grammar/nouns/words?scope=warehouse"))["words"]] == [Tid]
 assert J(c.get("/api/books"))["themes"][-1]["level"] == "warehouse"
 

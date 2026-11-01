@@ -187,12 +187,23 @@ onShow.grammar = () => {
 // ---------- 知识点页 ----------
 const hasChinese = s => /[一-鿿]/.test(s);
 
+// 表格里的德语: 单个词和逗号分开的词点开单词卡, 短语和句子点一下朗读
 function speakableCell(td, text) {
   td.textContent = text;
-  if (text && text !== "—" && !text.startsWith("-") && !hasChinese(text)) {
-    td.className = "say"; td.title = "点一下朗读";
-    td.onclick = () => speakDe(text);
+  if (!text || text === "—" || text.startsWith("-") || hasChinese(text)) return;
+  const words = text.split(", ");
+  if (words.every(w => /^[\p{L}-]+$/u.test(w))) {
+    td.textContent = "";
+    words.forEach((w, i) => {
+      if (i) td.append(", ");
+      const b = document.createElement("button"); b.className = "tok"; b.textContent = w;
+      b.onclick = () => openWordSheet(w, { de: "" });
+      td.appendChild(b);
+    });
+    return;
   }
+  td.className = "say"; td.title = "点一下朗读";
+  td.onclick = () => speakDe(text);
 }
 
 onShow.gtopic = () => {
@@ -248,7 +259,7 @@ async function gScopeLoad() {
   let r;
   try { r = await api("/api/grammar/nouns/books"); } catch (e) { return toast(e.message); }
   gScopeList = [...r.books.map(b => ({ id: b.book, name: BOOK_NAMES[b.book] || b.book,
-                                       sub: `已练 ${b.practiced} / ${b.nouns}` + (b.weak ? ` · 待巩固 ${b.weak}` : "") })),
+                                       sub: `已掌握 ${b.mastered} · 已练 ${b.practiced} / ${b.nouns}` + (b.weak ? ` · 待巩固 ${b.weak}` : "") })),
                 { id: "wrong", name: "错题本", sub: `${r.wrong} 个词` }];
   const saved = getSetting("gScope");
   gScopeNow = gScopeList.some(x => x.id === saved) ? saved : r.current;   // 以前选的“学过的词”这类范围已经没有了
@@ -348,7 +359,7 @@ function gChoose(value) {
     const ok = value === q.answer;
     if (ok) gScore++;
     else if (gTopic.bank) gQs.push({ ...q, retry: true });
-    if (q.word_id) api("/api/grammar/nouns/result", "POST", { word_id: q.word_id, ok }).catch(() => {});
+    if (q.word_id) api("/api/grammar/nouns/result?" + tzQuery(), "POST", { word_id: q.word_id, ok, must: q.must, case: q.case }).catch(() => {});
   }
   gPicks[gi] = { value, opts: gOpts };
   gShowAnswer(value);
