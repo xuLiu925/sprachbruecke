@@ -161,7 +161,8 @@ async function wsBack() {
   if (!prev) return;
   wsNow = prev;
   wsBackShow();
-  if (prev.glossary) openGlossaryWord(prev.glossary, true, true);
+  if (prev.wordId) await openWordId(prev.wordId, prev.label, true);
+  else if (prev.glossary) openGlossaryWord(prev.glossary, true, true);
   else await openWordSheet(prev.token, prev.line, true);
   await wsLoads;
   if (wsNow !== prev) return;                // 这期间又点了别的词
@@ -294,6 +295,21 @@ function openGlossaryWord(g, keep = false, back = false) {
   $("wsNoun").classList.toggle("hidden", !g.gender);
   if (getSetting("autoWord") && !back) speakDe(wordText(g));
 }
+// 今日学习: 按编号打开, 同形词(der See / die See)不会找错。这个词已在学习计划里, 不放“加入学习”, 也不再朗读
+async function openWordId(id, label, back = false) {
+  if (!back) wsEnter({ wordId: id, label });
+  const seq = ++wsSeq;
+  let w;
+  try { w = await api("/api/words/" + id); }
+  catch (e) { if (seq === wsSeq) { closeWordSheet(); toast(e.message); } return; }
+  if (seq !== wsSeq) return;                 // 查询期间关掉了单词卡或点了别的词
+  openGlossaryWord(w, true, true);
+  wsWord = { ...w };
+  $("wsExample").textContent = "";           // 例句在详情里, 可以点词
+  $("wsAdd").classList.add("hidden");
+  $("wsView").classList.remove("hidden");
+  if (!back) wsMoreFill(w);                  // 返回时由 wsBack 按原来的状态展开
+}
 $("wsAi").onclick = async () => {
   const seq = wsSeq, btn = $("wsAi");
   btn.disabled = true; btn.textContent = "AI 正在查询…";
@@ -325,6 +341,14 @@ function wsMoreReset() {
   $("wsForms").textContent = ""; $("wsDetails").textContent = ""; $("wsMoreEx").textContent = "";
   $("wsView").textContent = "详情";
 }
+function wsMoreFill(w) {
+  renderForms(w.forms, $("wsForms"));
+  renderDetails(w.details, $("wsDetails"));
+  exampleInto($("wsMoreEx"), w.example, null);
+  $("wsFull").classList.toggle("hidden", !wsCanLeave());
+  $("wsMore").classList.remove("hidden");
+  $("wsView").textContent = "收起";
+}
 $("wsView").onclick = async () => {
   if (!wsWord || !wsWord.id) return;
   if (!$("wsMore").classList.contains("hidden")) return wsMoreReset();
@@ -332,12 +356,7 @@ $("wsView").onclick = async () => {
   let w;
   try { w = await api("/api/words/" + id); } catch (e) { return toast(e.message); }
   if (seq !== wsSeq) return;                 // 查询期间关掉了单词卡或点了别的词
-  renderForms(w.forms, $("wsForms"));
-  renderDetails(w.details, $("wsDetails"));
-  exampleInto($("wsMoreEx"), w.example, null);
-  $("wsFull").classList.toggle("hidden", !wsCanLeave());
-  $("wsMore").classList.remove("hidden");
-  $("wsView").textContent = "收起";
+  wsMoreFill(w);
 };
 $("wsFull").onclick = () => {
   if (!wsWord || !wsWord.id) return;

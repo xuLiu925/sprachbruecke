@@ -71,6 +71,7 @@ function render() {
   $("btnSpeak").classList.toggle("hidden", spell);   // 拼写题先不让听, 免得泄露答案
   $("btnShow").textContent = spell ? "检查" : "显示答案";
   $("btnShow").classList.remove("hidden");
+  $("btnCard").classList.add("hidden");
   $("aResult").textContent = "";
   wordInto($("aWord"), c);
   $("aWord").classList.toggle("hidden", !spell);
@@ -133,6 +134,7 @@ function reveal() {
   $("btnShow").classList.add("hidden");
   $("spellIn").blur();   // 让后面的 1-4 / 空格 当快捷键, 而不是打进输入框
   $("btnSpeak").classList.remove("hidden");
+  $("btnCard").classList.remove("hidden");
   if (c.mode === "spell" && getSetting("autoWord")) speakDe(wordText(c));
   if (getSetting("autoExample") && c.example) speakDe(exampleDe(c.example), true);
 }
@@ -142,6 +144,7 @@ $("spellIn").onkeydown = e => { if (e.key === "Enter") reveal(); };
 
 $("btnSpeak").onclick = () => { if (idx < cards.length) speakDe(wordText(cards[idx])); };
 $("btnSpeakEx").onclick = () => { if (idx < cards.length) speakDe(exampleDe(cards[idx].example)); };
+$("btnCard").onclick = () => { if (idx < cards.length) openWordId(cards[idx].id, cards[idx].german); };
 
 async function answer(rating) {
   if (busy || idx >= cards.length) return;
@@ -176,7 +179,7 @@ async function undo() {
 }
 $("btnUndo").onclick = undo;
 
-// 快捷键: 空格/回车 显示答案, 翻面后 = 良好(拼错时 = 继续); 1-4 评分; P 读单词; E 读例句
+// 快捷键: 空格/回车 显示答案, 翻面后 = 良好(拼错时 = 继续); 1-4 评分; P 读单词; E 读例句; D 单词卡
 onKey.review = (e, typing) => {
   if (typing || e.ctrlKey) return false;
   if (e.key === "Backspace") { undo(); return true; }   // 做完一轮后也能撤销最后一张
@@ -196,6 +199,7 @@ onKey.review = (e, typing) => {
   const k = e.key.toLowerCase();
   if (k === "p" && (c.mode !== "spell" || shown)) { speakDe(wordText(c)); return true; }   // 拼写题答完前不读
   if (k === "e" && shown && c.example) { speakDe(exampleDe(c.example)); return true; }
+  if (k === "d" && shown) { $("btnCard").click(); return true; }
   return false;
 };
 $("btnReload").onclick = async () => {
