@@ -1,5 +1,6 @@
 // 情景课: 读课文(点词看详情) → 练习 → 用德语写出来。内容在 static/lessons.json, 完成记录存本机
 let lessons = null, lessonNow = null, lessonShown = null, wsSeq = 0, wsWord = null, lessonAi = false;
+let wsStack = [], wsNow = null, wsLoads = Promise.resolve();   // 单词卡看过的词, 返回时重新打开
 let wsAsk = null;     // 单词卡要交给 AI 查的 {q, context}
 const LESSON_LEVELS = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶" };
 
@@ -131,7 +132,42 @@ $("lCloze").onclick = () => { sPreset = { mode: "cloze", name: "本课填空", q
 $("lOrder").onclick = () => { sPreset = { mode: "order", name: "本课连词成句", questions: lessonOrder(lessonNow) }; go("squiz"); };
 
 // ---------- 点词: 底部弹出单词卡 ----------
-function closeWordSheet() { $("wsheet").classList.add("hidden"); wsWord = null; wsSeq++; wsMoreReset(); }
+function closeWordSheet() {
+  $("wsheet").classList.add("hidden"); wsWord = null; wsSeq++; wsMoreReset();
+  wsStack = []; wsNow = null; wsBackShow();
+}
+const wsBox = () => $("wsheet").firstElementChild;
+function wsBackShow() {
+  const prev = wsStack[wsStack.length - 1];
+  $("wsBack").classList.toggle("hidden", !prev);
+  $("wsBack").textContent = prev ? "‹ " + prev.label : "";
+}
+// 打开新词前记下当前这张卡: 显示的词、滚动位置、详情是否展开。点到同一个词不记
+function wsEnter(next) {
+  const low = next.label.toLowerCase();
+  const same = wsNow && [wsNow.label, wsWord && wsWord.german].some(x => x && x.toLowerCase() === low);
+  if (wsNow && !same) {
+    wsStack.push({ ...wsNow, label: (wsWord && wsWord.german) || wsNow.label, scroll: wsBox().scrollTop,
+                   more: !$("wsMore").classList.contains("hidden") });
+  }
+  wsNow = next;
+  wsBackShow();
+  wsBox().scrollTop = 0;
+}
+// 回到上一张卡, 内容都加载完再恢复详情和滚动位置, 否则卡片还不够高, 滚不到原来的位置
+async function wsBack() {
+  const prev = wsStack.pop();
+  if (!prev) return;
+  wsNow = prev;
+  wsBackShow();
+  if (prev.glossary) openGlossaryWord(prev.glossary, true, true);
+  else await openWordSheet(prev.token, prev.line, true);
+  await wsLoads;
+  if (wsNow !== prev) return;                // 这期间又点了别的词
+  if (prev.more && wsWord && wsWord.id) await $("wsView").onclick();
+  if (wsNow === prev) wsBox().scrollTop = prev.scroll;
+}
+$("wsBack").onclick = wsBack;
 $("wsClose").onclick = closeWordSheet;
 $("wsheet").onclick = e => { if (e.target === $("wsheet")) closeWordSheet(); };
 window.addEventListener("hashchange", closeWordSheet);
@@ -182,7 +218,9 @@ function exampleExplain(el, text, level = "B1") {
 // 这些页面离开再回来会重新出题, 所以单词卡里不放“详情”, 免得丢掉正在做的这一组
 const wsCanLeave = () => !["review", "drill", "dictation", "squiz", "gquiz"].includes(current);
 
-async function openWordSheet(token, line) {
+async function openWordSheet(token, line, back = false) {
+  if (!back) wsEnter({ token, line, label: token });
+  wsWord = null;
   const seq = ++wsSeq;
   const lemma = (line.map && line.map[token]) || LESSON_FORMS[token.toLowerCase()] || token;
   $("wsheet").classList.remove("hidden");
@@ -208,7 +246,7 @@ async function openWordSheet(token, line) {
     try { r = await api("/api/dict?q=" + encodeURIComponent(lemma)); } catch (e) {}
     if (seq !== wsSeq) return;
     const saved = (r.words || []).find(x => x.ai_word);    // 以前用 AI 查过
-    if (saved) return openGlossaryWord(saved);
+    if (saved) return openGlossaryWord(saved, true, back);
     $("wsMeaning").textContent = "词库里没有这个词";
     if (r.can && r.ai) {                                   // 点了才调用 AI, 人名这类词不用查
       wsAsk = { q: lemma, context: line.de };
@@ -222,17 +260,19 @@ async function openWordSheet(token, line) {
   $("wsPlural").textContent = [w.pos, w.plural ? "复数 " + w.plural : "", token !== w.german ? "文中是 " + token : ""]
     .filter(Boolean).join(" · ");
   $("wsMeaning").textContent = w.meaning;
-  genderReason($("wsGender"), w.german, w.gender, w.meaning);
-  wordParts($("wsParts"), w.german, w.meaning);
+  wsLoads = Promise.all([genderReason($("wsGender"), w.german, w.gender, w.meaning),
+                         wordParts($("wsParts"), w.german, w.meaning)]);
   if (gl && found && gl.meaning !== found.meaning) $("wsLesson").textContent = "在仓库里：" + gl.meaning;
   $("wsSay").classList.remove("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
   $("wsNoun").classList.toggle("hidden", !w.gender);
   $("wsView").classList.toggle("hidden", !found);
-  if (getSetting("autoWord")) speakDe(wordText(w));
+  if (getSetting("autoWord") && !back) speakDe(wordText(w));
 }
 // 查词结果里的仓储词: 不用查询, 内容都在手上
-function openGlossaryWord(g) {
+// keep = 还是同一张卡(查词的结果), 不算打开新词; back = 从下一张卡返回, 不再朗读
+function openGlossaryWord(g, keep = false, back = false) {
+  if (!keep) wsEnter({ glossary: g, label: g.german });
   wsSeq++;
   wsWord = { ...g, id: null, learned: false, queued: false };
   wsMoreReset();
@@ -241,15 +281,15 @@ function openGlossaryWord(g) {
   wordInto($("wsWord"), g);
   $("wsPlural").textContent = [g.pos, g.plural ? "复数 " + g.plural : ""].filter(Boolean).join(" · ");
   $("wsMeaning").textContent = g.meaning;
-  genderReason($("wsGender"), g.german, g.gender, g.meaning);
-  wordParts($("wsParts"), g.german, g.meaning);
+  wsLoads = Promise.all([genderReason($("wsGender"), g.german, g.gender, g.meaning),
+                         wordParts($("wsParts"), g.german, g.meaning)]);
   $("wsExample").textContent = g.example || "";
   $("wsLesson").textContent = g.ai_word ? "AI 生成，未核对" : "";
   $("wsSay").classList.remove("hidden");
   $("wsView").classList.add("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
   $("wsNoun").classList.toggle("hidden", !g.gender);
-  if (getSetting("autoWord")) speakDe(wordText(g));
+  if (getSetting("autoWord") && !back) speakDe(wordText(g));
 }
 $("wsAi").onclick = async () => {
   const seq = wsSeq, btn = $("wsAi");
@@ -261,7 +301,7 @@ $("wsAi").onclick = async () => {
     return;
   }
   if (seq !== wsSeq) return;                 // 查询期间关掉了单词卡或点了别的词
-  if (r.word) return openGlossaryWord(r.word);
+  if (r.word) return openGlossaryWord(r.word, true);
   btn.classList.add("hidden");
   $("wsMeaning").textContent = "AI 也没有查到这个词";
 };

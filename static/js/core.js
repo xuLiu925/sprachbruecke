@@ -212,6 +212,7 @@ document.addEventListener("keydown", e => {
   if (!user || e.isComposing || e.altKey || e.metaKey) return;   // 输入法选字时不算
   if (!$("wsheet").classList.contains("hidden")) {               // 单词卡打开时, 快捷键别影响下面的页面(比如误触评分)
     if (e.key === "Escape") { e.preventDefault(); closeWordSheet(); }
+    else if (e.key === "Backspace" && wsStack.length) { e.preventDefault(); wsBack(); }
     return;
   }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
