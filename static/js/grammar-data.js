@@ -664,6 +664,26 @@ const GRAMMAR_TOPICS = [
     quiz: () => verbQuiz(["können", "müssen", "dürfen", "sollen", "wollen", "mögen", "möchten"], 14),
   },
   {
+    id: "verb-praes", group: "动词", level: "A1–A2", title: "现在时变位",
+    intro: ["规则动词：去掉 -en 得到词干，再按人称加词尾 -e、-st、-t、-en、-t、-en。",
+            "词干以 -t、-d 结尾时，du、er、ihr 前面先加 e：du arbeitest, er arbeitet。词干以 -s、-ß、-z 结尾时，du 只加 -t：du heißt。",
+            "部分强变化动词在 du 和 er / sie / es 时换元音：a → ä（fahren）、e → i（nehmen）、e → ie（lesen）。其他人称不变。",
+            "可分动词：变位的部分放第二位，前缀放句末：Ich hole dich ab."],
+    tables: [
+      { head: ["", "machen", "arbeiten", "fahren", "nehmen", "lesen"], rows: PERSONS6.map((p, i) => [p,
+        ["mache", "machst", "macht", "machen", "macht", "machen"][i],
+        ["arbeite", "arbeitest", "arbeitet", "arbeiten", "arbeitet", "arbeiten"][i],
+        ["fahre", "fährst", "fährt", "fahren", "fahrt", "fahren"][i],
+        ["nehme", "nimmst", "nimmt", "nehmen", "nehmt", "nehmen"][i],
+        ["lese", "liest", "liest", "lesen", "lest", "lesen"][i]]) },
+    ],
+    examples: ["Wohin fährst du im Urlaub?", "Der Fahrer nimmt den Hubwagen.", "Ich hole dich um acht ab.", "Mein Bruder arbeitet im Lager."],
+    bank: true,
+    verb: true,      // 练习范围和错题本用动词的接口
+    hintLabel: "显示人称提示",
+    quiz: () => bankQuiz(verbQuiz(["sein", "haben", "werden"], 12), "verb"),
+  },
+  {
     id: "order-main", group: "语序", level: "A1", title: "主句语序：动词在第二位",
     intro: ["陈述句里，变位动词永远在第二位。第一位可以是主语，也可以是时间、地点等；主语不在第一位时就放到动词后面。",
             "框架结构：有情态动词、助动词时，它们在第二位，另一个动词（不定式 / 过去分词）放到句末；可分动词的前缀也放句末。",

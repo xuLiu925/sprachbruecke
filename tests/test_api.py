@@ -1073,6 +1073,75 @@ res(cb, fresh, False, must="单数", kind="case", cell="indef:der:3")
 assert pcount() == ppc and acell() == ("indef:der:3", "case")
 res(cb, fresh, False, must="单数", kind="gender", cell="bad:cell")
 assert pcount() == ppc + 1 and acell() == (None, "gender")
+
+# 动词练习: 用 FSRS 选词, 只有词形错才算忘了, 人称错不改记忆状态
+import verb_quiz as vq
+from verb_sentences import WRITTEN
+vdb = sqlite3.connect(os.environ["DB_PATH"])
+def add_verb(german, praesens, past=None, example=""):
+    wid = vdb.execute("INSERT INTO words (german, pos, meaning, example) VALUES (?,'动词','测试',?)", (german, example)).lastrowid
+    vdb.execute("INSERT INTO word_forms (word_id, forms) VALUES (?,?)", (wid, json.dumps({"praesens": praesens, "past": past or []}, ensure_ascii=False)))
+    return wid
+vfa = add_verb("zzfahren", ["fahre", "fährst", "fährt", "fahren", "fahrt", "fahren"], ["fuhr", "ist gefahren"])
+vho = add_verb("zzabholen", ["hole ab", "holst ab", "holt ab", "holen ab", "holt ab", "holen ab"])
+vbad = add_verb("zzkaputt", ["a", "b"])
+vdb.commit()
+vrow = lambda **k: {"id": 1, "german": "fahren", "meaning": "行驶", "example": "", "details": None,
+                    "forms": json.dumps({"praesens": ["fahre", "fährst", "fährt", "fahren", "fahrt", "fahren"], "past": ["fuhr", "ist gefahren"]}), **k}
+vinfo = vq.verb_info(vrow())
+assert vinfo["changes"] and vq.stem_picks(vinfo, 1) == ["fahrst"] and vq.stem_picks(vinfo, 2) == ["fahrt"] and vq.stem_picks(vinfo, 3) == []
+assert vq.verb_info(vrow(forms=json.dumps({"praesens": ["x"]}))) is None
+kann = vq.verb_info(vrow(german="können", forms=json.dumps({"praesens": ["kann", "kannst", "kann", "können", "könnt", "können"]})))
+assert kann["irregular"] and not kann["changes"] and set(vq.stem_picks(kann, 2)) == {"kannst", "können", "könnt"}
+assert vq.regular_du("lest") == "lest" and vq.regular_du("haltet") == "haltest"
+assert [vq.full_ich(a, b) for a, b in (("mein", "meinen"), ("feier", "feiern"), ("sammel", "sammeln"), ("kann", "können"), ("tue", "tun"), ("bin", "sind"))] \
+    == ["meine", "feiere", "sammle", "kann", "tue", "bin"]
+assert vq.verb_info(vrow(german="sollen", forms=json.dumps({"praesens": ["soll", "sollst", "soll", "sollen", "sollt", "sollen"]})))["heads"][0] == "soll"
+assert vq.verb_info(vrow(german="wohnen", forms=json.dumps({"praesens": ["wohn", "wohnst", "wohnt", "wohnen", "wohnt", "wohnen"]})))["heads"][0] == "wohne"
+vex = lambda text: vq.example_sentences(vrow(example=text), vinfo)
+assert vex("Der Zug fährt nach Berlin.\n火车开往柏林。")[0][:2] == (2, "Der Zug ___ nach Berlin.")
+assert vex("Wohin fährst du heute?\n你今天去哪里？")[0][:2] == (1, "Wohin ___ du heute?")
+assert vex("Wann fahren Sie nach Hause?\n您什么时候回家？")[0][0] == 5
+for bad in ("Sie fährt nach Berlin.\n她去柏林。", "Fahrt nach Berlin!\n去柏林！", "Wir wollen morgen fahren.\n我们明天想走。",
+            "Fahrt schnell nach Hause.\n快回家。", "Er fährt die Kinder hin.\n他开车送孩子去。",
+            "Am Montag können wir fahren.\n星期一我们可以走。"):
+    assert vex(bad) == [], bad
+vsep = vq.verb_info(vrow(german="abholen", forms=json.dumps({"praesens": ["hole ab", "holst ab", "holt ab", "holen ab", "holt ab", "holen ab"]})))
+assert vq.example_sentences(vrow(german="abholen", example="Ich hole dich ab.\n我去接你。"), vsep)[0][:2] == (0, "Ich ___ dich ab.")
+vq_short = vq.make_question(vrow(german="zzfahren"), {p: 1 for p in range(6)})
+assert vq_short["short"] and vq_short["prompt"].endswith("___") and vq_short["answer"] in vq_short["options"] and len(vq_short["options"]) == 4
+vtb = lambda scope="all", n=30: J(cb.get(f"/api/grammar/verbs?scope={scope}&n={n}"))["questions"]
+vqs = vtb()
+assert vqs and all(x["verb"] and x["answer"] in x["options"] and x["prompt"].count("___") == 1 for x in vqs)
+assert vbad not in {x["word_id"] for x in vqs} and len({x["word_id"] for x in vqs}) == len(vqs)
+assert any(x["word_id"] == vho and x["prompt"].endswith(" ab") for x in vqs)
+assert cb.get("/api/grammar/verbs?scope=x").status_code == 400 and cb.get("/api/grammar/verbs?n=x").status_code == 400
+assert A.app.test_client().get("/api/grammar/verbs").status_code == 401
+vres = lambda wid, ok, **b: cb.post("/api/grammar/verbs/result", json={"word_id": wid, "ok": ok, **b})
+vst = lambda wid: db.execute("SELECT stability, weak, wrong FROM verb_practice WHERE word_id = ?", (wid,)).fetchone()
+assert vres(vfa, False, person=1, kind="person").status_code == 200 and vst(vfa) == (None, 0, 0)   # 人称错不算忘
+assert vres(vfa, True, person=1, hinted=True).status_code == 200 and vst(vfa) == (None, 0, 0)
+assert vres(vfa, False, person=2, kind="stem").status_code == 200
+assert vst(vfa)[0] is not None and vst(vfa)[1:] == (1, 1)
+assert db.execute("SELECT person, ok, kind FROM verb_answers ORDER BY id DESC LIMIT 1").fetchone() == (2, 0, "stem")
+assert vres(True, True).status_code == 400 and vres(10**7, True).status_code == 404
+assert vfa in {x["word_id"] for x in vtb("wrong")}
+vb = J(cb.get("/api/grammar/verbs/books"))
+assert vb["wrong"] == 1 and all("nouns" in x for x in vb["books"])
+vw = J(cb.get("/api/grammar/verbs/words?scope=wrong"))
+assert vw["total"] == 1 and vw["words"][0]["id"] == vfa and vw["words"][0]["wrong"] == 1
+assert cb.delete(f"/api/grammar/verbs/list/{vfa}").status_code == 200 and J(cb.get("/api/grammar/verbs/books"))["wrong"] == 0
+vl = J(cb.post("/api/grammar/verbs/list", json={"text": "zzfahren, Tisch"}))
+assert vl["added"] == 1 and "Tisch" in vl["missing"], vl
+assert J(cb.post("/api/grammar/verbs/list", json={"text": "zzfahren"}))["skipped"] == 1
+assert cb.post("/api/grammar/verbs/list", json={"text": " "}).status_code == 400
+assert J(cb.get("/api/grammar/verbs/books"))["wrong"] == 1
+# 手写句子: 每句一个空, 德语不混中文, 第一位不用 sie / Sie
+for german, items in WRITTEN.items():
+    assert len(items) >= 2 and len({x[1] for x in items}) == len(items), german
+    for person, de, zh in items:
+        assert person in range(6) and de.count("___") == 1 and not vq.CHINESE.search(de) and vq.CHINESE.search(zh), de
+        assert not de.startswith(("Sie ", "sie ")), de
 res(cb, fresh, False, must="单数", kind="gender", cell="kein:der:3")
 assert npr(fresh)[2] == 1 and acell() == ("kein:der:3", "gender")                 # 词性答错进错题本, 和定冠词共用
 assert NQ.memory_rating(True, "单数", False, None, True) is None and NQ.memory_rating(False, "单数", False, "gender", True) == 1

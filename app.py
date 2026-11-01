@@ -28,6 +28,7 @@
   word_parts.py  构词解释(AI 生成, 按词保存一次)
   noun_quiz.py   定冠词填空题(从词库名词自动出题、练习记录、我的词性本)
   article_quiz.py 不定冠词、否定冠词、物主冠词填空题(按格子练, 不按词排期)
+  verb_quiz.py   动词现在时填空题(手写句子在 verb_sentences.py)
   tts.py         在线德语发音(设备没有德语语音时用)
   vocab_seed.py  示例词和变格 / 变位
 """
@@ -48,6 +49,7 @@ import lessons
 import noun_quiz
 import article_quiz
 import plural_quiz
+import verb_quiz
 import sentences
 import tts
 import today
@@ -103,6 +105,7 @@ app.register_blueprint(form_drills.bp)
 app.register_blueprint(plural_quiz.bp)
 app.register_blueprint(noun_quiz.bp)     # 要在 grammar 前面: /api/grammar/nouns 不能被当成知识点
 app.register_blueprint(article_quiz.bp)  # 同上: /api/grammar/articles
+app.register_blueprint(verb_quiz.bp)     # 同上: /api/grammar/verbs
 app.register_blueprint(grammar.bp)
 app.register_blueprint(gender_hint.bp)
 app.register_blueprint(word_parts.bp)

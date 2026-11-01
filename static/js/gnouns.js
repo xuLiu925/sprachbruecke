@@ -3,6 +3,7 @@ const NOUN_LIST = {
   api: "/api/grammar/nouns", scopes: () => gScopeList,
   start(scope) { gScopeNow = scope; setSetting("gScope", scope); go("gquiz"); },
 };
+const VERB_LIST = { ...NOUN_LIST, api: "/api/grammar/verbs", unit: "动词", sample: "例如：fahren, geben, abholen" };
 let gnScope = "", gnPage = 1, gnKind = NOUN_LIST;
 
 function gnOpen(scope, kind = NOUN_LIST) {
@@ -17,9 +18,12 @@ async function gnLoad() {
   $("title").textContent = name;
   $("gnAddBox").classList.toggle("hidden", !wrong);
   $("gnStart").textContent = "练习" + name;
+  const unit = gnKind.unit || "名词";
+  $("gnAddTip").textContent = `写下想练的${unit}，用逗号或空格分开。变化形式也能找到原形。手动加的词要自己移除。`;
+  $("gnText").placeholder = gnKind.sample || "例如：Palette, Karton, Tor";
   let r;
   try { r = await api(`${gnKind.api}/words?scope=${gnScope}&page=${gnPage}`); } catch (e) { return toast(e.message); }
-  $("gnCount").textContent = `共 ${r.total} 个名词`;
+  $("gnCount").textContent = `共 ${r.total} 个${unit}`;
   const box = $("gnList"); box.textContent = "";
   box.classList.toggle("hidden", !r.words.length);
   for (const w of r.words) {

@@ -221,8 +221,9 @@ def memory_rating(ok, number, hinted, kind, article=False):
     return None if kind == "case" else 1
 
 
-def update_practice(db, uid, word_id, rating):
-    row = db.execute("SELECT * FROM noun_practice WHERE user_id = ? AND word_id = ?", (uid, word_id)).fetchone()
+def update_practice(db, uid, word_id, rating, table="noun_practice"):
+    """table: 动词练习也用这套规则, 记在 verb_practice"""
+    row = db.execute(f"SELECT * FROM {table} WHERE user_id = ? AND word_id = ?", (uid, word_id)).fetchone()
     p = dict(row) if row else {"seen": 0, "wrong": 0, "streak": 0, "stability": None, "difficulty": None,
                                "last_review": None, "next_review": None, "weak": 0}
     now = datetime.now(timezone.utc)
@@ -242,7 +243,7 @@ def update_practice(db, uid, word_id, rating):
         elif p["stability"] >= WEAK_DONE_S:
             p["weak"] = 0
     db.execute(
-        "INSERT INTO noun_practice (user_id, word_id, seen, wrong, streak, last_at, stability, difficulty, "
+        f"INSERT INTO {table} (user_id, word_id, seen, wrong, streak, last_at, stability, difficulty, "
         "last_review, next_review, weak) VALUES (?,?,1,?,?,?,?,?,?,?,?) "
         "ON CONFLICT(user_id, word_id) DO UPDATE SET seen = seen + 1, wrong = excluded.wrong, streak = excluded.streak, "
         "last_at = excluded.last_at, stability = excluded.stability, difficulty = excluded.difficulty, "

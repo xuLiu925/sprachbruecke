@@ -29,9 +29,10 @@ function articleQuiz(form, nouns, cases, genders) {
 }
 
 // 题库在后端的知识点: 从选中的单词书或错题本出题, 取不到时用程序生成的题。fixed = 选项每题都一样, 按钮不换位置
-// kind = indef / kein / poss: 不定冠词、否定冠词、物主冠词, 不带就是定冠词
+// kind = indef / kein / poss: 不定冠词、否定冠词、物主冠词; verb: 动词; 不带就是定冠词
 async function bankQuiz(local, kind) {
-  const url = kind ? `/api/grammar/articles?type=${kind}&scope=${gScopeNow}&n=14` : `/api/grammar/nouns?scope=${gScopeNow}&n=14&` + tzQuery();
+  const url = kind === "verb" ? `/api/grammar/verbs?scope=${gScopeNow}&n=14&` + tzQuery()
+    : kind ? `/api/grammar/articles?type=${kind}&scope=${gScopeNow}&n=14` : `/api/grammar/nouns?scope=${gScopeNow}&n=14&` + tzQuery();
   try { return (await api(url)).questions; }
   catch (e) { toast("题库加载失败，先做基础题"); return shuffle(local); }
 }
@@ -267,16 +268,17 @@ $("gBank").onclick = () => go("gbank");
 // 练习范围: 单词书和错题本, 放在开始按钮前, 一眼能看到现在练的是什么。选这里不改变首页的当前单词书
 let gScopeNow = "", gScopeList = [];
 const G_SCOPE_ICONS = { wrong: "📕", warehouse: "📦", all: "🗃️" };
+const gList = () => (gTopic.verb ? VERB_LIST : NOUN_LIST);
 async function gScopeLoad() {
   let r;
-  try { r = await api("/api/grammar/nouns/books"); } catch (e) { return toast(e.message); }
+  try { r = await api(gList().api + "/books"); } catch (e) { return toast(e.message); }
   gScopeList = scopeItems(r);
   const saved = getSetting("gScope");
   gScopeNow = gScopeList.some(x => x.id === saved) ? saved : r.current;   // 以前选的“学过的词”这类范围已经没有了
   gScopeShow();
 }
 function gScopeShow() {
-  scopeInto($("gScope"), gScopeList, gScopeNow, id => { gScopeNow = id; setSetting("gScope", id); gScopeShow(); }, id => gnOpen(id));
+  scopeInto($("gScope"), gScopeList, gScopeNow, id => { gScopeNow = id; setSetting("gScope", id); gScopeShow(); }, id => gnOpen(id, gList()));
 }
 // 定冠词和复数练习共用: 后端返回的范围 → 列表项, 再画出来
 function scopeItems(r) {
@@ -343,6 +345,7 @@ function gRender() {
   gAnswered = false;
   $("gqProgress").textContent = `第 ${gi + 1} / ${gQs.length} 题` + (q.retry ? " · 错题再练一次" : "");
   $("gqHintRow").classList.toggle("hidden", !gTopic.bank);
+  $("gqHintText").textContent = gTopic.hintLabel || "显示词性提示";
   promptInto($("gqPrompt"), q.prompt);
   $("gqSent").textContent = gTopic.bank ? q.zh || "" : "";   // 题库题做题时就显示翻译: 中文没有冠词, 不会泄露答案
   gHint();
@@ -370,7 +373,12 @@ function gRender() {
 
 // 冠词题答错的原因: gender = 词性记错了, case = 词性没错, 格或词尾用错了(复数的冠词不分词性, 只可能是格)
 // ein / kein / 物主冠词的题点“不会”不算词性错: 更可能是词尾没记住
+// 动词题: stem = 词形没记住, person = 人称用错了; 点“不会”时词干要变或不规则的算词形
 function gErrKind(q, value) {
+  if (q.verb) {
+    if (value === q.answer) return null;
+    return (value === null ? q.stem_picks.length : q.stem_picks.includes(value)) ? "stem" : "person";
+  }
   if (!q.gender_picks || value === q.answer) return null;
   if (value === null) return q.must === "复数" || q.article ? "case" : "gender";
   return q.gender_picks.includes(value) ? "gender" : "case";
@@ -384,7 +392,9 @@ function gChoose(value) {
     const ok = value === q.answer;
     if (ok) gScore++;
     else if (gTopic.bank) gQs.push({ ...q, retry: true });
-    if (q.word_id) api("/api/grammar/nouns/result?" + tzQuery(), "POST", { word_id: q.word_id, ok, must: q.must, case: q.case,
+    if (q.verb) api("/api/grammar/verbs/result", "POST", { word_id: q.word_id, ok, person: q.person,
+                    kind: gErrKind(q, value), hinted: !!getSetting("gHints") }).catch(() => {});
+    else if (q.word_id) api("/api/grammar/nouns/result?" + tzQuery(), "POST", { word_id: q.word_id, ok, must: q.must, case: q.case,
                        kind: gErrKind(q, value), hinted: !!getSetting("gHints"), cell: q.cell }).catch(() => {});
   }
   gPicks[gi] = { value, opts: gOpts };
@@ -401,14 +411,15 @@ function gShowAnswer(value) {
   });
   if (!q.wide) promptInto($("gqPrompt"), q.prompt, q.fill || q.answer);
   gHint();
-  const why = { gender: "词性错了，", case: q.article ? "词尾用错了，" : "格用错了，" }[gErrKind(q, value)] || "";
+  const why = { gender: "词性错了，", case: q.article ? "词尾用错了，" : "格用错了，", stem: "词形错了，", person: "人称错了，" }[gErrKind(q, value)] || "";
   $("gqResult").textContent = ok ? "✔ 正确" : (value === null ? "不会，正确答案：" : `✘ ${why}正确答案：`) + q.answer;
   $("gqResult").className = ok ? "ok" : "msg";
   $("gqZh").textContent = gTopic.bank ? "" : q.zh || "";
   $("gqExplain").textContent = q.explain || "";
   const noun = (q.hint || "").match(/^(der|die|das) ([^ ·]+)/);     // 提示写着 die Palette · 阴性 的题
   genderReason($("gqGender"), noun && noun[2], noun && noun[1], q.meaning || "");
-  exampleExplain($("gqGender"), gTopic.id === "art-def" ? `${gSentence()}\n${q.zh || ""}` : "");   // 讲解填好答案的整句
+  const explainable = gTopic.id === "art-def" || (q.verb && !q.short);      // 动词的短题 du ___ 不是句子, 不用讲解
+  exampleExplain($("gqGender"), explainable ? `${gSentence()}\n${q.zh || ""}` : "");   // 讲解填好答案的整句
   $("gqGiveUp").classList.add("hidden");
   $("gqReport").classList.toggle("hidden", !q.id && !q.word_id);     // 题库题和自动出的题能报错
   $("gqFeedback").classList.remove("hidden");

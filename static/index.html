@@ -307,7 +307,7 @@
 
     <section class="page" data-page="gnouns">
       <div class="card hidden" id="gnAddBox">
-        <p class="meta left" style="margin-top:0">写下想练的名词，用逗号或空格分开。变化形式也能找到原形。手动加的词要自己移除。</p>
+        <p class="meta left" style="margin-top:0" id="gnAddTip"></p>
         <textarea id="gnText" spellcheck="false" placeholder="例如：Palette, Karton, Tor" style="min-height:80px"></textarea>
         <button id="gnAdd" style="width:100%;margin-top:8px">加入错题本</button>
         <p id="gnMsg" class="meta left"></p>
@@ -350,7 +350,7 @@
     <section class="page" data-page="gquiz">
       <div class="card" id="gqBox">
         <div class="tag" id="gqProgress"></div>
-        <label class="meta hidden" id="gqHintRow" style="display:block;text-align:center"><input type="checkbox" id="gqHints" style="width:auto"> 显示词性提示</label>
+        <label class="meta hidden" id="gqHintRow" style="display:block;text-align:center"><input type="checkbox" id="gqHints" style="width:auto"> <span id="gqHintText">显示词性提示</span></label>
         <div class="gprompt" id="gqPrompt"></div>
         <div class="meta" id="gqSent"></div>
         <div class="meta" id="gqHint"></div>
