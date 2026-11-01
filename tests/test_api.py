@@ -633,12 +633,10 @@ assert "水平 C1" in J(c.post("/api/explain/prompt", json={"de": "Das ist ein S
 
 # 词形练习: 复数、变格、动词变位; 两种写法都算对, 数据有问题的词不出题
 import form_drills as FD
-assert c.get("/api/forms/x").status_code == 404 and A.app.test_client().get("/api/forms/plural").status_code == 401
+assert c.get("/api/forms/plural").status_code == 404 and A.app.test_client().get("/api/forms/cases").status_code == 401
 def fr(gender="der", german="Mann", plural="Männer", forms=None):
     return {"id": 1, "german": german, "gender": gender, "plural": plural, "meaning": "男人",
             "forms": json.dumps(forms) if forms else None}
-assert FD.plural_question(fr())["blank"] == {"before": "die ", "answer": "Männer", "after": ""}
-assert FD.plural_question(fr(plural="Poulets(CH)")) is None and FD.plural_question(fr(gender="")) is None
 mf = {"cases": {"sg": ["der Mann", "des Mannes / des Manns", "dem Mann", "den Mann"],
                 "pl": ["die Männer", "der Männer", "den Männern", "die Männer"]}}
 slots = FD.case_slots(fr(forms=mf))
@@ -656,10 +654,61 @@ se = fr(gender="", german="sein", forms={"praesens": ["bin", "bist", "ist", "sin
 assert len(FD.verb_slots(se)) == 6
 assert FD.verb_slots(fr(gender="", german="x", forms={"praesens": ["a", "", "c", "d", "e", "f"]})) == []
 assert cb.post("/api/books/current", json={"book": "all"}).status_code == 200
-for kind, n in (("plural", 10), ("cases", 10), ("verbs", 2)):
+for kind, n in (("cases", 10), ("verbs", 2)):
     qs = J(cb.get("/api/forms/" + kind))["questions"]
     assert len(qs) == n and len({x["word_id"] for x in qs}) == n, (kind, len(qs))
     assert all(x["blank"]["answer"] and x["accept"] and x["german"] and x["zh"] and x["de"] for x in qs)
+
+# 复数练习: 规律判断、范围、错题本、已掌握
+import plural_quiz as PQ
+kind = lambda g, a, p: PQ.plural_rule(g, a, p)["kind"]
+assert PQ.umlaut("Apfel") == "Äpfel" and PQ.umlaut("Haus") == "Häus" and PQ.umlaut("Tisch") == "Tisch"
+for g, a, p in (("Zeitung", "die", "Zeitungen"), ("Lehrerin", "die", "Lehrerinnen"), ("Lampe", "die", "Lampen"),
+                ("Regel", "die", "Regeln"), ("Mädchen", "das", "Mädchen"), ("Vater", "der", "Väter"),
+                ("Lehrer", "der", "Lehrer"), ("Kollege", "der", "Kollegen"), ("Student", "der", "Studenten"),
+                ("Ergebnis", "das", "Ergebnisse"), ("Museum", "das", "Museen"), ("Auto", "das", "Autos"), ("LKW", "der", "LKWs")):
+    assert kind(g, a, p) == "rule", g
+for g, a, p in (("Mutter", "die", "Mütter"), ("Konto", "das", "Konten"), ("Monitor", "der", "Monitore")):
+    assert kind(g, a, p) == "exception", g
+for g, a, p in (("Frau", "die", "Frauen"), ("Stadt", "die", "Städte"), ("Stuhl", "der", "Stühle"), ("Jahr", "das", "Jahre"),
+                ("Kind", "das", "Kinder"), ("Medizin", "die", "Medizinen")):
+    assert kind(g, a, p) == "tendency", g
+assert kind("Thema", "das", "Themen") == "none" and kind("Mann", "der", "Männer") == "none"
+assert PQ.plural_rule("Baum", "der", "Bäume")["kind"] == "tendency"      # -um 只看中性
+assert kind("Tier", "das", "Tiere") == kind("Spiel", "das", "Spiele") == kind("Meer", "das", "Meere") == "tendency"   # 不是弱读词尾
+assert kind("Schleier", "der", "Schleier") == "rule" and kind("Bauer", "der", "Bauern") == "exception"
+pz = PQ.plural_question({"id": 1, "german": "Mutter", "gender": "die", "plural": "Mütter", "meaning": "母亲"})
+assert pz["blank"]["answer"] == "Mütter" and pz["rule_kind"] == "exception" and pz["rule_hint"] == PQ.UNMARKED and "Mütter" in pz["recap"]
+assert A.app.test_client().get("/api/plural").status_code == 401 and c.get("/api/plural?scope=x").status_code == 400
+pb0 = J(cb.get("/api/plural/books"))
+assert pb0["books"][-1]["book"] == "all" and pb0["wrong"] == 0
+pq = J(cb.get("/api/plural?scope=all"))["questions"]
+assert 0 < len(pq) <= PQ.ROUND_SIZE and len({x["word_id"] for x in pq}) == len(pq)
+assert all(x["rule"] and x["rule_hint"] and x["blank"]["answer"] for x in pq)
+pw = pq[0]["word_id"]
+assert cb.post("/api/plural/result", json={"word_id": pw, "ok": "x"}).status_code == 400
+assert cb.post("/api/plural/result", json={"word_id": 99999999, "ok": True}).status_code == 404
+assert cb.post("/api/plural/result?tz=0", json={"word_id": pw, "ok": False}).status_code == 200
+assert J(cb.get("/api/plural/books"))["wrong"] == 1
+assert [x["word_id"] for x in J(cb.get("/api/plural?scope=wrong"))["questions"]] == [pw]
+assert J(cb.get("/api/plural?scope=all"))["questions"][0]["word_id"] == pw     # 错过的词排最前
+pl = J(cb.get("/api/plural/words?scope=wrong"))
+assert pl["total"] == 1 and pl["words"][0]["wrong"] == 1 and pl["words"][0]["plural"] and not pl["words"][0]["manual"]
+assert cb.get("/api/plural/words?scope=x").status_code == 400 and cb.get("/api/plural/words?scope=all&page=a").status_code == 400
+for _ in range(3):
+    assert cb.post("/api/plural/result?tz=0", json={"word_id": pw, "ok": True}).status_code == 200
+assert J(cb.get("/api/plural/books"))["wrong"] == 0                            # 连续答对 3 次移出
+assert J(cb.get("/api/plural/books"))["books"][-1]["mastered"] == 0            # 同一天只算一次, 不算已掌握
+assert db.execute("SELECT 1 FROM noun_practice WHERE word_id = ?", (pw,)).fetchone() is None     # 不影响定冠词记录
+assert cb.post("/api/plural/list", json={"text": "   "}).status_code == 400
+pname = pq[1]["german"] if len(pq) > 1 else pq[0]["german"]
+pa = J(cb.post("/api/plural/list", json={"text": f"{pname}, Gibtsnichtxyz"}))
+assert pa["added"] == 1 and pa["missing"] == ["Gibtsnichtxyz"]
+assert J(cb.post("/api/plural/list", json={"text": pname}))["skipped"] == 1
+pm = J(cb.get("/api/plural/words?scope=wrong"))["words"][0]
+assert pm["manual"] and J(cb.get("/api/plural/books"))["wrong"] == 1
+assert cb.delete(f"/api/plural/list/{pm['id']}").status_code == 200
+assert J(cb.get("/api/plural/books"))["wrong"] == 0
 
 # 语法题库: 初始题启动时导入; 管理员能 AI 出草稿、保存、修改、停用; 系统检查题目格式
 import grammar as GR, grammar_seed

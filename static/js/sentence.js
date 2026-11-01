@@ -7,7 +7,7 @@ const S_MODES = {
 let sMode = "cloze", sq = [], si = 0;
 let sAnswers = [];    // sAnswers[i] = { ok, input, picked, msg }; ok 为 null = 等用户自己判断
 let sPool = [], sPicked = [];   // 排序题: 打乱后的顺序、已选的(都是 tokens 的下标)
-let sPreset = null;   // 情景课自带的题目 {mode, name, questions}; null = 向服务器要题
+let sPreset = null;   // 情景课自带的题目 {mode, name, questions}; null = 向服务器要题。rules = 复数练习(规律提示、记录作答)
 
 for (const [mode, m] of Object.entries(S_MODES)) {
   $("sList").appendChild(listItem(m.ico, m.name, m.sub, () => { sMode = mode; sPreset = null; go("squiz"); }));
@@ -44,7 +44,10 @@ function sRender() {
   $("sqBack").classList.toggle("hidden", si === 0 || done);
   if (done) return sFinish();
   const q = sq[si], a = sAnswers[si];
-  $("sqProgress").textContent = `第 ${si + 1} / ${sq.length} 题`;
+  $("sqProgress").textContent = `第 ${si + 1} / ${sq.length} 题` + (q.retry ? " · 错题再练一次" : "");
+  $("sqRuleRow").classList.toggle("hidden", !(sPreset && sPreset.rules));
+  $("sqRuleOn").checked = getSetting("pHints");
+  sRuleHint();
   $("sqZh").textContent = q.zh;
   const cloze = sMode === "cloze", order = sMode === "order";
   $("sqCloze").classList.toggle("hidden", !cloze);
@@ -71,6 +74,14 @@ function sRender() {
   }
   if (a) sShow(q, a);
 }
+
+// 复数练习: 开关打开时, 答题前显示这个词用哪条规律
+function sRuleHint() {
+  const q = sq[si], on = sPreset && sPreset.rules && getSetting("pHints") && !sAnswers[si];
+  $("sqRuleHint").classList.toggle("hidden", !on);
+  $("sqRuleHint").textContent = on ? "规律：" + q.rule_hint : "";
+}
+$("sqRuleOn").onchange = () => { setSetting("pHints", $("sqRuleOn").checked); if (si < sq.length) sRuleHint(); };
 
 function sChip(box, text, fn, off) {
   const b = document.createElement("button");
@@ -124,6 +135,8 @@ function sCheck() {
 
 function sSubmit(q, a) {
   sAnswers[si] = a;
+  if (sPreset && sPreset.onAnswer && !q.retry) sPreset.onAnswer(q, a.ok);
+  sRuleHint();
   $("sqIn").readOnly = sMode !== "order";
   $("sqIn").blur();                 // 离开输入框, 快捷键才生效
   if (sMode === "order") sRenderChips();
@@ -149,6 +162,9 @@ function sShow(q, a) {
   $("sqGloss").classList.toggle("hidden", !q.german);   // 情景课的排序题没有目标词
   wordInto($("sqWord"), q);
   $("sqMeaning").textContent = q.meaning;
+  $("sqRule").classList.toggle("hidden", !q.rule);
+  $("sqRule").textContent = q.rule ? "规律：" + q.rule : "";
+  $("sqReport").classList.toggle("hidden", !q.rule);
   $("sqSelf").classList.toggle("hidden", a.ok !== null);
   $("sqNext").classList.toggle("hidden", a.ok === null);
   $("sqAnswer").classList.remove("hidden");
@@ -168,14 +184,15 @@ $("sqSay").onclick = () => { if (si < sq.length) speakDe(sq[si].de); };
 $("sqBack").onclick = () => { if (si > 0) { si--; sRender(); } };   // 只回看, 不能改答案
 
 function sFinish() {
-  const wrong = sq.filter((q, i) => !sAnswers[i].ok);
-  $("sqScore").textContent = sq.length ? `得分 ${sq.length - wrong.length} / ${sq.length}` : "还没有可以出的题";
+  const total = sq.filter(q => !q.retry).length;       // 得分只算第一次作答
+  const wrong = sq.filter((q, i) => !q.retry && !sAnswers[i].ok);
+  $("sqScore").textContent = sq.length ? `得分 ${total - wrong.length} / ${total}` : "还没有可以出的题";
   const box = $("sqWrong"); box.textContent = "";
   if (wrong.length) {
     box.append("再看一遍：");
     for (const q of wrong) {
       const line = document.createElement("div");
-      line.textContent = `${q.de} — ${q.zh}`;
+      line.textContent = q.recap || `${q.de} — ${q.zh}`;
       box.appendChild(line);
     }
   } else if (sq.length) box.textContent = "全部答对了 🎉";

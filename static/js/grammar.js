@@ -258,22 +258,27 @@ const G_SCOPE_ICONS = { wrong: "📕", warehouse: "📦", all: "🗃️" };
 async function gScopeLoad() {
   let r;
   try { r = await api("/api/grammar/nouns/books"); } catch (e) { return toast(e.message); }
-  gScopeList = [...r.books.map(b => ({ id: b.book, name: BOOK_NAMES[b.book] || b.book,
-                                       sub: `已掌握 ${b.mastered} · 已练 ${b.practiced} / ${b.nouns}` + (b.weak ? ` · 待巩固 ${b.weak}` : "") })),
-                { id: "wrong", name: "错题本", sub: `${r.wrong} 个词` }];
+  gScopeList = scopeItems(r);
   const saved = getSetting("gScope");
   gScopeNow = gScopeList.some(x => x.id === saved) ? saved : r.current;   // 以前选的“学过的词”这类范围已经没有了
   gScopeShow();
 }
 function gScopeShow() {
-  const box = $("gScope"); box.textContent = "";
-  for (const s of gScopeList) {
-    const it = listItem(G_SCOPE_ICONS[s.id] || "📘", s.name, s.sub, () => {
-      gScopeNow = s.id; setSetting("gScope", s.id); gScopeShow();
-    });
-    it.classList.toggle("current", s.id === gScopeNow);
+  scopeInto($("gScope"), gScopeList, gScopeNow, id => { gScopeNow = id; setSetting("gScope", id); gScopeShow(); }, id => gnOpen(id));
+}
+// 定冠词和复数练习共用: 后端返回的范围 → 列表项, 再画出来
+function scopeItems(r) {
+  return [...r.books.map(b => ({ id: b.book, name: BOOK_NAMES[b.book] || b.book,
+                                 sub: `已掌握 ${b.mastered} · 已练 ${b.practiced} / ${b.nouns}` + (b.weak ? ` · 待巩固 ${b.weak}` : "") })),
+          { id: "wrong", name: "错题本", sub: `${r.wrong} 个词` }];
+}
+function scopeInto(box, list, now, pick, open) {
+  box.textContent = "";
+  for (const s of list) {
+    const it = listItem(G_SCOPE_ICONS[s.id] || "📘", s.name, s.sub, () => pick(s.id));
+    it.classList.toggle("current", s.id === now);
     const see = document.createElement("span"); see.className = "scopesee"; see.textContent = "查看";
-    see.onclick = e => { e.stopPropagation(); gnOpen(s.id); };
+    see.onclick = e => { e.stopPropagation(); open(s.id); };
     it.replaceChild(see, it.lastChild);
     box.appendChild(it);
   }

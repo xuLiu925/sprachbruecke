@@ -1,20 +1,24 @@
-// 查看练习范围里的名词: 单词书只看, 错题本还能手动加词和移除
-let gnScope = "", gnPage = 1;
+// 查看练习范围里的名词: 单词书只看, 错题本还能手动加词和移除。定冠词和复数练习共用, 差别都在 gnKind 里
+const NOUN_LIST = {
+  api: "/api/grammar/nouns", scopes: () => gScopeList,
+  start(scope) { gScopeNow = scope; setSetting("gScope", scope); go("gquiz"); },
+};
+let gnScope = "", gnPage = 1, gnKind = NOUN_LIST;
 
-function gnOpen(scope) {
-  gnScope = scope; gnPage = 1;
+function gnOpen(scope, kind = NOUN_LIST) {
+  gnScope = scope; gnPage = 1; gnKind = kind;
   go("gnouns");
 }
 onShow.gnouns = gnLoad;
 
 async function gnLoad() {
   if (!gnScope) return location.replace("#grammar");       // 直接刷新这一页时不知道要看哪本
-  const name = gScopeList.find(s => s.id === gnScope).name, wrong = gnScope === "wrong";
+  const name = gnKind.scopes().find(s => s.id === gnScope).name, wrong = gnScope === "wrong";
   $("title").textContent = name;
   $("gnAddBox").classList.toggle("hidden", !wrong);
   $("gnStart").textContent = "练习" + name;
   let r;
-  try { r = await api(`/api/grammar/nouns/words?scope=${gnScope}&page=${gnPage}`); } catch (e) { return toast(e.message); }
+  try { r = await api(`${gnKind.api}/words?scope=${gnScope}&page=${gnPage}`); } catch (e) { return toast(e.message); }
   $("gnCount").textContent = `共 ${r.total} 个名词`;
   const box = $("gnList"); box.textContent = "";
   box.classList.toggle("hidden", !r.words.length);
@@ -22,7 +26,7 @@ async function gnLoad() {
     const row = document.createElement("div"); row.className = "lline nwordhead";
     const t = document.createElement("span"); t.className = "gnword";
     const head = document.createElement("b"); wordInto(head, w);
-    t.append(head, "  " + w.meaning);
+    t.append(head, (w.plural ? " · die " + w.plural : "") + "  " + w.meaning);
     t.onclick = () => openWordSheet(w.german, { de: "" });
     if (wrong) {
       const note = document.createElement("div"); note.className = "lzh";
@@ -34,7 +38,7 @@ async function gnLoad() {
     if (wrong) {
       const del = document.createElement("button"); del.className = "mini"; del.textContent = "移除";
       del.onclick = async () => {
-        try { await api("/api/grammar/nouns/list/" + w.id, "DELETE"); } catch (e) { return toast(e.message); }
+        try { await api(`${gnKind.api}/list/${w.id}`, "DELETE"); } catch (e) { return toast(e.message); }
         gnLoad();
       };
       row.appendChild(del);
@@ -55,7 +59,7 @@ $("gnAdd").onclick = async () => {
   const text = $("gnText").value.trim();
   if (!text) return;
   let r;
-  try { r = await api("/api/grammar/nouns/list", "POST", { text }); }
+  try { r = await api(gnKind.api + "/list", "POST", { text }); }
   catch (e) { return toast(e.message); }
   $("gnMsg").textContent = `加入 ${r.added} 个` + (r.skipped ? `，已有 ${r.skipped} 个` : "")
     + (r.missing.length ? `，没找到：${r.missing.join("、")}` : "");
@@ -63,8 +67,4 @@ $("gnAdd").onclick = async () => {
   gnLoad();
 };
 
-$("gnStart").onclick = () => {
-  gScopeNow = gnScope;
-  setSetting("gScope", gnScope);
-  go("gquiz");
-};
+$("gnStart").onclick = () => gnKind.start(gnScope);

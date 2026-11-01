@@ -193,6 +193,9 @@ table.forms.gtable td:first-child { font-size:14px; white-space:normal; min-widt
 textarea.lnedit { min-height:0; height:64px; margin-top:4px; font-size:15px; }
 #lnManual { margin-top:10px; }
 #lnManual summary { cursor:pointer; }
+#pRules td { white-space:pre-line; }
+.rulehead { font-weight:600; margin:16px 0 6px; }
+.rulelist { margin:0; padding-left:20px; font-size:14px; line-height:1.7; }
 #lNew { margin-bottom:4px; }
 .rpbar { height:6px; margin:10px 0; overflow:hidden; border-radius:3px; background:var(--line); }
 .rpbar i { display:block; width:0; height:100%; background:var(--accent); }

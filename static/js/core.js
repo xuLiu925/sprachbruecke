@@ -39,7 +39,7 @@ function toast(msg) {
 function needArticle() {
   try { return localStorage.getItem("sb_needArticle") !== "0"; } catch (e) { return true; }
 }
-const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "", spellMode: "button" };
+const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "", pHints: false, pScope: "", spellMode: "button" };
 function getSetting(k) {
   try { const v = localStorage.getItem("sb_" + k); return v === null ? SETTING_DEFAULTS[k] : JSON.parse(v); }
   catch (e) { return SETTING_DEFAULTS[k]; }
@@ -176,6 +176,7 @@ const PAGES = {
   roleplay: { title: "角色扮演", parent: "lessons" },     // 标题在页面里换(整句复习用同一页)
   sentence: { title: "句子练习", parent: "home" },
   squiz:    { title: "句子练习", parent: "sentence" },     // 标题在页面里换成题型名字
+  plural:   { title: "复数练习", parent: "practice" },
   add:      { title: "添加单词", parent: "words" },
   view:     { title: "单词详情", parent: "words" },
   edit:     { title: "编辑单词", parent: "words", section: "add" },   // 和添加单词共用一个界面

@@ -21,7 +21,8 @@
   custom_lessons.py  自建工作对话(AI 生成, 确认后保存)
   explain.py     句子讲解和替换练习(AI 生成, 每句保存一次)
   dictionary.py  查词(德语、变化形式、中文)
-  form_drills.py 词形练习(复数、变格、动词变位)
+  form_drills.py 词形练习(变格、动词变位)
+  plural_quiz.py 复数练习(规律判断、练习记录、错题本)
   grammar.py     语法题库(出题、AI 出草稿、管理); 初始题在 grammar_seed.py
   gender_hint.py 词性解释(规则判断, 不用 AI)
   word_parts.py  构词解释(AI 生成, 按词保存一次)
@@ -44,6 +45,7 @@ import gender_hint
 import grammar
 import lessons
 import noun_quiz
+import plural_quiz
 import sentences
 import tts
 import today
@@ -96,6 +98,7 @@ app.register_blueprint(custom_lessons.bp)
 app.register_blueprint(explain.bp)
 app.register_blueprint(dictionary.bp)
 app.register_blueprint(form_drills.bp)
+app.register_blueprint(plural_quiz.bp)
 app.register_blueprint(noun_quiz.bp)     # 要在 grammar 前面: /api/grammar/nouns 不能被当成知识点
 app.register_blueprint(grammar.bp)
 app.register_blueprint(gender_hint.bp)

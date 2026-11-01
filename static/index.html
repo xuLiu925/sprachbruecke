@@ -496,12 +496,23 @@
       <p class="meta left" style="font-size:12px">例句的中文大多是机器翻译，可能不够准确，以德语原句为准。</p>
     </section>
 
+    <section class="page" data-page="plural">
+      <div class="card" id="pRules"></div>
+      <div class="card">
+        <div class="meta left">练习范围</div>
+        <div id="pScope" style="margin-top:6px"></div>
+      </div>
+      <button class="big" id="pStart">开始练习</button>
+    </section>
+
     <section class="page" data-page="squiz">
       <div class="card hidden" id="sqBox">
         <div class="tag" id="sqProgress"></div>
+        <label class="meta hidden" id="sqRuleRow" style="display:block;text-align:center"><input type="checkbox" id="sqRuleOn" style="width:auto"> 显示规律提示</label>
         <div class="gprompt" id="sqZh"></div>
         <div class="scloze" id="sqCloze"></div>
         <div class="meta" id="sqHint"></div>
+        <div class="meta hidden" id="sqRuleHint"></div>
         <div id="sqTyping">
           <textarea id="sqIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
           <div class="row umlauts" data-for="sqIn">
@@ -525,6 +536,8 @@
             <button class="good" id="sqSelfYes">我的也对</button>
           </div>
           <div class="meta" id="sqGloss" style="margin-top:10px"><span id="sqWord"></span> — <span id="sqMeaning"></span></div>
+          <p class="meta hidden" id="sqRule"></p>
+          <button class="mini hidden" id="sqReport">⚠️ 这题有问题</button>
           <div class="row" style="margin-top:10px">
             <button class="secondary" id="sqSay" style="flex:0 0 110px">🔊 听整句</button>
             <button id="sqNext">下一题</button>
@@ -662,6 +675,7 @@
 <script src="static/js/gbank.js"></script>
 <script src="static/js/gnouns.js"></script>
 <script src="static/js/sentence.js"></script>
+<script src="static/js/plural-rules.js"></script>
 <script src="static/js/explain.js"></script>
 <script src="static/js/lessons.js"></script>
 <script src="static/js/roleplay.js"></script>

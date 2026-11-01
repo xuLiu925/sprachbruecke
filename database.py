@@ -275,6 +275,25 @@ CREATE TABLE IF NOT EXISTS noun_list (
     added_at TEXT NOT NULL,
     PRIMARY KEY (user_id, word_id)
 );
+-- 复数练习记录, 字段含义同 noun_practice(冠词和复数是两种能力, 分开记)
+CREATE TABLE IF NOT EXISTS plural_practice (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    seen INTEGER NOT NULL DEFAULT 0,
+    wrong INTEGER NOT NULL DEFAULT 0,
+    streak INTEGER NOT NULL DEFAULT 0,
+    last_at TEXT NOT NULL,
+    good_days INTEGER NOT NULL DEFAULT 0,
+    last_good_day TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id, word_id)
+);
+-- 手动加进复数错题本的词
+CREATE TABLE IF NOT EXISTS plural_list (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, word_id)
+);
 -- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
 CREATE TABLE IF NOT EXISTS sentence_progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -335,8 +354,8 @@ def rebuild_words(db):
     db.execute("PRAGMA foreign_keys = ON")
 
 
-USER_WORD_TABLES = ("progress", "review_log", "study_queue", "noun_practice", "noun_list", "user_hidden_words",
-                    "user_word_edits")
+USER_WORD_TABLES = ("progress", "review_log", "study_queue", "noun_practice", "noun_list", "plural_practice",
+                    "plural_list", "user_hidden_words", "user_word_edits")
 
 
 def keep_own_content(db, owner, word_id, content, old_id):

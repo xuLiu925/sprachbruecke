@@ -1,4 +1,4 @@
-"""词形练习: 复数、变格、动词变位。题目来自词库已有的数据, 不用 AI, 不影响复习计划
+"""词形练习: 变格、动词变位(复数在 plural_quiz.py)。题目来自词库已有的数据, 不用 AI, 不影响复习计划
 
 题目格式和句子填空一样(sentences.py), 前端共用 sentence.js 的答题页; 多一个 accept = 都算对的写法。
 优先用学过的词, 不够时用当前单词书最常用的词补。
@@ -17,7 +17,6 @@ bp = Blueprint("form_drills", __name__)
 ROUND_SIZE = 10
 POOL_SIZE = 300       # 最多看多少个词
 MIN_LEARNED = 5       # 学过的词凑出的题少于这个数时, 用单词书的词补
-PLURAL_OK = re.compile(r"[A-Za-zÄÖÜäöüß-]+$")     # 挡掉 Poulets(CH) 这类带注释的数据
 ARTICLE_OK = re.compile(r"(der|die|das|des|dem|den) ")
 CASE_NAMES = ["第一格", "第二格", "第三格", "第四格"]
 PERSONS = ["ich", "du", "er/sie/es", "wir", "ihr", "sie/Sie"]
@@ -31,13 +30,6 @@ def question(row, zh, before, answer, de, accept=None):
 
 def forms_of(row):
     return json.loads(row["forms"]) if row["forms"] else {}
-
-
-def plural_question(row):
-    plural = row["plural"].strip()
-    if not row["gender"] or not PLURAL_OK.match(plural):
-        return None
-    return question(row, "写出复数", "die ", plural, f"die {plural}")
 
 
 def case_slots(row):
@@ -91,7 +83,6 @@ def verb_question(row):
 
 
 KINDS = {
-    "plural": (plural_question, "w.gender != '' AND w.plural != ''"),
     "cases": (case_question, "w.gender != '' AND w.forms LIKE '%\"cases\"%'"),
     "verbs": (verb_question, "w.forms LIKE '%\"praesens\"%'"),
 }

@@ -109,9 +109,9 @@ $("practiceList").append(reviewItem, listItem("🎨", "冠词练习", "der / die
                         listItem("📐", "语法基础", "冠词、代词、介词、动词、语序的速查表和练习", () => go("grammar")),
                         listItem("💬", "句子练习", "填空、连词成句、中译德，用学过的词练完整的句子", () => go("sentence")),
                         listItem("📦", "情景课", "海外仓场景：读课文、做练习、用德语写出来", () => go("lessons")));
+$("practiceList").appendChild(listItem("🔢", "复数练习", "先看规律，再按单词书和错题本练", () => go("plural")));
 // 词形练习用句子填空的答题页, 题目来自词库
-for (const [ico, name, sub, kind] of [["🔢", "复数练习", "看单数写复数", "plural"],
-                                      ["🧩", "变格练习", "四个格的冠词和词尾", "cases"],
+for (const [ico, name, sub, kind] of [["🧩", "变格练习", "四个格的冠词和词尾", "cases"],
                                       ["🔁", "动词变位", "不同人称的现在时", "verbs"]]) {
   $("practiceList").appendChild(listItem(ico, name, sub, () => {
     sPreset = { mode: "cloze", name, url: "/api/forms/" + kind, empty: "词库里还没有这类词的数据。" };
