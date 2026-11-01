@@ -428,7 +428,19 @@ const GRAMMAR_TOPICS = [
     intro: ["定冠词相当于“这个 / 那个”，指已经知道的、特定的东西。",
             "冠词要跟着名词的性（阳 / 阴 / 中）、数（单 / 复）和格（一到四格）变。",
             "规律：阴性和复数的第一、四格一样；阳性只有第四格变成 den；第三格复数名词本身也要加 -n。"],
-    tables: [{ head: GENDER_HEAD, rows: DEF_ARTICLES.map((r, c) => [CASE_NAMES[c], ...r]) }],
+    tables: [
+      { head: GENDER_HEAD, rows: DEF_ARTICLES.map((r, c) => [CASE_NAMES[c], ...r]) },
+      { title: "介词后面用第几格", head: ["格", "介词"], rows: [
+        ["第四格", "durch, für, gegen, ohne, um"],
+        ["第三格", "aus, bei, mit, nach, seit, von, zu"],
+        ["第二格", "wegen, trotz, während, statt"],
+        ["第三或第四格", "an, auf, hinter, in, neben, über, unter, vor, zwischen"],
+      ],
+      notes: ["第三或第四格：位置不变（Wo?）用第三格，朝目标移动（Wohin?）用第四格。如 Der Karton liegt auf dem Tisch. / Ich lege den Karton auf den Tisch.",
+              "an、in、vor 表示时间时用第三格，如 am Montag、im Januar、vor einer Woche。",
+              "动词的固定搭配要单独记，如 warten auf + 第四格、Angst haben vor + 第三格。"],
+      links: ["prep-akk", "prep-dat", "prep-wechsel"] },
+    ],
     examples: ["Der Mann trinkt Kaffee.", "Ich sehe den Mann.", "Ich helfe dem Mann.", "Das ist das Auto des Mannes."],
     bank: true,      // 题库在后端(grammar.py), 管理员能加题
     quiz: () => bankQuiz(

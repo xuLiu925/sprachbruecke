@@ -215,6 +215,15 @@ onShow.gtopic = () => {
       row.forEach((x, i) => { const td = tr.insertCell(); if (i === 0) td.textContent = x; else speakableCell(td, x); });
     }
     tb.appendChild(scrollBox(table));
+    for (const line of tab.notes || []) {
+      const p = document.createElement("p"); p.className = "meta left"; p.textContent = line; tb.appendChild(p);
+    }
+    for (const id of tab.links || []) {    // 跳到相关知识点: 网址不变, 要手动刷新这一页
+      const other = GRAMMAR_TOPICS.find(x => x.id === id);
+      const b = document.createElement("button"); b.className = "mini"; b.textContent = other.title;
+      b.onclick = () => { gTopic = other; onShow.gtopic(); window.scrollTo(0, 0); };
+      tb.appendChild(b);
+    }
   }
   const ex = $("gExamples"); ex.textContent = "";
   for (const s of t.examples) {
