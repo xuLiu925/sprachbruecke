@@ -28,15 +28,10 @@ function articleQuiz(form, nouns, cases, genders) {
   return shuffle(qs).slice(0, 10);
 }
 
-// 题库在后端的知识点: 后端的题 + 程序生成的题。fixed = 选项每题都一样, 按钮不换位置
-async function bankQuiz(topic, n, local) {
-  const scope = getSetting("gScope");
-  try {
-    if (scope !== "warehouse") {       // 从词库的名词自动出题
-      return (await api(`/api/grammar/nouns?scope=${scope}&n=14`)).questions;
-    }
-    return shuffle([...local, ...(await api(`/api/grammar/${topic}/quiz?n=${n}`)).questions]);
-  } catch (e) { toast("题库加载失败，先做基础题"); return shuffle(local); }
+// 题库在后端的知识点: 从选中的单词书或错题本出题, 取不到时用程序生成的题。fixed = 选项每题都一样, 按钮不换位置
+async function bankQuiz(local) {
+  try { return (await api(`/api/grammar/nouns?scope=${gScopeNow}&n=14`)).questions; }
+  catch (e) { toast("题库加载失败，先做基础题"); return shuffle(local); }
 }
 
 function prepQuiz(sentences) {
@@ -232,23 +227,34 @@ onShow.gtopic = () => {
   $("gStart").textContent = "开始练习" + (best ? `（上次最好 ${best[0]} / ${best[1]}）` : "");
   $("gBank").classList.toggle("hidden", !(t.bank && isAdmin));
   $("gScopeRow").classList.toggle("hidden", !t.bank);
-  gScopeShow();
+  if (t.bank) gScopeLoad();
 };
 $("gBank").onclick = () => go("gbank");
-$("gNouns").onclick = () => go("gnouns");
 
-// 练习范围: 放在开始按钮前, 一眼能看到现在练的是什么
-const G_SCOPES = [["learned", "学过的词"], ["book", "当前单词书"], ["warehouse", "海外仓题库"],
-                  ["mine", "我的词性本"], ["wrong", "错过的词"], ["all", "全部名词"]];
-for (const [value, label] of G_SCOPES) {
-  const b = document.createElement("button");
-  b.textContent = label; b.dataset.scope = value;
-  b.onclick = () => { setSetting("gScope", value); gScopeShow(); };
-  $("gScope").appendChild(b);
+// 练习范围: 单词书和错题本, 放在开始按钮前, 一眼能看到现在练的是什么。选这里不改变首页的当前单词书
+let gScopeNow = "", gScopeList = [];
+const G_SCOPE_ICONS = { wrong: "📕", warehouse: "📦", all: "🗃️" };
+async function gScopeLoad() {
+  let r;
+  try { r = await api("/api/grammar/nouns/books"); } catch (e) { return toast(e.message); }
+  gScopeList = [...r.books.map(b => ({ id: b.book, name: BOOK_NAMES[b.book] || b.book, n: b.nouns })),
+                { id: "wrong", name: "错题本", n: r.wrong }];
+  const saved = getSetting("gScope");
+  gScopeNow = gScopeList.some(x => x.id === saved) ? saved : r.current;   // 以前选的“学过的词”这类范围已经没有了
+  gScopeShow();
 }
 function gScopeShow() {
-  const now = getSetting("gScope");
-  document.querySelectorAll("#gScope button").forEach(b => b.classList.toggle("on", b.dataset.scope === now));
+  const box = $("gScope"); box.textContent = "";
+  for (const s of gScopeList) {
+    const it = listItem(G_SCOPE_ICONS[s.id] || "📘", s.name, `${s.n} 个名词`, () => {
+      gScopeNow = s.id; setSetting("gScope", s.id); gScopeShow();
+    });
+    it.classList.toggle("current", s.id === gScopeNow);
+    const see = document.createElement("span"); see.className = "scopesee"; see.textContent = "查看";
+    see.onclick = e => { e.stopPropagation(); gnOpen(s.id); };
+    it.replaceChild(see, it.lastChild);
+    box.appendChild(it);
+  }
 }
 $("gStart").onclick = () => go("gquiz");
 
@@ -384,10 +390,8 @@ function gDone() {
   $("gqDone").classList.remove("hidden");
   const total = gQs.filter(q => !q.retry).length;      // 错题重练不计入总分
   if (!total) {
-    const scope = getSetting("gScope");
     $("gqScore").textContent = "这个范围还没有词";
-    $("gqDoneMsg").textContent = scope === "mine" ? "先把想练的名词加入“我的词性本”。"
-      : scope === "wrong" ? "没有错过的词 🎉 换个范围继续练。" : "换个练习范围试试。";
+    $("gqDoneMsg").textContent = gScopeNow === "wrong" ? "错题本是空的 🎉 换个范围继续练。" : "换个练习范围试试。";
     return;
   }
   $("gqScore").textContent = `得分 ${gScore} / ${total}`;

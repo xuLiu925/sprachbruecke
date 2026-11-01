@@ -36,10 +36,11 @@
       <div class="hello" id="hello"></div>
       <div class="card">
         <div class="today">
-          <div><b id="hDue">-</b><span>今日待复习</span></div>
-          <div><b id="hNew">-</b><span>可学新词</span></div>
+          <div><b id="hDue">-</b><span>今日复习</span></div>
+          <div><b id="hNew">-</b><span>今日新词</span></div>
         </div>
-        <button class="big" id="hStart">开始今日复习</button>
+        <p class="meta" id="hPlan" style="text-align:center"></p>
+        <button class="big" id="hStart">开始今日学习</button>
         <button class="big secondary hidden" id="hSentences" style="margin-top:8px"></button>
       </div>
       <div class="list">
@@ -128,6 +129,14 @@
       </div>
       <h2>设置</h2>
       <div class="card">
+        <div class="row" style="align-items:center;margin-bottom:8px">
+          <span class="meta left" style="flex:0 0 96px">每日学习量</span>
+          <select id="optGoal">
+            <option>20</option><option>30</option><option>40</option><option>50</option><option>60</option>
+            <option>80</option><option>100</option><option>150</option><option>200</option>
+          </select>
+        </div>
+        <p class="meta left" style="margin-top:0">包括复习和新词。复习多的日子新词少，复习少的日子新词多。</p>
         <label class="check"><input type="checkbox" id="optArticle"> 拼写名词时必须带冠词（推荐）</label>
       </div>
       <h2>声音</h2>
@@ -165,7 +174,7 @@
       <p class="meta" style="font-size:12px;margin-top:20px">通德 Sprachbrücke v0.2 · by Liuxu</p>
     </section>
 
-    <!-- ===== 今日复习 ===== -->
+    <!-- ===== 今日学习 ===== -->
     <section class="page" data-page="review">
       <div class="progress"><span id="rProgress"></span><span id="rStats"></span></div>
       <div class="flashrow"><div id="flash" class="flash"></div><button class="mini hidden" id="btnUndo">‹ 上一个</button></div>
@@ -201,10 +210,10 @@
         <p class="kbd-hint"><kbd>空格</kbd> 显示答案 / 良好 · <kbd>1</kbd>–<kbd>4</kbd> 评分 · <kbd>P</kbd> 读单词 · <kbd>E</kbd> 读例句 · <kbd>Backspace</kbd> 上一个（撤销评分） · <kbd>Esc</kbd> 返回</p>
       </div>
       <div id="done" class="card hidden" style="text-align:center">
-        <p style="font-size:20px">今天的复习完成了 🎉</p>
+        <p style="font-size:20px" id="doneMsg"></p>
         <div class="row">
           <button id="btnHome" class="secondary">回首页</button>
-          <button id="btnReload">再来一轮</button>
+          <button id="btnReload"></button>
         </div>
       </div>
     </section>
@@ -234,8 +243,8 @@
       </div>
       <h2>我的学习情况</h2>
       <div class="card meta left" id="vStatus" style="line-height:1.7"></div>
-      <button class="secondary hidden" id="vQueue" style="width:100%;margin-bottom:8px">加入复习</button>
-      <button class="secondary hidden" id="vNoun" style="width:100%;margin-bottom:8px">📒 加入词性本</button>
+      <button class="secondary hidden" id="vQueue" style="width:100%;margin-bottom:8px">加入学习</button>
+      <button class="secondary hidden" id="vNoun" style="width:100%;margin-bottom:8px">📕 加入错题本</button>
       <button id="vEdit" style="width:100%">✏️ 编辑这个词</button>
     </section>
 
@@ -287,23 +296,27 @@
       <div class="card" id="gExamples"></div>
       <div class="card hidden" id="gScopeRow">
         <div class="meta left">练习范围</div>
-        <div class="chips" id="gScope" style="margin-top:6px"></div>
-        <button class="secondary" id="gNouns" style="width:100%;margin-top:8px">📒 我的词性本</button>
+        <div id="gScope" style="margin-top:6px"></div>
       </div>
       <button class="big" id="gStart"></button>
       <button class="big secondary hidden" id="gBank" style="margin-top:8px">📚 管理题库</button>
     </section>
 
     <section class="page" data-page="gnouns">
-      <div class="card">
-        <p class="meta left" style="margin-top:0">写下想练的名词，用逗号或空格分开。变化形式也能找到原形。</p>
+      <div class="card hidden" id="gnAddBox">
+        <p class="meta left" style="margin-top:0">写下想练的名词，用逗号或空格分开。变化形式也能找到原形。手动加的词要自己移除。</p>
         <textarea id="gnText" spellcheck="false" placeholder="例如：Palette, Karton, Tor" style="min-height:80px"></textarea>
-        <button id="gnAdd" style="width:100%;margin-top:8px">加入词性本</button>
+        <button id="gnAdd" style="width:100%;margin-top:8px">加入错题本</button>
         <p id="gnMsg" class="meta left"></p>
       </div>
-      <button class="big" id="gnStart">练习我的词性本</button>
+      <button class="big" id="gnStart"></button>
       <h2 id="gnCount"></h2>
       <div class="card hidden" id="gnList"></div>
+      <div class="row hidden" id="gnPager" style="align-items:center;margin-top:8px">
+        <button class="secondary" id="gnPrev">上一页</button>
+        <span class="meta" id="gnPageNo" style="text-align:center"></span>
+        <button class="secondary" id="gnNext">下一页</button>
+      </div>
     </section>
 
     <section class="page" data-page="gbank">
@@ -366,7 +379,7 @@
 
     <!-- ===== 情景课 ===== -->
     <section class="page" data-page="lessons">
-      <p class="meta left">海外仓场景：读课文、做练习、开口说，再用德语写出来。点课文里的单词看释义，不会的词可以加入复习。</p>
+      <p class="meta left">海外仓场景：读课文、做练习、开口说，再用德语写出来。点课文里的单词看释义，不会的词可以加入学习。</p>
       <button class="big hidden" id="lDue" style="margin-bottom:8px"></button>
       <button class="big secondary" id="lNew">＋ 新建工作对话</button>
       <div id="lessonList"></div>
@@ -611,10 +624,10 @@
       <div class="row">
         <button class="secondary hidden" id="wsSay">🔊 发音</button>
         <button class="secondary hidden" id="wsView">详情</button>
-        <button class="hidden" id="wsAdd">加入复习</button>
+        <button class="hidden" id="wsAdd">加入学习</button>
         <button class="hidden" id="wsAi">✨ 用 AI 查询</button>
       </div>
-      <button class="secondary hidden" id="wsNoun" style="width:100%;margin-top:8px">📒 加入词性本</button>
+      <button class="secondary hidden" id="wsNoun" style="width:100%;margin-top:8px">📕 加入错题本</button>
       <div class="hidden" id="wsMore">
         <p id="wsMoreEx" class="meta left"></p>
         <div id="wsForms"></div>

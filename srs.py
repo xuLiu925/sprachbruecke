@@ -5,6 +5,7 @@
 评分: 1 忘了 / 2 困难 / 3 良好 / 4 简单
 """
 import math
+from datetime import timedelta
 
 W = (0.40255, 1.18385, 3.173, 15.69105, 7.1949, 0.5345, 1.4604, 0.0046, 1.54575, 0.1192,
      1.01925, 1.9395, 0.11, 0.29605, 2.2698, 0.2315, 2.9898, 0.51655, 0.6621)
@@ -12,6 +13,7 @@ DECAY = -0.5
 FACTOR = 0.9 ** (1 / DECAY) - 1
 RETENTION = 0.9           # 目标: 复习时还记得的概率
 MAX_INTERVAL = 365 * 3    # 最长间隔(天)
+DAY_HOUR = 4              # 一天从凌晨 4 点开始
 
 
 def clamp_d(d):
@@ -57,12 +59,18 @@ def next_interval(s):
     return min(max(days, 1), MAX_INTERVAL)
 
 
+def day_gap(last, now):
+    """隔了几天, 按日期算: 到期词当天随时能复习, 昨晚学的词今早复习也算隔了一天。这里用 UTC 近似"""
+    shift = timedelta(hours=DAY_HOUR)
+    return ((now - shift).date() - (last - shift).date()).days
+
+
 def fsrs_review(s, d, last, rating, now):
     """s/d/last 为 None 表示新词。返回 (新稳定性, 新难度, 间隔天数); 忘了 → 间隔 0, 马上再复习"""
     if s is None:
         s, d = init_stability(rating), init_difficulty(rating)
     else:
-        elapsed = (now - last).days
+        elapsed = day_gap(last, now)
         if elapsed < 1:  # 同一天内再次复习
             s = short_term_stability(s, rating)
         else:

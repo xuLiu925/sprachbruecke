@@ -1,5 +1,5 @@
-// 今日复习: 认词 + 拼写, 评分交给后端的 FSRS
-let cards = [], idx = 0, busy = false;
+// 今日学习: 先复习到期的词, 再学新词; 认词 + 拼写, 评分交给后端的 FSRS
+let cards = [], idx = 0, busy = false, leftToday = 0;
 let hist = [];   // 本轮评过的卡: {idx, logId, repeat}, 「上一个」从最后一张开始撤销
 
 const CASES = ["第一格 Nom.", "第二格 Gen.", "第三格 Dat.", "第四格 Akk."];
@@ -9,7 +9,7 @@ async function loadReview() {
   $("flash").textContent = "";
   $("cardBox").classList.add("hidden");
   $("done").classList.add("hidden");
-  const r = await api("/api/review/today");
+  const r = await api("/api/review/today?" + tzQuery());
   cards = r.cards; idx = 0; hist = [];
   $("rStats").textContent = `复习 ${r.due} · 新词 ${r.new}`;
   render();
@@ -56,7 +56,7 @@ function render() {
   $("done").classList.toggle("hidden", !done);
   $("rProgress").textContent = done ? "" : `第 ${idx + 1} / ${cards.length} 张`;
   $("btnUndo").classList.toggle("hidden", !hist.length);
-  if (done) return;
+  if (done) return showDone();
   const c = cards[idx];
   const spell = c.mode === "spell";
   const art = spell && c.gender && needArticle();
@@ -82,6 +82,20 @@ function render() {
   $("answer").classList.add("hidden");
   if (spell) $("spellIn").focus();
   else if (getSetting("autoWord")) speakDe(wordText(c));   // 拼写题要等答完才读, 免得泄露答案
+}
+
+// 一轮有上限, 今天还有词时显示“继续学习”, 学完了才是“再学 10 个”
+async function showDone() {
+  $("doneMsg").textContent = "今天的学习完成了 🎉";
+  $("btnReload").textContent = "再学 10 个";
+  leftToday = 0;
+  let t;
+  try { t = await api("/api/today?" + tzQuery()); } catch (e) { return; }
+  leftToday = t.due + t.new;
+  if (leftToday) {
+    $("doneMsg").textContent = `这一轮完成了，今天还有 ${leftToday} 个词`;
+    $("btnReload").textContent = "继续学习";
+  }
 }
 
 // 拼写判断: 忽略大小写和多余空格; ae/oe/ue/ss 代替 ä/ö/ü/ß 也算对, 但提示正确写法
@@ -184,5 +198,11 @@ onKey.review = (e, typing) => {
   if (k === "e" && shown && c.example) { speakDe(exampleDe(c.example)); return true; }
   return false;
 };
-$("btnReload").onclick = loadReview;
+$("btnReload").onclick = async () => {
+  if (!leftToday) {
+    try { await api("/api/today/more?" + tzQuery(), "POST", {}); } catch (e) { return toast(e.message); }
+  }
+  await loadReview();
+  if (!cards.length) toast("这本书的新词学完了，换一本吧");
+};
 $("btnHome").onclick = () => $("btnBack").click();

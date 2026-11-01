@@ -431,7 +431,7 @@ const GRAMMAR_TOPICS = [
     tables: [{ head: GENDER_HEAD, rows: DEF_ARTICLES.map((r, c) => [CASE_NAMES[c], ...r]) }],
     examples: ["Der Mann trinkt Kaffee.", "Ich sehe den Mann.", "Ich helfe dem Mann.", "Das ist das Auto des Mannes."],
     bank: true,      // 题库在后端(grammar.py), 管理员能加题
-    quiz: () => bankQuiz("art-def", 10,
+    quiz: () => bankQuiz(
       articleQuiz((c, g) => DEF_ARTICLES[c][g], QUIZ_NOUNS, [0, 1, 2, 3], ["m", "f", "n", "pl"]).slice(0, 4)),
   },
   {

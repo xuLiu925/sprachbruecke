@@ -1,4 +1,4 @@
-"""词汇模块: 复习、冠词练习、听写、单词(查看/添加/编辑/删除/恢复)、单词书、统计
+"""词汇模块: 评分、冠词练习、听写、单词(查看/添加/编辑/删除/恢复)、单词书、统计。今天学什么在 today.py
 
 词库分两种: 公共词(owner_id 为空, 单词书和示例词) 和 每个用户自己加的私有词(只有他能看到)。
 每个用户的「编辑」和「删除」也只对他自己生效, 原文不动:
@@ -16,8 +16,6 @@ from srs import fsrs_review
 
 bp = Blueprint("vocab", __name__)
 
-NEW_PER_REQUEST = 10      # 每次最多带入多少个新词
-REVIEW_LIMIT = 50         # 每次最多返回多少个到期词
 MASTERED_STABILITY = 21   # 稳定性 >= 21 天, 且拼写答对过, 才算「已掌握」
 GENDERS = {"", "der", "die", "das"}
 
@@ -49,7 +47,7 @@ def query(sql, **params):
 
 # ---------- 单词书 ----------
 LEVELS = ["A1", "A2", "B1", "B2", "C1"]
-THEME_BOOKS = ["dsh", "common"]   # 专题单词书(word_books 表), 名字在前端 BOOK_NAMES 里
+THEME_BOOKS = ["dsh", "common", "warehouse"]   # 专题单词书(word_books 表), 名字在前端 BOOK_NAMES 里
 BOOKS = LEVELS + THEME_BOOKS + ["all"]   # all = 整个词库(包括自己加的词)
 
 
@@ -130,33 +128,13 @@ def card(row):
     return d
 
 
-@bp.route("/api/review/today")
-@login_required
-def review_today():
-    due = query(
-        f"SELECT {WORD_COLS}, p.reps, p.spell_ok, 0 AS is_new "
-        "FROM progress p JOIN my_words w ON w.id = p.word_id "
-        "WHERE p.user_id = :uid AND p.next_review <= :now ORDER BY p.next_review LIMIT :lim",
-        now=now_str(), lim=REVIEW_LIMIT,
-    ).fetchall()
-    # 新词: 先出用户主动加入的(情景课), 再按单词书补足
-    queued = query(
-        f"SELECT {WORD_COLS}, 0 AS reps, 0 AS spell_ok, 1 AS is_new "
-        "FROM study_queue q JOIN my_words w ON w.id = q.word_id "
-        "WHERE q.user_id = :uid AND w.id NOT IN (SELECT word_id FROM progress WHERE user_id = :uid) "
-        "ORDER BY q.added_at, w.id LIMIT :lim",
-        lim=NEW_PER_REQUEST,
-    ).fetchall()
-    book_join, book_args, order = book_filter(current_book(current_user_id()))
-    new = query(
-        f"SELECT {WORD_COLS}, 0 AS reps, 0 AS spell_ok, 1 AS is_new FROM my_words w {book_join} "
-        "WHERE w.id NOT IN (SELECT word_id FROM progress WHERE user_id = :uid) "
-        f"AND w.id NOT IN (SELECT word_id FROM study_queue WHERE user_id = :uid) ORDER BY {order} LIMIT :lim",
-        lim=NEW_PER_REQUEST - len(queued), **book_args,
-    ).fetchall()
-    new = list(queued) + list(new)
-    cards = [card(r) for r in due] + [card(r) for r in new]
-    return jsonify({"cards": cards, "due": len(due), "new": len(new)})
+def enqueue(db, uid, word_id, bonus):
+    """加入学习计划: bonus = 1 表示今天的学习量 +1(单个加的词)。已经学过的不用加, 返回 False"""
+    if db.execute("SELECT 1 FROM progress WHERE user_id = ? AND word_id = ?", (uid, word_id)).fetchone():
+        return False
+    db.execute("INSERT OR IGNORE INTO study_queue (user_id, word_id, added_at, bonus) VALUES (?,?,?,?)",
+               (uid, word_id, now_str(), bonus))
+    return True
 
 
 @bp.route("/api/review/answer", methods=["POST"])
@@ -513,8 +491,9 @@ def unhide_word(word_id):
 @bp.route("/api/words", methods=["POST"])
 @login_required
 def add_words():
-    """添加单词 —— 加成当前用户的私有词, 别人看不到。
-    公共词库里已经有(德语 + 冠词相同)就不重复加; 如果是他删掉过的, 这次添加 = 恢复"""
+    """添加单词 —— 加成当前用户的私有词, 别人看不到, 并加入学习计划。
+    公共词库里已经有(德语 + 冠词相同)就不重复加, 只加入计划; 如果是他删掉过的, 这次添加 = 恢复。
+    单个添加时今天的学习量 +1, 批量导入只排队, 占每天的正常名额。返回 added / skipped / queued"""
     data = request.get_json(silent=True)
     items = data if isinstance(data, list) else ([data] if isinstance(data, dict) else None)
     if items is None or len(items) == 0:
@@ -523,7 +502,8 @@ def add_words():
         return err("一次最多导入 2000 个")
     db = get_db()
     uid = current_user_id()
-    added = skipped = 0
+    bonus = 1 if isinstance(data, dict) else 0
+    added = skipped = queued = 0
     for d in items:
         row, e = clean_word(d)
         if e:
@@ -537,6 +517,7 @@ def add_words():
             cur = db.execute("DELETE FROM user_hidden_words WHERE user_id = ? AND word_id = ?", (uid, public[0]))
             added += cur.rowcount     # 删掉过的 → 恢复, 算加上了
             skipped += 1 - cur.rowcount
+            queued += enqueue(db, uid, public[0], bonus)
             continue
         cur = db.execute(
             "INSERT OR IGNORE INTO words (german, pos, gender, plural, meaning, example, owner_id) "
@@ -545,17 +526,19 @@ def add_words():
         )
         if cur.rowcount:
             added += 1
+            word_id = cur.lastrowid
             if forms:
                 db.execute("INSERT INTO word_forms (word_id, forms) VALUES (?, ?)",
-                           (cur.lastrowid, forms))
+                           (word_id, forms))
         else:   # 自己已经加过: 删掉过的就恢复
-            own = db.execute("SELECT id FROM words WHERE german = ? AND gender = ? AND owner_id = ?",
-                             (row[0], row[2], uid)).fetchone()
-            cur = db.execute("DELETE FROM user_hidden_words WHERE user_id = ? AND word_id = ?", (uid, own[0]))
+            word_id = db.execute("SELECT id FROM words WHERE german = ? AND gender = ? AND owner_id = ?",
+                                 (row[0], row[2], uid)).fetchone()[0]
+            cur = db.execute("DELETE FROM user_hidden_words WHERE user_id = ? AND word_id = ?", (uid, word_id))
             added += cur.rowcount
             skipped += 1 - cur.rowcount
+        queued += enqueue(db, uid, word_id, bonus)
     db.commit()
-    return jsonify({"added": added, "skipped": skipped})
+    return jsonify({"added": added, "skipped": skipped, "queued": queued})
 
 
 # ---------- 统计 ----------

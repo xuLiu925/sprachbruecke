@@ -16,7 +16,7 @@ from flask import Blueprint, jsonify, request
 from database import BASE, fmt_time, get_db, now_str, parse_time
 from helpers import current_user_id, err, json_body, login_required
 from srs import fsrs_review
-from vocab import clean_word, query
+from vocab import clean_word, enqueue, query
 
 bp = Blueprint("lessons", __name__)
 
@@ -211,7 +211,7 @@ def private_word_id(row):
 @bp.route("/api/review/queue", methods=["POST"])
 @login_required
 def queue_word():
-    """加入复习 {word_id} 或一个词的内容: 下次复习时排在新词最前面。已经学过的不用加"""
+    """加入学习 {word_id} 或一个词的内容: 今天的学习量 +1, 排在新词最前面。已经学过的不用加"""
     data = json_body()
     if data is None:
         return err("请求格式错误")
@@ -228,10 +228,6 @@ def queue_word():
             return err(e)
         word_id = private_word_id(row)
     db = get_db()
-    uid = current_user_id()
-    learned = db.execute("SELECT 1 FROM progress WHERE user_id = ? AND word_id = ?", (uid, word_id)).fetchone()
-    if not learned:
-        db.execute("INSERT OR IGNORE INTO study_queue (user_id, word_id, added_at) VALUES (?,?,?)",
-                   (uid, word_id, now_str()))
+    queued = enqueue(db, current_user_id(), word_id, 1)
     db.commit()
-    return jsonify({"word_id": word_id, "learned": bool(learned), "queued": not learned})
+    return jsonify({"word_id": word_id, "learned": not queued, "queued": queued})

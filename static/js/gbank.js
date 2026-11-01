@@ -133,5 +133,6 @@ $("gbSave").onclick = async () => {
   catch (e) { return toast(e.message); }
   gbDrafts = []; gbRender();
   toast(r.skipped ? `保存 ${r.saved} 题，${r.skipped} 题重复已跳过` : `已保存 ${r.saved} 题`);
+  if (r.missing.length) alert(`已保存。这些词不在海外仓词汇里，选这本书时练不到：${r.missing.join("、")}`);
   gbLoad();
 };

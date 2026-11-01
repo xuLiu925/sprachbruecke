@@ -9,7 +9,7 @@ function openView(id) { viewingId = id; go("view"); }
 // 级别筛选
 let wLevel = "";
 const LEVEL_FILTERS = [["", "全部"], ["A1", "A1"], ["A2", "A2"], ["B1", "B1"], ["B2", "B2"], ["C1", "C1"],
-                       ["dsh", "DSH"], ["common", "常用"], ["mine", "我加的"], ["hidden", "已删除"]];
+                       ["dsh", "DSH"], ["common", "常用"], ["warehouse", "海外仓"], ["mine", "我加的"], ["hidden", "已删除"]];
 for (const [v, label] of LEVEL_FILTERS) {
   const b = document.createElement("button");
   b.textContent = label; b.dataset.level = v;
@@ -128,7 +128,7 @@ onShow.view = async () => {
   $("vNoun").classList.toggle("hidden", !w.gender || w.hidden);
   $("vQueue").classList.toggle("hidden", w.status !== "new" || w.hidden);
   $("vQueue").disabled = !!w.queued;
-  $("vQueue").textContent = w.queued ? "已加入复习" : "加入复习";
+  $("vQueue").textContent = w.queued ? "已加入学习" : "加入学习";
   showNotice(w);
   if (getSetting("autoWord")) speakDe(wordText(w));
 };
@@ -137,13 +137,13 @@ $("vSpellBtn").onclick = () => viewWord && spellWord(viewWord.german, $("vSpell"
 $("vSpeakEx").onclick = () => viewWord && speakDe(exampleDe(viewWord.example));
 $("vQueue").onclick = async () => {
   try { await api("/api/review/queue", "POST", { word_id: viewingId }); } catch (e) { return toast(e.message); }
-  $("vQueue").disabled = true; $("vQueue").textContent = "已加入复习";
-  toast("已加入复习");
+  $("vQueue").disabled = true; $("vQueue").textContent = "已加入学习";
+  toast("已加入今日学习");
 };
 $("vNoun").onclick = async () => {
   try {
     const r = await api("/api/grammar/nouns/list", "POST", { word_id: viewingId });
-    toast(r.added ? "已加入词性本" : "已经在词性本里了");
+    toast(r.added ? "已加入错题本" : "已经在错题本里了");
   } catch (e) { toast(e.message); }
 };
 $("vEdit").onclick = () => openEdit(viewingId);
@@ -338,7 +338,8 @@ $("btnAdd").onclick = async () => {
   }
   try {
     const r = await api("/api/words", "POST", { ...body, forms: readForms() });
-    m.className = "msg ok"; m.textContent = r.added ? "已添加（只有你能看到）" : "词库里已经有这个词了";
+    m.className = "msg ok";
+    m.textContent = r.queued ? "已加入今日学习" : r.added ? "已添加" : "这个词你已经学过了";
     if (r.added) {
       ["nGerman","nPos","nPlural","nMeaning","nExample"].forEach(i => $(i).value = "");
       document.querySelectorAll("#formsInputs input").forEach(i => i.value = "");
@@ -360,7 +361,7 @@ $("btnBulk").onclick = async () => {
   if (!items.length) { m.textContent = "没有内容"; return; }
   try {
     const r = await api("/api/words", "POST", items);
-    m.className = "msg ok"; m.textContent = `新增 ${r.added} 个，跳过重复 ${r.skipped} 个`;
+    m.className = "msg ok"; m.textContent = `新增 ${r.added} 个，已有 ${r.skipped} 个，${r.queued} 个进入学习计划`;
     $("bulk").value = "";
   } catch (e) { m.textContent = e.message; }
 };

@@ -16,6 +16,10 @@ assert c.post("/api/register", json={"username": "alice", "password": "12345678"
 assert J(c.get("/api/me"))["username"] == "alice"
 c2 = A.app.test_client()
 assert c2.post("/api/register", json={"username": "bob", "password": "12345678"}).status_code == 403  # 默认关闭注册
+# 下面的流程测试不想被每日学习量限制: 量调大, 一轮只出 10 个。今日学习的规则在文件后面单独测
+import today as T
+T.NEW_PER_REQUEST = 10
+assert c.post("/api/today/goal", json={"goal": 500}).status_code == 200
 
 r = J(c.get("/api/review/today"))
 print("first batch:", r["due"], r["new"], len(r["cards"]))
@@ -174,6 +178,7 @@ db = sqlite3.connect(os.environ["DB_PATH"])
 ids = {g: i for i, g in db.execute("SELECT id, german FROM words")}
 db.executemany("INSERT INTO word_levels (word_id, level, rank) VALUES (?,?,?)",
                [(ids["Katze"], "A1", 2), (ids["Hund"], "A1", 1), (ids["Kind"], "A2", 3)])
+db.execute("DELETE FROM study_queue")   # 前面添加的词都进了学习计划, 这里只看单词书出的新词
 db.commit()
 b = J(c.get("/api/books"))
 assert b["current"] == "A1" and b["books"][0] == {"level": "A1", "total": 2, "learned": 0, "mastered": 0}, b
@@ -275,9 +280,9 @@ assert [w["meaning"] for w in J(cb.get("/api/words?q=Zebra"))["words"]] == ["斑
 assert [w["meaning"] for w in J(c.get("/api/words?q=Zebra"))["words"]] == ["斑马"]
 assert J(c.post("/api/words", json={"german": "Zebra", "gender": "das", "meaning": "y"}))["added"] == 0
 # 公共词库里已经有的不重复加; 删掉过的再加 = 恢复(自己的私有词也一样)
-assert J(c.post("/api/words", json={"german": "Katze", "gender": "die", "meaning": "y"})) == {"added": 0, "skipped": 1}
+kr = J(c.post("/api/words", json={"german": "Katze", "gender": "die", "meaning": "y"})); assert (kr["added"], kr["skipped"]) == (0, 1)
 c.delete(f"/api/words/{ids['Katze']}")
-assert J(c.post("/api/words", json={"german": "Katze", "gender": "die", "meaning": "y"})) == {"added": 1, "skipped": 0}
+kr = J(c.post("/api/words", json={"german": "Katze", "gender": "die", "meaning": "y"})); assert (kr["added"], kr["skipped"]) == (1, 0)
 assert not get(c, "Katze")["hidden"] and get(c, "Katze")["meaning"] == "猫"
 c.delete(f"/api/words/{zid}")
 assert J(c.post("/api/words", json={"german": "Zebra", "gender": "das", "meaning": "y"}))["added"] == 1
@@ -321,7 +326,8 @@ assert J(c.get("/api/lookup?w=nichtda"))["word"] is None
 assert J(c.get("/api/lookup?w=%25"))["word"] is None and c.get("/api/lookup").status_code == 400
 # 加入复习: 公共词排到新词最前面, 学过就不再出现; 课文里的词词库没有时加成私有词, 别人看不到
 apfel = ids["Apfel"] if "Apfel" in ids else J(c.get("/api/words?q=Apfel"))["words"][0]["id"]
-db.execute("DELETE FROM progress WHERE word_id = ? AND user_id = (SELECT id FROM users WHERE username = 'alice')", (apfel,)); db.commit()
+db.execute("DELETE FROM progress WHERE word_id = ? AND user_id = (SELECT id FROM users WHERE username = 'alice')", (apfel,))
+db.execute("DELETE FROM study_queue"); db.commit()                       # 前面添加的词也在计划里, 这里只看这一个
 assert c.post("/api/review/queue", json={"word_id": 99999}).status_code == 404
 assert J(c.post("/api/review/queue", json={"word_id": apfel}))["queued"]
 assert J(c.get("/api/lookup?w=Apfel"))["word"]["queued"] == 1
@@ -692,8 +698,10 @@ assert len(J(c.post("/api/grammar/art-def/check", json={"text": json.dumps({"que
 assert c.post("/api/grammar/art-def/check", json={"text": "abc"}).status_code == 400
 assert cb.post("/api/grammar/art-def/questions", json={"questions": draft}).status_code == 403
 assert c.post("/api/grammar/art-def/questions", json={"questions": [{**draft[0], "answer": "x"}]}).status_code == 400
-assert J(c.post("/api/grammar/art-def/questions", json={"questions": draft})) == {"saved": 1, "skipped": 0}
-assert J(c.post("/api/grammar/art-def/questions", json={"questions": draft})) == {"saved": 0, "skipped": 1}    # 重复的跳过
+gs1 = J(c.post("/api/grammar/art-def/questions", json={"questions": draft}))
+assert gs1["saved"] == 1 and gs1["skipped"] == 0 and gs1["missing"]                                            # 不在海外仓词汇里要提示
+gs2 = J(c.post("/api/grammar/art-def/questions", json={"questions": draft}))
+assert gs2["saved"] == 0 and gs2["skipped"] == 1                                                               # 重复的跳过
 mine_q = [x for x in J(c.get("/api/grammar/art-def/questions"))["questions"] if x["source"] == "ai"][0]
 assert cb.post(f"/api/grammar/questions/{mine_q['id']}/report", json={"reason": "x"}).status_code == 400
 assert cb.post(f"/api/grammar/questions/{mine_q['id']}/report", json={"reason": "答案不对"}).status_code == 200
@@ -830,8 +838,8 @@ assert c.get("/api/grammar/nouns?scope=x").status_code == 400 and c.get("/api/gr
 assert A.app.test_client().get("/api/grammar/nouns").status_code == 401
 na = J(cb.get("/api/grammar/nouns?scope=all&n=10"))["questions"]
 assert len(na) == 10 and len({x["word_id"] for x in na}) == 10 and all(x["answer"] in x["options"] and x["fixed"] and x["must"] for x in na)
-assert J(cb.get("/api/grammar/nouns?scope=learned&n=10"))["questions"]                              # 学过的少时用单词书补
-assert J(c.get("/api/grammar/nouns?scope=book&n=5"))["questions"] is not None
+assert c.get("/api/grammar/nouns?scope=learned").status_code == 400 and c.get("/api/grammar/nouns?scope=mine").status_code == 400
+assert J(c.get("/api/grammar/nouns?n=5"))["questions"] is not None                                  # 默认当前单词书
 nid = na[0]["word_id"]
 nrep = lambda client, **b: client.post("/api/grammar/nouns/report", json={"word_id": nid, "prompt": "p ___", "reason": "这题不对", **b})
 assert nrep(cb, reason="x").status_code == 400 and nrep(cb, word_id="1").status_code == 400 and nrep(cb, word_id=999999).status_code == 404
@@ -841,7 +849,7 @@ assert c.delete(f"/api/grammar/nouns/reports/{nid}").status_code == 200 and J(c.
 
 # 练习记录: 错过的词优先; 连续答对 3 次移出“错过的词”; 按用户分开
 nq = lambda client, scope, n=30: J(client.get(f"/api/grammar/nouns?scope={scope}&n={n}"))["questions"]
-assert nq(cb, "wrong") == [] and nq(cb, "mine") == []
+assert nq(cb, "wrong") == []
 res = lambda client, wid, ok: client.post("/api/grammar/nouns/result", json={"word_id": wid, "ok": ok})
 assert res(cb, nid, "x").status_code == 400 and res(cb, "1", True).status_code == 400 and res(cb, 999999, True).status_code == 404
 assert res(cb, nid, False).status_code == 200
@@ -856,26 +864,155 @@ assert ps == (4, 1, 3), ps
 done_ids = {x["word_id"] for x in nq(cb, "all", 5)}
 assert nid not in done_ids                                                      # 没练过的词优先于练过的
 
-# 我的词性本: 粘贴多个词、变化形式、仓储词; 只出本子里的词; 按用户分开
+# 错题本: 手动加的词(粘贴多个词、变化形式、情景课的词); 只出本子里的词; 按用户分开
 ladd = lambda client, **b: client.post("/api/grammar/nouns/list", json=b)
+wrongs = lambda client: J(client.get("/api/grammar/nouns/words?scope=wrong"))
 assert ladd(cb).status_code == 400 and ladd(cb, text=" ").status_code == 400
 rl = J(ladd(cb, text="Tisch, Katzen，der Hund Nichtda gehen"))
 assert rl["added"] == 3 and rl["missing"] == ["Nichtda", "gehen"], rl
 assert J(ladd(cb, text="Tisch"))  == {"added": 0, "skipped": 1, "missing": []}
-assert {x["german"] for x in J(cb.get("/api/grammar/nouns/list"))["words"]} == {"Tisch", "Katze", "Hund"}
-assert {x["german"] for x in J(c.get("/api/grammar/nouns/list"))["words"]} == set()
-assert {x["word_id"] for x in nq(cb, "mine")} == {x["id"] for x in J(cb.get("/api/grammar/nouns/list"))["words"]}
+assert {x["german"] for x in wrongs(cb)["words"]} == {"Tisch", "Katze", "Hund"} and all(x["manual"] for x in wrongs(cb)["words"])
+assert wrongs(c)["words"] == [] and wrongs(c)["total"] == 0
+assert {x["word_id"] for x in nq(cb, "wrong")} == {x["id"] for x in wrongs(cb)["words"]}
 gl_add = J(ladd(cb, text="Gabelstapler"))                                        # 只在情景课词表里: 加成私有词
 assert gl_add["added"] == 1 and db.execute("SELECT 1 FROM words WHERE german = 'Gabelstapler' AND owner_id IS NOT NULL").fetchone()
-fork = [x for x in nq(cb, "mine") if "Gabelstapler" in x["hint"]][0]
+fork = [x for x in nq(cb, "wrong") if "Gabelstapler" in x["hint"]][0]
 assert fork["prompt"] == "Das ist ___ Gabelstapler." and fork["answer"] == "der"  # 没有变格表, 只考第一格
-ltid = J(cb.get("/api/grammar/nouns/list"))["words"][0]["id"]
+ltid = wrongs(cb)["words"][0]["id"]
 assert ladd(cb, word_id="1").status_code == 400 and ladd(cb, word_id=999999).status_code == 404
 gehen_id = db.execute("SELECT id FROM words WHERE german = 'gehen'").fetchone()[0]
 assert ladd(cb, word_id=gehen_id).status_code == 400                              # 不是名词
 assert cb.delete(f"/api/grammar/nouns/list/{ltid}").status_code == 200
-assert ltid not in [x["id"] for x in J(cb.get("/api/grammar/nouns/list"))["words"]]
+assert ltid not in [x["id"] for x in wrongs(cb)["words"]]
+# 错过的词也能手动移除, 练过几次还留着
+res(cb, nid, False)
+assert [x for x in wrongs(cb)["words"] if x["id"] == nid][0]["wrong"] >= 1
+assert cb.delete(f"/api/grammar/nouns/list/{nid}").status_code == 200 and nid not in [x["id"] for x in wrongs(cb)["words"]]
+assert db.execute("SELECT seen, wrong FROM noun_practice WHERE word_id = ?", (nid,)).fetchone() == (5, 0)
+
+# 练习范围: 只列有名词的书和错题本; 查看单词分页; 选书不改变首页的当前单词书
+nb = J(cb.get("/api/grammar/nouns/books"))
+all_nouns = db.execute("SELECT COUNT(*) FROM words WHERE gender != '' AND owner_id IS NULL").fetchone()[0]
+assert {"book": "all", "nouns": nb["books"][-1]["nouns"]} == nb["books"][-1] and nb["books"][-1]["book"] == "all"
+assert nb["books"][-1]["nouns"] >= all_nouns and nb["wrong"] == wrongs(cb)["total"]
+assert cb.get("/api/grammar/nouns/words?scope=x").status_code == 400 and cb.get("/api/grammar/nouns/words?scope=all&page=x").status_code == 400
+wa = J(cb.get("/api/grammar/nouns/words?scope=all&page=1"))
+assert wa["total"] == nb["books"][-1]["nouns"] and wa["pages"] >= 1 and all(x["gender"] for x in wa["words"])
+assert J(cb.get("/api/grammar/nouns/words?scope=all&page=99"))["words"] == []
+
+# 手写句子优先于例句和句型; 同一本书的词才出; 报错记到手写题, 作答记到词
+Tid = db.execute("SELECT id FROM words WHERE german = 'Tisch'").fetchone()[0]
+wdb = sqlite3.connect(os.environ["DB_PATH"])
+wdb.execute("INSERT INTO word_books (book, word_id, rank) VALUES ('warehouse', ?, 1)", (Tid,))
+wdb.execute("INSERT INTO grammar_questions (topic, prompt, answer, hint, explain, zh, source, created_at) VALUES "
+            "('art-def', '___ Tische stehen hier.', 'die', 'der Tisch · 这里是复数', '复数 → die', '桌子在这里。', 'seed', 'x')")
+wdb.commit(); wdb.close()
+wq = nq(cb, "warehouse")
+assert len(wq) == 1 and wq[0]["prompt"] == "___ Tische stehen hier." and wq[0]["word_id"] == Tid and wq[0]["id"]
+assert wq[0]["fill"] == "Die" and wq[0]["must"] == "复数" and wq[0]["source"] == "seed" and wq[0]["zh"] == "桌子在这里。"
+assert J(cb.get("/api/grammar/nouns/books"))["books"][-2:][0] == {"book": "warehouse", "nouns": 1}
+assert [x["id"] for x in J(cb.get("/api/grammar/nouns/words?scope=warehouse"))["words"]] == [Tid]
+assert J(c.get("/api/books"))["themes"][-1]["level"] == "warehouse"
+
+# 导入新公共词时, 同名私有词并过去: 进度搬过来, 内容不同的留成自己的修改
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+import import_wordbook as IW
+mdb = sqlite3.connect(os.environ["DB_PATH"]); mdb.execute("PRAGMA foreign_keys = ON")
+ub = mdb.execute("SELECT id FROM users ORDER BY id DESC LIMIT 1").fetchone()[0]
+mo = mdb.execute("INSERT INTO words (german, pos, gender, plural, meaning, example, owner_id) VALUES ('Rollcontainer','名词','der','','我的释义','',?)", (ub,)).lastrowid
+ms = mdb.execute("INSERT INTO words (german, pos, gender, plural, meaning, example, owner_id) VALUES ('Greifer','名词','der','','抓手','',?)", (ub,)).lastrowid
+mdb.execute("INSERT INTO progress (user_id, word_id, next_review, stability, reps) VALUES (?,?,'2030-01-01 00:00:00',9,3)", (ub, mo))
+mdb.execute("INSERT INTO noun_list (user_id, word_id, added_at) VALUES (?,?,'x')", (ub, mo))
+mp = mdb.execute("INSERT INTO words (german, pos, gender, plural, meaning, example) VALUES ('Rollcontainer','名词','der','Rollcontainer','滚动货架','')").lastrowid
+mq = mdb.execute("INSERT INTO words (german, pos, gender, plural, meaning, example) VALUES ('Greifer','名词','der','','抓手','')").lastrowid
+assert IW.merge_private(mdb, mp, "Rollcontainer", "der") == 1 and IW.merge_private(mdb, mq, "Greifer", "der") == 1
+assert mdb.execute("SELECT 1 FROM words WHERE id IN (?,?)", (mo, ms)).fetchone() is None
+assert mdb.execute("SELECT stability, reps FROM progress WHERE user_id = ? AND word_id = ?", (ub, mp)).fetchone() == (9, 3)
+assert mdb.execute("SELECT 1 FROM noun_list WHERE user_id = ? AND word_id = ?", (ub, mp)).fetchone()
+assert mdb.execute("SELECT meaning FROM user_word_edits WHERE user_id = ? AND word_id = ?", (ub, mp)).fetchone() == ("我的释义",)
+assert mdb.execute("SELECT 1 FROM user_word_edits WHERE word_id = ?", (mq,)).fetchone() is None        # 内容相同不留修改
+mdb.commit(); mdb.close()
 db.close()
+
+# 今日学习: 新词 = 学习量 + 加量 − 已学 − 还没复习的到期词; 换日按本地时间凌晨 4 点
+from datetime import datetime, timedelta, timezone
+T.NEW_PER_REQUEST = 50
+assert srs.day_gap(datetime(2026, 1, 1, 21, tzinfo=timezone.utc), datetime(2026, 1, 2, 8, tzinfo=timezone.utc)) == 1   # 昨晚 → 今早
+assert srs.day_gap(datetime(2026, 1, 1, 21, tzinfo=timezone.utc), datetime(2026, 1, 2, 3, tzinfo=timezone.utc)) == 0   # 半夜还算同一天
+with A.app.test_request_context():
+    d0, s0_, e0 = T.local_day(-60)
+    assert datetime.strptime(e0, "%Y-%m-%d %H:%M:%S") - datetime.strptime(s0_, "%Y-%m-%d %H:%M:%S") == timedelta(days=1)
+    assert s0_.endswith("03:00:00")                                               # 德国冬令时凌晨 4 点 = UTC 3 点
+tdb = sqlite3.connect(os.environ["DB_PATH"])
+tcode = J(c.post("/api/invites", json={}))["code"]
+ct = A.app.test_client()
+assert ct.post("/api/register", json={"username": "carol", "password": "12345678", "invite": tcode}).status_code == 200
+carol = tdb.execute("SELECT id FROM users WHERE username = 'carol'").fetchone()[0]
+for i in range(60):
+    tdb.execute("INSERT INTO words (german, pos, gender, plural, meaning, example) VALUES (?,'名词','der','','测试','')", (f"Testwort{i}",))
+tdb.commit()
+tt = lambda: J(ct.get("/api/today"))
+assert ct.post("/api/today/goal", json={"goal": 5}).status_code == 400 and ct.post("/api/today/goal", json={"goal": True}).status_code == 400
+assert ct.post("/api/today/goal", json={"goal": 20}).status_code == 200 and tt()["goal"] == 20
+ct.post("/api/books/current", json={"book": "all"})
+assert tt()["new"] == 20 and tt()["due"] == 0 and tt()["target"] == 20
+assert J(c.get("/api/today"))["goal"] == 500                                      # 各管各的
+# 8 个到期词: 新词变少
+some = [x[0] for x in tdb.execute("SELECT id FROM words WHERE owner_id IS NULL ORDER BY id LIMIT 30").fetchall()]
+for w in some[:8]:
+    tdb.execute("INSERT INTO progress (user_id, word_id, next_review, stability, difficulty, last_review, reps) "
+                "VALUES (?,?,datetime('now','-1 hour'),3,5,datetime('now','-3 days'),1)", (carol, w))
+tdb.commit()
+assert tt()["due"] == 8 and tt()["new"] == 12
+# 今晚才到期的词今早也算到期(到今天结束前)
+late = datetime.strptime(T.local_day(0)[2], "%Y-%m-%d %H:%M:%S") - timedelta(minutes=1)
+tdb.execute("UPDATE progress SET next_review = ? WHERE user_id = ? AND word_id = ?",
+            (late.strftime("%Y-%m-%d %H:%M:%S"), carol, some[0]))
+tdb.commit()
+assert tt()["due"] == 8
+tdb.execute("UPDATE progress SET next_review = ? WHERE user_id = ? AND word_id = ?",
+            (T.local_day(0)[2], carol, some[0]))
+tdb.commit()
+assert tt()["due"] == 7                                                            # 明天才到期
+tdb.execute("UPDATE progress SET next_review = datetime('now','-1 hour') WHERE user_id = ? AND word_id = ?", (carol, some[0]))
+tdb.commit()
+# 学完一个到期词: 不再算到期, 算已学, 新词数不变
+rc = J(ct.get("/api/review/today"))
+assert rc["due"] == 8 and rc["new"] == 12 and all(not x["is_new"] for x in rc["cards"][:8])    # 先复习再新词
+ansc = lambda wid, rating=3: ct.post("/api/review/answer", json={"word_id": wid, "rating": rating, "mode": "recall"})
+assert J(ansc(rc["cards"][0]["id"]))["log_id"]
+assert tt()["done"] == 1 and tt()["due"] == 7 and tt()["new"] == 12
+# 忘了: 今天还要再练, 但只算一个词
+fw = rc["cards"][1]["id"]
+ansc(fw, 1)
+assert tt()["done"] == 2 and tt()["due"] == 7 and tt()["new"] == 12
+ansc(fw, 3)
+assert tt()["done"] == 2 and tt()["due"] == 6
+# 到期词比学习量多: 全部要复习, 没有新词
+for w in some[8:30]:
+    tdb.execute("INSERT INTO progress (user_id, word_id, next_review, stability, difficulty, last_review, reps) "
+                "VALUES (?,?,datetime('now','-1 hour'),3,5,datetime('now','-3 days'),1)", (carol, w))
+tdb.commit()
+assert tt()["due"] == 28 and tt()["new"] == 0
+# 单个添加: 学习量 +1, 到期词再多今天也能学到; 批量导入只排队, 不加量
+xw = J(ct.post("/api/words", json={"german": "Testeinzel", "gender": "der", "pos": "名词", "meaning": "单个"}))
+assert xw == {"added": 1, "skipped": 0, "queued": 1} and tt()["target"] == 21 and tt()["new"] == 1
+xc = J(ct.get("/api/review/today"))["cards"][-1]
+assert xc["german"] == "Testeinzel" and xc["is_new"]
+pub = J(ct.post("/api/words", json={"german": "Testwort50", "gender": "der", "meaning": "x"}))   # 词库已有: 只进计划
+assert pub == {"added": 0, "skipped": 1, "queued": 1} and tt()["target"] == 22 and tt()["new"] == 2
+bulk = J(ct.post("/api/words", json=[{"german": "Testbatch", "gender": "der", "pos": "名词", "meaning": "批量"}]))
+assert bulk == {"added": 1, "skipped": 0, "queued": 1} and tt()["target"] == 22 and tt()["new"] == 2     # 排队, 现在没有名额
+assert J(ct.post("/api/review/queue", json={"word_id": some[0]}))["learned"]                              # 学过的不加
+ids_new = [x["id"] for x in J(ct.get("/api/review/today"))["cards"] if x["is_new"]]
+assert len(ids_new) == 2
+ansc(ids_new[0]); assert tt()["target"] == 22 and tt()["new"] == 1                                         # 加的词学完, 量不变
+# 再学 10 个: 只加今天, 第二次累加
+J(ct.post("/api/today/more", json={})); assert tt()["extra"] == 10
+J(ct.post("/api/today/more", json={})); assert tt()["extra"] == 20 and tt()["target"] == 42
+tdb.execute("UPDATE user_settings SET value = '2000-01-01' WHERE user_id = ? AND key = 'extra_day'", (carol,)); tdb.commit()
+assert tt()["extra"] == 0
+tdb.close()
 
 c.post("/api/logout", json={})
 assert c.get("/api/review/today").status_code == 401

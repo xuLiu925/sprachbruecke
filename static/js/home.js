@@ -22,17 +22,17 @@ function buildModules() {
 buildModules();
 
 const BOOK_NAMES = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶", B2: "B2 中高级", C1: "C1 高级", all: "全部单词",
-                     dsh: "德福 DSH 核心词汇", common: "德语常用词汇" };
+                     dsh: "德福 DSH 核心词汇", common: "德语常用词汇", warehouse: "海外仓词汇" };
 
 onShow.home = async () => {
   $("hello").textContent = "你好，" + user;
-  const s = await loadStats();
-  const newAvail = Math.min(10, s.book_total - s.book_learned + s.queued);
+  const [s, t] = await Promise.all([loadStats(), api("/api/today?" + tzQuery())]);
   $("hBookName").textContent = "单词书：" + BOOK_NAMES[s.book];
   $("hBookProg").textContent = s.book_total && s.book_learned >= s.book_total
     ? "这本学完了，换一本吧" : `共 ${s.book_total} 个词，进度见下方`;
-  $("hDue").textContent = s.due;
-  $("hNew").textContent = newAvail;
+  $("hDue").textContent = t.due;
+  $("hNew").textContent = t.new;
+  $("hPlan").textContent = `今日学习量 ${t.target} · 已学 ${t.done}`;
   $("hLearned").textContent = s.learned;
   $("hMastered").textContent = s.mastered;
   $("hTotal").textContent = s.total;
@@ -42,9 +42,7 @@ onShow.home = async () => {
   $("hBarLearned").style.width = pct(s.book_learned) + "%";
   $("hBar").style.width = pct(s.book_mastered) + "%";
   $("hBarText").textContent = `已学 ${s.book_learned}（${Math.round(pct(s.book_learned))}%）· 已掌握 ${s.book_mastered} · 共 ${s.book_total} 个`;
-  const nothing = s.due + newAvail === 0;
-  $("hStart").disabled = nothing;
-  $("hStart").textContent = nothing ? "今天的任务完成了 🎉" : "开始今日复习";
+  $("hStart").textContent = t.due + t.new === 0 ? "今天学完了 🎉 再学一点" : t.done ? "继续今日学习" : "开始今日学习";
   showSentenceDue($("hSentences"));
 };
 $("hStart").onclick = () => go("review");
@@ -105,7 +103,7 @@ function listItem(ico, title, sub, onclick, off) {
   return b;
 }
 
-const reviewItem = listItem("🗂️", "今日复习", "认词 + 拼写，按 FSRS 安排复习", () => go("review"));
+const reviewItem = listItem("🗂️", "今日学习", "先复习再学新词，认词 + 拼写", () => go("review"));
 $("practiceList").append(reviewItem, listItem("🎨", "冠词练习", "der / die / das 选择题", () => go("drill")),
                         listItem("✍️", "听写", "听发音写单词，优先出学过的词", () => go("dictation")),
                         listItem("📐", "语法基础", "冠词、代词、介词、动词、语序的速查表和练习", () => go("grammar")),
@@ -134,6 +132,7 @@ onShow.me = async () => {
   $("avatar").textContent = (user || "?").slice(0, 1).toUpperCase();
   const s = await loadStats();
   $("meStats").textContent = `已学 ${s.learned} · 已掌握 ${s.mastered}`;
+  try { $("optGoal").value = String((await api("/api/today?" + tzQuery())).goal); } catch (e) {}
   $("adminBox").classList.toggle("hidden", !isAdmin);
   if (isAdmin) loadAdmin();
 };
@@ -214,6 +213,11 @@ $("btnInvite").onclick = async () => {
 $("optArticle").checked = needArticle();
 $("optArticle").onchange = () => {
   try { localStorage.setItem("sb_needArticle", $("optArticle").checked ? "1" : "0"); } catch (e) {}
+};
+// 每日学习量存在服务器上, 手机和电脑一样
+$("optGoal").onchange = async () => {
+  try { await api("/api/today/goal?" + tzQuery(), "POST", { goal: parseInt($("optGoal").value, 10) }); toast("已保存"); }
+  catch (e) { toast(e.message); }
 };
 // 声音设置
 $("optAutoWord").checked = getSetting("autoWord");

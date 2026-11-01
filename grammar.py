@@ -4,6 +4,7 @@
 AI 的题一律经过 clean_question 检查, 但系统判断不了语法对不对, 所以页面上标“AI 生成，未核对”。
 """
 import json
+import re
 
 from flask import Blueprint, jsonify, request
 
@@ -24,6 +25,7 @@ TOPICS = {
 MAX_ROUND = 30
 MAX_DRAFTS = 30
 COLS = "id, prompt, answer, hint, explain, zh, source"
+HINT_NOUN = re.compile(r"(der|die|das) ([^\s·]+)")   # 定冠词题的提示开头写着名词原形: der Karton · 这里是复数
 
 
 def topic_of(name):
@@ -239,7 +241,21 @@ def save(name):
         saved += cur.rowcount
         skipped += 1 - cur.rowcount
     db.commit()
-    return jsonify({"saved": saved, "skipped": skipped})
+    return jsonify({"saved": saved, "skipped": skipped, "missing": outside_warehouse(q["hint"] for q, _item in cleaned)})
+
+
+def outside_warehouse(hints):
+    """这些题的名词不在海外仓词汇里(提示写法不对的也算), 选这本书时练不到"""
+    missing = []
+    for hint in hints:
+        m = HINT_NOUN.match(hint)
+        found = m and get_db().execute(
+            "SELECT 1 FROM words w JOIN word_books b ON b.word_id = w.id AND b.book = 'warehouse' "
+            "WHERE w.gender = ? AND w.german = ? LIMIT 1", m.groups(),
+        ).fetchone()
+        if not found:
+            missing.append(m.group(2) if m else hint)
+    return sorted(set(missing))
 
 
 @bp.route("/api/grammar/questions/<int:qid>/status", methods=["POST"])

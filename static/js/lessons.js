@@ -176,7 +176,7 @@ window.addEventListener("hashchange", closeWordSheet);
 function wsButton(w) {
   const b = $("wsAdd");
   b.disabled = !!(w.learned || w.queued);
-  b.textContent = w.learned ? "已经学过" : w.queued ? "已加入复习" : "加入复习";
+  b.textContent = w.learned ? "已经学过" : w.queued ? "已加入学习" : "加入学习";
 }
 
 // 缩合词和词库反查不到的常见形式 → 原形
@@ -308,13 +308,13 @@ $("wsAi").onclick = async () => {
   btn.classList.add("hidden");
   $("wsMeaning").textContent = "AI 也没有查到这个词";
 };
-// 加入我的词性本: 词库里的词用编号, 情景课的仓储词用德语词
+// 加入错题本: 词库里的词用编号, 自建对话的词用德语词
 $("wsNoun").onclick = async () => {
   const w = wsWord;
   if (!w) return;
   try {
     const r = await api("/api/grammar/nouns/list", "POST", w.id ? { word_id: w.id } : { text: w.german });
-    toast(r.added ? "已加入词性本" : r.skipped ? "已经在词性本里了" : "没有加入");
+    toast(r.added ? "已加入错题本" : r.skipped ? "已经在错题本里了" : "没有加入");
   } catch (e) { toast(e.message); }
 };
 $("wsSay").onclick = () => { if (wsWord) speakDe(wordText(wsWord)); };
@@ -355,6 +355,6 @@ $("wsAdd").onclick = async () => {
     const r = await api("/api/review/queue", "POST", body);
     w.id = r.word_id; w.learned = r.learned; w.queued = r.queued;
     if (wsWord === w) { wsButton(w); $("wsView").classList.remove("hidden"); }
-    toast(r.learned ? "这个词已经学过了" : "已加入复习");
+    toast(r.learned ? "这个词已经学过了" : "已加入今日学习");
   } catch (e) { toast(e.message); }
 };

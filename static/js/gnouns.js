@@ -1,25 +1,55 @@
-// 我的词性本: 用户自己挑的名词, 在定冠词练习里选“我的词性本”时出题
+// 查看练习范围里的名词: 单词书只看, 错题本还能手动加词和移除
+let gnScope = "", gnPage = 1;
+
+function gnOpen(scope) {
+  gnScope = scope; gnPage = 1;
+  go("gnouns");
+}
 onShow.gnouns = gnLoad;
 
 async function gnLoad() {
+  if (!gnScope) return location.replace("#grammar");       // 直接刷新这一页时不知道要看哪本
+  const name = gScopeList.find(s => s.id === gnScope).name, wrong = gnScope === "wrong";
+  $("title").textContent = name;
+  $("gnAddBox").classList.toggle("hidden", !wrong);
+  $("gnStart").textContent = "练习" + name;
   let r;
-  try { r = await api("/api/grammar/nouns/list"); } catch (e) { return toast(e.message); }
-  $("gnCount").textContent = `共 ${r.words.length} 个词`;
+  try { r = await api(`/api/grammar/nouns/words?scope=${gnScope}&page=${gnPage}`); } catch (e) { return toast(e.message); }
+  $("gnCount").textContent = `共 ${r.total} 个名词`;
   const box = $("gnList"); box.textContent = "";
   box.classList.toggle("hidden", !r.words.length);
   for (const w of r.words) {
     const row = document.createElement("div"); row.className = "lline nwordhead";
-    const t = document.createElement("span");
-    const name = document.createElement("b"); wordInto(name, w);
-    t.append(name, "  " + w.meaning);
-    const del = document.createElement("button"); del.className = "mini"; del.textContent = "移除";
-    del.onclick = async () => {
-      try { await api("/api/grammar/nouns/list/" + w.id, "DELETE"); } catch (e) { return toast(e.message); }
-      gnLoad();
-    };
-    row.append(t, del); box.appendChild(row);
+    const t = document.createElement("span"); t.className = "gnword";
+    const head = document.createElement("b"); wordInto(head, w);
+    t.append(head, "  " + w.meaning);
+    t.onclick = () => openWordSheet(w.german, { de: "" });
+    if (wrong) {
+      const note = document.createElement("div"); note.className = "lzh";
+      note.textContent = [w.wrong ? `错过 ${w.wrong} 次 · 已连续答对 ${w.streak} 次` : "", w.manual ? "手动加的" : ""]
+        .filter(Boolean).join(" · ");
+      t.appendChild(note);
+    }
+    row.appendChild(t);
+    if (wrong) {
+      const del = document.createElement("button"); del.className = "mini"; del.textContent = "移除";
+      del.onclick = async () => {
+        try { await api("/api/grammar/nouns/list/" + w.id, "DELETE"); } catch (e) { return toast(e.message); }
+        gnLoad();
+      };
+      row.appendChild(del);
+    }
+    box.appendChild(row);
   }
+  $("gnPager").classList.toggle("hidden", r.pages <= 1);
+  $("gnPageNo").textContent = `${r.page} / ${r.pages}`;
+  $("gnPrev").disabled = r.page <= 1;
+  $("gnNext").disabled = r.page >= r.pages;
 }
+
+const gnTurn = step => { gnPage += step; gnLoad(); window.scrollTo(0, 0); };
+$("gnPrev").onclick = () => gnTurn(-1);
+$("gnNext").onclick = () => gnTurn(1);
 
 $("gnAdd").onclick = async () => {
   const text = $("gnText").value.trim();
@@ -34,6 +64,7 @@ $("gnAdd").onclick = async () => {
 };
 
 $("gnStart").onclick = () => {
-  setSetting("gScope", "mine");
+  gScopeNow = gnScope;
+  setSetting("gScope", gnScope);
   go("gquiz");
 };

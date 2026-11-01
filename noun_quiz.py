@@ -1,11 +1,13 @@
-"""定冠词填空题: 从词库的名词自动出题, 不用 AI, 也不用把题存进数据库
+"""定冠词填空题: 从单词书或错题本的名词出题, 不用 AI
 
-优先用真实例句(把名词前的冠词挖空), 没有合适的例句时用通用句型 + 词库的变格表。
-不是每个名词都有例句, 但几乎都有变格表, 所以能覆盖全部名词。没有变格表的词(如自己加的词)只考第一格。
+每个名词的句子优先级: 手写句子(grammar_questions, 提示开头的名词对得上) > 真实例句(把名词前的冠词挖空) >
+通用句型 + 词库的变格表。不是每个名词都有例句, 但几乎都有变格表, 所以能覆盖全部名词。
+没有变格表的词(如自己加的词)只考第一格。
 单复数同形的词不用例句出题(填 den 和 die 都说得通); 通用句型会写明单数还是复数。
 练习记录在 noun_practice: 出题时优先错过的词, 其次没练过的, 再次很久没练的, 减少重复。
-"我的词性本"(noun_list)是用户自己挑的词。
+错题本 = 错过的词(连续答对 3 次自动移出) + 用户手动加的词(noun_list, 手动移除才走)。
 """
+import collections
 import json
 import random
 import re
@@ -17,18 +19,23 @@ from custom_lessons import CHINESE, text
 from database import get_db, now_str
 from dictionary import all_glossary
 from gender_hint import short_meaning
+from grammar import HINT_NOUN
 from helpers import current_user_id, err, json_body, login_required
 from lessons import find_word, private_word_id
-from vocab import book_filter, current_book, query
+from vocab import BOOKS, book_filter, current_book, query
 
 bp = Blueprint("noun_quiz", __name__)
 
 OPTIONS = ["der", "die", "das", "den", "dem", "des"]
-SCOPES = ("learned", "book", "mine", "wrong", "all")
-STREAK_DONE = 3       # 错过的词连续答对几次后不再算“错过的词”
+SCOPES = BOOKS + ["wrong"]
+STREAK_DONE = 3       # 错过的词连续答对几次后移出错题本
 POOL = 60             # 一次取多少个词来出题
-MIN_LEARNED = 5       # 学过的词凑出的题少于这个数时, 用当前单词书补
 MAX_ROUND = 30
+PAGE_SIZE = 100       # 查看单词时一页多少个
+# 练习记录和手动加的词; 下面的查询都带这两张表, 错题本的条件要用到
+MARKS = ("LEFT JOIN noun_practice np ON np.word_id = w.id AND np.user_id = :uid "
+         "LEFT JOIN noun_list nl ON nl.word_id = w.id AND nl.user_id = :uid")
+IN_WRONG = "AND ((np.wrong > 0 AND np.streak < :done) OR nl.word_id IS NOT NULL)"
 GENDER_ZH = {"der": "阳性", "die": "阴性", "das": "中性"}
 CASE_NAMES = ["第一格", "第二格", "第三格", "第四格"]
 # 通用句型, 下标同 forms 里的格(一、二、三、四格): (单数句子, 复数句子, 解释, 单数翻译, 复数翻译)。几乎任何名词都说得通
@@ -105,21 +112,45 @@ def template_question(row, forms):
     return base_question(row, frame, art, number, f"{FRAMES[i][2]}；{number} → {art}", zh, "template")
 
 
-def make_question(row):
+def written_questions():
+    """手写句子按名词分组: {(冠词, 名词原形): [题, ...]}"""
+    rows = get_db().execute(
+        "SELECT id, prompt, answer, hint, explain, zh, source FROM grammar_questions "
+        "WHERE topic = 'art-def' AND status = 'active'",
+    ).fetchall()
+    out = collections.defaultdict(list)
+    for r in rows:
+        m = HINT_NOUN.match(r["hint"])
+        if m:
+            out[m.groups()].append(r)
+    return out
+
+
+def written_question(row, q):
+    """id 让报错记到这道手写题上, word_id 让作答记到这个词上"""
+    fill = q["answer"].capitalize() if q["prompt"].startswith("___") else q["answer"]
+    return {"id": q["id"], "word_id": row["id"], "meaning": row["meaning"], "prompt": q["prompt"], "answer": q["answer"],
+            "fill": fill, "options": OPTIONS, "fixed": True, "explain": q["explain"], "zh": q["zh"],
+            "source": q["source"], "must": "复数" if "复数" in q["hint"] else "单数", "hint": q["hint"]}
+
+
+def make_question(row, written=None):
+    hits = (written or {}).get((row["gender"], row["german"]))
+    if hits:
+        return written_question(row, random.choice(hits))
     forms = table(row)
     if not forms:
         return None
     return example_question(row, forms) or template_question(row, forms)
 
 
-def make_round(rows, seen, n):
+def make_round(rows, n, written=None):
     out = []
     for r in rows:
         if len(out) >= n:
             break
-        q = make_question(r) if r["id"] not in seen else None
+        q = make_question(r, written)
         if q:
-            seen.add(r["id"])
             out.append(q)
     return out
 
@@ -127,43 +158,71 @@ def make_round(rows, seen, n):
 @bp.route("/api/grammar/nouns")
 @login_required
 def nouns():
-    """?scope=learned|book|mine|wrong|all&n=14: 一组定冠词题, 每个词最多一题。
-    学过的词太少时用当前单词书补; 我的词性本和错过的词不补, 没有就是没有"""
-    scope = request.args.get("scope", "book")
+    """?scope=单词书或 wrong&n=14: 一组定冠词题, 每个词最多一题。不带 scope 时用当前单词书"""
+    scope = request.args.get("scope") or current_book(current_user_id())
     if scope not in SCOPES:
         return err("范围无效")
     try:
         n = min(max(int(request.args.get("n", "14")), 1), MAX_ROUND)
     except ValueError:
         return err("题数无效")
-    cols = "w.id, w.german, w.gender, w.meaning, w.example, w.forms, d.details"
-    details = ("LEFT JOIN word_details d ON d.word_id = w.id "
-               "LEFT JOIN noun_practice np ON np.word_id = w.id AND np.user_id = :uid")
-    book_join, book_args, _order = book_filter(current_book(current_user_id()))
-
-    def pick(join, where="", **args):
-        # 错过的词 > 没练过的 > 很久没练的; 同一档随机
-        return query(
-            f"SELECT {cols} FROM my_words w {join} {details} WHERE w.gender != '' {where} "
-            "ORDER BY CASE WHEN np.wrong > 0 AND np.streak < :done THEN 0 WHEN np.word_id IS NULL THEN 1 ELSE 2 END, "
-            "np.last_at, RANDOM() LIMIT :pool",
-            pool=POOL, done=STREAK_DONE, **args,
-        ).fetchall()
-
-    seen = set()
-    if scope == "learned":
-        out = make_round(pick("JOIN progress p ON p.word_id = w.id AND p.user_id = :uid"), seen, n)
-        if len(out) < MIN_LEARNED:
-            out += make_round(pick(book_join, **book_args), seen, n - len(out))
-    elif scope == "book":
-        out = make_round(pick(book_join, **book_args), seen, n)
-    elif scope == "mine":
-        out = make_round(pick("JOIN noun_list nl ON nl.word_id = w.id AND nl.user_id = :uid"), seen, n)
-    elif scope == "wrong":
-        out = make_round(pick("", "AND np.wrong > 0 AND np.streak < :done"), seen, n)
+    if scope == "wrong":
+        join, where, args = "", IN_WRONG, {}
     else:
-        out = make_round(pick(""), seen, n)
-    return jsonify({"questions": out})
+        join, args, _order = book_filter(scope)
+        where = ""
+    # 错过的词 > 没练过的 > 很久没练的; 同一档随机
+    rows = query(
+        f"SELECT w.id, w.german, w.gender, w.meaning, w.example, w.forms, d.details FROM my_words w {join} "
+        f"LEFT JOIN word_details d ON d.word_id = w.id {MARKS} WHERE w.gender != '' {where} "
+        "ORDER BY CASE WHEN np.wrong > 0 AND np.streak < :done THEN 0 WHEN np.word_id IS NULL THEN 1 ELSE 2 END, "
+        "np.last_at, RANDOM() LIMIT :pool",
+        pool=POOL, done=STREAK_DONE, **args,
+    ).fetchall()
+    return jsonify({"questions": make_round(rows, n, written_questions())})
+
+
+@bp.route("/api/grammar/nouns/books")
+@login_required
+def noun_books():
+    """练习范围: 各单词书的名词数(没有名词的书不列出来)、错题本的词数、当前单词书"""
+    by = {}
+    for table_name, key in (("word_levels", "level"), ("word_books", "book")):
+        for r in query(f"SELECT l.{key} AS book, COUNT(*) AS n FROM my_words w JOIN {table_name} l ON l.word_id = w.id "
+                       f"WHERE w.gender != '' GROUP BY l.{key}").fetchall():
+            by[r["book"]] = r["n"]
+    by["all"] = query("SELECT COUNT(*) FROM my_words w WHERE w.gender != ''").fetchone()[0]
+    wrong = query(f"SELECT COUNT(*) FROM my_words w {MARKS} WHERE w.gender != '' {IN_WRONG}",
+                  done=STREAK_DONE).fetchone()[0]
+    return jsonify({"current": current_book(current_user_id()), "wrong": wrong,
+                    "books": [{"book": b, "nouns": by[b]} for b in BOOKS if by.get(b)]})
+
+
+@bp.route("/api/grammar/nouns/words")
+@login_required
+def noun_words():
+    """查看一个范围里的名词 ?scope=&page=: words 带练习记录, manual = 手动加进错题本的"""
+    scope = request.args.get("scope", "")
+    if scope not in SCOPES:
+        return err("范围无效")
+    try:
+        page = max(int(request.args.get("page", "1")), 1)
+    except ValueError:
+        return err("页码无效")
+    if scope == "wrong":
+        join, where, args, order = "", IN_WRONG, {}, "np.last_at DESC, w.german"
+    else:
+        join, args, order = book_filter(scope)
+        where = ""
+    source = f"FROM my_words w {join} {MARKS} WHERE w.gender != '' {where}"
+    total = query(f"SELECT COUNT(*) {source}", done=STREAK_DONE, **args).fetchone()[0]
+    rows = query(
+        "SELECT w.id, w.german, w.gender, w.meaning, COALESCE(np.wrong, 0) AS wrong, COALESCE(np.streak, 0) AS streak, "
+        f"nl.word_id IS NOT NULL AS manual {source} ORDER BY {order} LIMIT :lim OFFSET :off",
+        done=STREAK_DONE, lim=PAGE_SIZE, off=(page - 1) * PAGE_SIZE, **args,
+    ).fetchall()
+    words = [{**dict(r), "manual": bool(r["manual"])} for r in rows]
+    return jsonify({"words": words, "total": total, "page": page, "pages": max((total + PAGE_SIZE - 1) // PAGE_SIZE, 1)})
 
 
 @bp.route("/api/grammar/nouns/result", methods=["POST"])
@@ -187,17 +246,7 @@ def result():
     return jsonify({"ok": True})
 
 
-# ---------- 我的词性本 ----------
-@bp.route("/api/grammar/nouns/list")
-@login_required
-def list_nouns():
-    rows = query(
-        "SELECT w.id, w.german, w.gender, w.meaning FROM noun_list nl JOIN my_words w ON w.id = nl.word_id "
-        "WHERE nl.user_id = :uid AND w.gender != '' ORDER BY nl.added_at DESC, w.german",
-    ).fetchall()
-    return jsonify({"words": [dict(r) for r in rows]})
-
-
+# ---------- 错题本里手动加的词 ----------
 def resolve_noun(name):
     """一个词 → 词库里的名词编号; 情景课的仓储词加成私有词; 找不到返回 None"""
     hit = find_word(name)
@@ -213,7 +262,7 @@ def resolve_noun(name):
 @bp.route("/api/grammar/nouns/list", methods=["POST"])
 @login_required
 def add_nouns():
-    """加入词性本 {word_id} 或 {text: "Palette, Karton"}: text 用逗号、空格或换行分隔。返回 added / skipped / missing"""
+    """加入错题本 {word_id} 或 {text: "Palette, Karton"}: text 用逗号、空格或换行分隔。返回 added / skipped / missing"""
     data = json_body()
     if data is None:
         return err("请求格式错误")
@@ -251,8 +300,11 @@ def add_nouns():
 @bp.route("/api/grammar/nouns/list/<int:word_id>", methods=["DELETE"])
 @login_required
 def remove_noun(word_id):
+    """移出错题本: 手动加的删掉, 错过的记录清零; 练过几次还留着"""
     db = get_db()
     db.execute("DELETE FROM noun_list WHERE user_id = ? AND word_id = ?", (current_user_id(), word_id))
+    db.execute("UPDATE noun_practice SET wrong = 0, streak = 0 WHERE user_id = ? AND word_id = ?",
+               (current_user_id(), word_id))
     db.commit()
     return jsonify({"ok": True})
 

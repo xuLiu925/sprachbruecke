@@ -22,6 +22,8 @@ import sqlite3
 import sys
 import zipfile
 
+from build_wordbook import noun_info, verb_info
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(ROOT, "data", "raw")
 SRC = os.path.join(ROOT, "data", "work", "wordbook_translated.json")
@@ -33,6 +35,11 @@ TODO = os.path.join(ROOT, "data", "待查单词.txt")
 ANKI = os.path.join(RAW, "A1_Goethe_760__", "collection.anki21")
 FREQ = os.path.join(RAW, "de_50k.txt")
 ZH_GLOSSES = os.path.join(ROOT, "data", "work", "zh_glosses.json")
+ENTRIES = os.path.join(ROOT, "data", "work", "de_entries.jsonl")
+LESSONS = os.path.join(ROOT, "static", "lessons.json")
+# 手写定冠词题里有、情景课词表里没有的名词
+WAREHOUSE_EXTRA = [{"german": "Fahrer", "gender": "der", "pos": "名词", "plural": "Fahrer", "meaning": "司机"},
+                   {"german": "Kundin", "gender": "die", "pos": "名词", "plural": "Kundinnen", "meaning": "女客户"}]
 
 LEVELS = ["A1", "A2", "B1", "B2", "C1"]
 GENDER = {"m": "der", "f": "die", "n": "das"}
@@ -374,6 +381,63 @@ def apply_zh_glosses(book, meaning_rank):
     return count
 
 
+def wiki_forms(names):
+    """从维基词典取几个词的变格 / 变位: {(德语, 冠词): forms}。冠词要对得上, 没有的词不猜"""
+    wanted = {g for g, _a in names}
+    found = {}
+    with open(ENTRIES, encoding="utf-8") as f:
+        for line in f:
+            if line.split('"', 4)[3] not in wanted:     # 第一个字段是 word, 不用每行都解析 JSON
+                continue
+            e = json.loads(line)
+            if "Grundformeintrag (Deutsch)" not in e["categories"]:
+                continue
+            if e["pos"] == "noun":
+                gender, _plural, forms = noun_info(e)
+            elif e["pos"] == "verb":
+                gender, forms = "", verb_info(e)
+            else:
+                continue
+            if forms and (e["word"], gender) in names:
+                found.setdefault((e["word"], gender), forms)
+    return found
+
+
+def lesson_example(german, lessons):
+    """课文里第一句用到这个词原形的话, 格式同单词书的例句: 德语 + 换行 + 中文"""
+    word = re.compile(rf"(?<![A-Za-zÄÖÜäöüß]){re.escape(german)}(?![A-Za-zÄÖÜäöüß])")
+    line = next((x for lesson in lessons for x in lesson["lines"] if word.search(x["de"])), None)
+    return f"{line['de']}\n{line['zh']}" if line else ""
+
+
+def add_warehouse(book, meaning_rank, stats):
+    """海外仓词汇: 情景课的词表 + 手写定冠词题里的名词。已有的词释义不动, 新词用词表的释义和课文的例句"""
+    with open(LESSONS, encoding="utf-8") as f:
+        lessons = json.load(f)["lessons"]
+    entries = {}
+    for g in [x for lesson in lessons for x in lesson["glossary"]] + WAREHOUSE_EXTRA:
+        entries.setdefault((g["german"], g["gender"]), g)
+    added = []
+    for rank, g in enumerate(entries.values(), 1):
+        w = book.find(g["german"], g["gender"])
+        if w is None:
+            w = book.add_new(new_entry("warehouse", g["german"], g["gender"], g["pos"], g["meaning"]))
+            if w is None:
+                log("海外仓词汇跳过(词条不规范): " + g["german"])
+                stats["跳过(海外仓)"] += 1
+                continue
+            w["plural"] = g.get("plural", "")
+            w["example"] = lesson_example(g["german"], lessons)
+            meaning_rank[id(w)] = 1
+            added.append(w)
+        w["books"]["warehouse"] = rank
+    forms = wiki_forms({(w["german"], w["gender"]) for w in added})
+    for w in added:
+        w["forms"] = forms.get((w["german"], w["gender"]))
+    stats["新词(海外仓)"] = len(added)
+    stats["新词有变格或变位(海外仓)"] = len(forms)
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
@@ -425,6 +489,7 @@ def main():
     collect(frdic_common, "common", True)
     collect(verbs, "dsh", True)
     collect(listed, "dsh", False)
+    add_warehouse(book, meaning_rank, stats)
     stats["词组挂到词上"] = attach_phrases(book, phrases)
 
     # 德语助手导出的补充释义: 只改已有的词, 不加新词也不进专题书

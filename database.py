@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS study_queue (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
     added_at TEXT NOT NULL,
+    bonus INTEGER NOT NULL DEFAULT 0,      -- 1 = 单个加的词: 加入当天学习量 +1
     PRIMARY KEY (user_id, word_id)
 );
 -- 用户自建的工作对话(AI 生成后确认保存的)。data = JSON: lines / glossary / cloze / task, 格式同 static/lessons.json
@@ -320,6 +321,9 @@ def migrate(db):
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_words_public ON words (german, gender) WHERE owner_id IS NULL")
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_words_private ON words (owner_id, german, gender) "
                "WHERE owner_id IS NOT NULL")
+    if "bonus" not in {r[1] for r in db.execute("PRAGMA table_info(study_queue)")}:
+        db.execute("ALTER TABLE study_queue ADD COLUMN bonus INTEGER NOT NULL DEFAULT 0")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_review_log_day ON review_log (user_id, reviewed_at)")
     cols = {r[1] for r in db.execute("PRAGMA table_info(progress)")}
     for name, typ in PROGRESS_NEW_COLS:
         if name not in cols:

@@ -39,7 +39,7 @@ function toast(msg) {
 function needArticle() {
   try { return localStorage.getItem("sb_needArticle") !== "0"; } catch (e) { return true; }
 }
-const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "learned", spellMode: "button" };
+const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "", spellMode: "button" };
 function getSetting(k) {
   try { const v = localStorage.getItem("sb_" + k); return v === null ? SETTING_DEFAULTS[k] : JSON.parse(v); }
   catch (e) { return SETTING_DEFAULTS[k]; }
@@ -47,6 +47,8 @@ function getSetting(k) {
 function setSetting(k, v) {
   try { localStorage.setItem("sb_" + k, JSON.stringify(v)); } catch (e) {}
 }
+
+const tzQuery = () => "tz=" + new Date().getTimezoneOffset();   // “今天”按设备的本地日期算
 
 // ---------- 声音: 浏览器自带的语音合成, 用设备上装的德语语音朗读 ----------
 function germanVoices() {
@@ -160,14 +162,14 @@ const PAGES = {
   practice: { title: "练习", tab: true },
   words:    { title: "词库", tab: true },
   me:       { title: "我的", tab: true },
-  review:   { title: "今日复习", parent: "home" },
+  review:   { title: "今日学习", parent: "home" },
   drill:    { title: "冠词练习", parent: "practice" },
   dictation: { title: "听写", parent: "practice" },
   grammar:  { title: "语法基础", parent: "home" },
   gtopic:   { title: "语法", parent: "grammar" },      // 标题在页面里换成知识点名字
   gquiz:    { title: "语法练习", parent: "gtopic" },
   gbank:    { title: "题库", parent: "gtopic" },           // 标题在页面里换成知识点名字
-  gnouns:   { title: "我的词性本", parent: "gtopic" },
+  gnouns:   { title: "单词列表", parent: "gtopic" },       // 标题在页面里换成单词书名字
   lessons:  { title: "情景课", parent: "home" },
   lesson:   { title: "情景课", parent: "lessons" },       // 标题在页面里换成课名
   lnew:     { title: "新建工作对话", parent: "lessons" },
