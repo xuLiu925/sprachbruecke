@@ -54,6 +54,16 @@ function orderQuiz(items) {
     ({ prompt: "选出语序正确的句子", options: shuffle([right, w1, w2]), answer: right, explain, wide: true }));
 }
 
+// 疑问词题: 选疑问词 6 题; 看回答选问句、看问句选回答各 3 题
+function wQuiz() {
+  const words = shuffle(W_WORDS).slice(0, 6).map(([prompt, answer, options, zh, explain]) =>
+    ({ prompt, answer, options, zh, explain, hint: "选疑问词" }));
+  const pairs = shuffle(W_PAIRS).slice(0, 6).map(([question, reply, wrongQ, wrongA, explain, zh], i) => (i % 2
+    ? { prompt: reply, answer: question, options: shuffle([question, ...wrongQ]), zh, explain, wide: true, hint: "这是回答，问句是哪一个？" }
+    : { prompt: question, answer: reply, options: shuffle([reply, ...wrongA]), zh, explain, wide: true, hint: "选合适的回答" }));
+  return shuffle([...words, ...pairs]);
+}
+
 // 形容词词尾题: type = weak / mixed / strong
 function adjQuiz(type, n) {
   const qs = [];
@@ -158,7 +168,7 @@ function bestScore(id) {
 
 const GROUP_ICONS = {
   "冠词": "📝", "代词": "👤", "介词": "📍", "动词": "🔁", "语序": "🧩", "形容词词尾": "🎨",
-  "比较级": "📈", "完成时": "⏪", "可分动词": "✂️", "否定": "🚫", "数字和时间": "🔢",
+  "比较级": "📈", "完成时": "⏪", "可分动词": "✂️", "否定": "🚫", "数字和时间": "🔢", "问句": "❓",
 };
 
 // 练习成绩标签: 全对绿色, 六成以上蓝色, 不到六成橙色, 没练过灰色
