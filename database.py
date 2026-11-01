@@ -228,6 +228,12 @@ CREATE TABLE IF NOT EXISTS gender_memos (
     created_at TEXT NOT NULL,
     PRIMARY KEY (german, gender)
 );
+-- AI 构词解释: 用户点了才生成, 按词保存。data 是 JSON, {"split": false} = 这个词不用拆
+CREATE TABLE IF NOT EXISTS word_parts (
+    german TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 -- 定冠词练习记录: streak = 连续答对次数。错过且连续答对不到 3 次的词算“错过的词”
 CREATE TABLE IF NOT EXISTS noun_practice (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

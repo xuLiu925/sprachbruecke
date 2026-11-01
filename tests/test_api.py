@@ -756,6 +756,51 @@ GH.call_gemini = lambda prompt: json.dumps({"memo": "no"})
 assert mm(c, again=True).status_code == 502 and rw("Hund", "der")["memo"] == "新的联想：der 狗"   # 失败时旧的不动
 GH.call_gemini = real_call
 
+# 构词解释: 点了才调用, 保存后不重复, 拼不回原词的不保存, 失败时旧内容不动
+import word_parts as WP
+pp = lambda client, **b: client.post("/api/parts/generate", json={"german": "Krankenhaus", "meaning": "医院", **b})
+pg = lambda german, client=c: J(client.get("/api/parts?german=" + urllib.parse.quote(german)))
+wp_ok = {"split": True, "literal": "病人的房子 → 医院", "clarity": "clear", "steps": [
+    {"word": "Krankenhaus", "parts": [
+        {"text": "Kranken", "base": "krank", "zh": "生病的", "type": "word"},
+        {"text": "Haus", "base": "Haus", "zh": "房子", "type": "word"}]},
+    {"word": "Kranken", "parts": [{"text": "krank", "base": "krank", "zh": "生病的", "type": "word"},
+                                  {"text": "en", "base": "en", "zh": "", "type": "link"}]},
+    {"word": "Tisch", "parts": [{"text": "Ti", "base": "Ti", "zh": "无关", "type": "word"},
+                                {"text": "sch", "base": "sch", "zh": "无关", "type": "word"}]}]}
+assert pg("Krankenhaus") == {"parts": None, "report": None, "can": True, "ai": False}
+assert pp(c).status_code == 503 and pp(cb).status_code == 403
+calls = []
+def fake8(prompt):
+    calls.append(prompt); return json.dumps(wp_ok)
+WP.call_gemini = fake8
+saved = J(pp(c))["parts"]
+assert len(saved["steps"]) == 2 and saved["steps"][1]["parts"][1]["zh"] == "连接成分"        # 无关的一层去掉
+assert J(pp(c))["parts"] == saved and len(calls) == 1 and "Krankenhaus" in calls[0] and "医院" in calls[0]
+assert pg("Krankenhaus", cb)["parts"] == saved and not pg("Krankenhaus", cb)["can"]            # 保存后大家都能看
+assert pg("das Krankenhaus")["parts"] == saved                                                 # 带冠词也能查
+assert cb.post("/api/parts/report", json={"german": "Krankenhaus", "reason": "x"}).status_code == 400
+assert cb.post("/api/parts/report", json={"german": "Haus", "reason": "没有解释"}).status_code == 404
+assert cb.post("/api/parts/report", json={"german": "Krankenhaus", "reason": "意思不对"}).status_code == 200
+assert pg("Krankenhaus")["report"] == "意思不对"
+WP.call_gemini = lambda prompt: json.dumps({**wp_ok, "steps": [{"word": "Krankenhaus", "parts": [
+    {"text": "Krank", "base": "krank", "zh": "生病的", "type": "word"}, {"text": "Haus", "base": "Haus", "zh": "房子", "type": "word"}]}]})
+assert pp(c, again=True).status_code == 502 and pg("Krankenhaus")["parts"] == saved            # 拼不回原词
+assert pg("Krankenhaus")["report"] == "意思不对"                                               # 失败时报错还在
+WP.call_gemini = fake8
+assert pp(c, again=True).status_code == 200 and "意思不对" in calls[-1] and pg("Krankenhaus")["report"] is None
+WP.call_gemini = lambda prompt: json.dumps({"split": False})
+assert J(pp(c, german="Haus"))["parts"] == {"split": False}
+WP.call_gemini = lambda prompt: 1 / 0                                                          # 已保存, 不再调用
+assert J(pp(c, german="Haus"))["parts"] == {"split": False}
+WP.call_gemini = lambda prompt: json.dumps({**wp_ok, "clarity": "x"})
+assert pp(c, german="Krankenhaus", again=True).status_code == 502
+assert WP.clean_parts(wp_ok, "Größe")[1] and WP.normalize("sich freuen") == "freuen"
+assert WP.clean_parts({"split": True, "steps": [{"word": "Fußball", "parts": [
+    {"text": "FUSS", "base": "Fuß", "zh": "脚", "type": "word"}, {"text": "ball", "base": "Ball", "zh": "球", "type": "word"}]}],
+    "literal": "脚的球", "clarity": "clear"}, "Fußball")[1] is None                            # ß 和 ss 算一样
+WP.call_gemini = real_call
+
 # 定冠词自动出题: 优先用例句, 没有例句用通用句型; 答案来自变格表
 import noun_quiz as NQ
 nf = {"cases": {"sg": ["der Mann", "des Mannes / des Manns", "dem Mann", "den Mann"],
