@@ -824,7 +824,7 @@ assert NQ.example_question(nr(forms=same, german="Scanner", example="Ich sehe de
 assert NQ.make_question(nr(example="Der Mann ist hier."))["source"] == "template"                    # 没有中文
 for _ in range(60):
     tq = NQ.template_question(nr(), NQ.table(nr()))
-    assert tq["prompt"].count("___") == 1 and tq["answer"] in NQ.OPTIONS and tq["must"] in ("单数", "复数") and tq["zh"].endswith("男人")
+    assert tq["prompt"].count("___") == 1 and tq["answer"] in NQ.OPTIONS and tq["must"] in ("单数", "复数") and "男人" in tq["zh"] and tq["zh"].endswith("。")
 assert NQ.make_question(nr(forms=None, german="Zwei Worte")) is None
 assert c.get("/api/grammar/nouns?scope=x").status_code == 400 and c.get("/api/grammar/nouns?n=x").status_code == 400
 assert A.app.test_client().get("/api/grammar/nouns").status_code == 401

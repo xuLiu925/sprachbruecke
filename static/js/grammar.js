@@ -299,6 +299,7 @@ function gRender() {
   $("gqProgress").textContent = `第 ${gi + 1} / ${gQs.length} 题` + (q.retry ? " · 错题再练一次" : "");
   $("gqHintRow").classList.toggle("hidden", !gTopic.bank);
   promptInto($("gqPrompt"), q.prompt);
+  $("gqSent").textContent = gTopic.bank ? q.zh || "" : "";   // 题库题做题时就显示翻译: 中文没有冠词, 不会泄露答案
   gHint();
   let opts = q.options;
   if (opts.length > 6) {
@@ -348,7 +349,7 @@ function gShowAnswer(value) {
   gHint();
   $("gqResult").textContent = ok ? "✔ 正确" : (value === null ? "不会，正确答案：" : "✘ 正确答案：") + q.answer;
   $("gqResult").className = ok ? "ok" : "msg";
-  $("gqZh").textContent = q.zh || "";
+  $("gqZh").textContent = gTopic.bank ? "" : q.zh || "";
   $("gqExplain").textContent = q.explain || "";
   const noun = (q.hint || "").match(/^(der|die|das) ([^ ·]+)/);     // 提示写着 die Palette · 阴性 的题
   genderReason($("gqGender"), noun && noun[2], noun && noun[1], q.meaning || "");

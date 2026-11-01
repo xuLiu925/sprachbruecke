@@ -16,6 +16,7 @@ from auth import admin_required
 from custom_lessons import CHINESE, text
 from database import get_db, now_str
 from dictionary import all_glossary
+from gender_hint import short_meaning
 from helpers import current_user_id, err, json_body, login_required
 from lessons import find_word, private_word_id
 from vocab import book_filter, current_book, query
@@ -30,12 +31,12 @@ MIN_LEARNED = 5       # 学过的词凑出的题少于这个数时, 用当前单
 MAX_ROUND = 30
 GENDER_ZH = {"der": "阳性", "die": "阴性", "das": "中性"}
 CASE_NAMES = ["第一格", "第二格", "第三格", "第四格"]
-# 通用句型, 下标同 forms 里的格(一、二、三、四格): (单数句子, 复数句子, 解释)。几乎任何名词都说得通
+# 通用句型, 下标同 forms 里的格(一、二、三、四格): (单数句子, 复数句子, 解释, 单数翻译, 复数翻译)。几乎任何名词都说得通
 FRAMES = [
-    ("Das ist {x}.", "Das sind {x}.", "Das ist / sind … 后面是第一格"),
-    ("Wir kommen wegen {x}.", "Wir kommen wegen {x}.", "wegen + 第二格"),
-    ("Wir sprechen von {x}.", "Wir sprechen von {x}.", "von + 第三格"),
-    ("Wir sprechen über {x}.", "Wir sprechen über {x}.", "über + 第四格"),
+    ("Das ist {x}.", "Das sind {x}.", "Das ist / sind … 后面是第一格", "这是{m}。", "这些是{m}。"),
+    ("Wir kommen wegen {x}.", "Wir kommen wegen {x}.", "wegen + 第二格", "我们是因为{m}来的。", "我们是因为这些{m}来的。"),
+    ("Wir sprechen von {x}.", "Wir sprechen von {x}.", "von + 第三格", "我们在说{m}。", "我们在说这些{m}。"),
+    ("Wir sprechen über {x}.", "Wir sprechen über {x}.", "über + 第四格", "我们在谈论{m}。", "我们在谈论这些{m}。"),
 ]
 LETTERS = "A-Za-zÄÖÜäöüß"
 ARTICLE_NOUN = re.compile(rf"(?<![{LETTERS}])(der|die|das|den|dem|des|Der|Die|Das|Den|Dem|Des) ([{LETTERS}-]+)")
@@ -98,9 +99,10 @@ def template_question(row, forms):
     """通用句型; 单数多出一些, 第二格少出一些"""
     weights = [(4 if num == "单数" else 2) * (1 if i == 1 else 3) for num, i, _a, _n in forms]
     number, i, art, noun = random.choices(forms, weights)[0]
-    frame = FRAMES[i][0 if number == "单数" else 1].format(x="___ " + noun)
-    return base_question(row, frame, art, number, f"{FRAMES[i][2]}；{number} → {art}",
-                         f"{noun}：{row['meaning']}", "template")
+    plural = number != "单数"
+    frame = FRAMES[i][1 if plural else 0].format(x="___ " + noun)
+    zh = FRAMES[i][4 if plural else 3].format(m=short_meaning(row["meaning"]) or row["meaning"])
+    return base_question(row, frame, art, number, f"{FRAMES[i][2]}；{number} → {art}", zh, "template")
 
 
 def make_question(row):
