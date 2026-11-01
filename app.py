@@ -15,6 +15,7 @@
   srs.py         FSRS 复习算法(纯计算)
   vocab.py       词汇模块接口
   today.py       今日学习(每日学习量、今天出哪些词)
+  word_add.py    添加单词和管理员审核; word_store.py 放进词库的规则; lexicon.py 德语词典校验
   sentences.py   句子练习(用例句出题)
   lessons.py     情景课(点词查词、加入复习、角色扮演; 课文在 static/lessons.json)
   custom_lessons.py  自建工作对话(AI 生成, 确认后保存)
@@ -47,6 +48,7 @@ import sentences
 import tts
 import today
 import vocab
+import word_add
 import word_parts
 from database import BASE, close_db, init_db
 
@@ -87,6 +89,7 @@ def index():
 app.register_blueprint(auth.bp)
 app.register_blueprint(vocab.bp)
 app.register_blueprint(today.bp)
+app.register_blueprint(word_add.bp)
 app.register_blueprint(sentences.bp)
 app.register_blueprint(lessons.bp)
 app.register_blueprint(custom_lessons.bp)

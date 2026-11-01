@@ -4,7 +4,7 @@
 返回的字段和词库列表一样, 多一个 form: 查的是变化形式时, 记下用户输入的那个词。
 
 情景课的仓储词(glossary)也能查到。它们不在 words 表里, 所以 id 是 null, glossary = true;
-用户加入复习后就变成他的私有词, 那时词库里有了, 这里不再重复显示。
+用户加入学习后词库里有了, 这里不再重复显示。词典(lexicon)里有、词库还没有的词也一样。
 
 查不到时可以用 AI 查询(/api/dict/ai): 用户点了才调用, 只有管理员能用, 结果存 ai_words,
 同样的查询不再调用 AI。AI 的结果也是 id 为 null, ai_word = true, 同样要加入复习才进词库。
@@ -14,6 +14,7 @@ import re
 
 from flask import Blueprint, jsonify, request
 
+import lexicon
 from auth import admin_required, is_admin
 from custom_lessons import TOKEN, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
@@ -32,6 +33,7 @@ COLS = ("w.id, w.german, w.gender, w.pos, w.plural, w.meaning, w.edited, w.hidde
 JOINS = ("LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid "
          "LEFT JOIN word_levels l ON l.word_id = w.id")
 LEVEL_RANK = "COALESCE(l.rank, 1000000000)"
+NO_MEANING_HINT = "暂无释义，写上释义后可以加入学习"
 
 
 def out_row(row, form=None):
@@ -230,6 +232,19 @@ def ai_lookup():
     return jsonify({"word": ai_row(word)})
 
 
+def with_lexicon(q, words):
+    """词库里还没有、词典里有的词也能查到, 显示在最前面; 加入学习时才放进词库"""
+    if any(w["german"].lower() == q.lower() or w.get("form") for w in words):
+        return words
+    hit, lemma = lexicon.find(q)
+    if lemma:
+        hit = lexicon.find(lemma)[0]
+    if not hit or not not_in_words(hit):
+        return words
+    row = glossary_row({**hit, "meaning": hit["meaning"] or NO_MEANING_HINT}, q if lemma else None)
+    return [{**row, "needs_meaning": not hit["meaning"]}] + words[:LIMIT - 1]
+
+
 @bp.route("/api/dict")
 @login_required
 def lookup():
@@ -237,6 +252,8 @@ def lookup():
     if not q or len(q) > 50:
         return err("请输入要查的词")
     words = search_chinese(q) if CHINESE.search(q) else search_german(q)
+    if not CHINESE.search(q):
+        words = with_lexicon(q, words)
     saved = load_ai_word(q)
     if saved and not_in_words(saved):
         words = [ai_row(saved)] + words[:LIMIT - 1]

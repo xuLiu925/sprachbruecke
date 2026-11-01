@@ -1,6 +1,7 @@
 import json, os, sqlite3, sys, tempfile, urllib.parse
 d = tempfile.mkdtemp()
 os.environ["DB_PATH"] = os.path.join(d, "t.db")
+os.environ["LEXICON_PATH"] = os.path.join(d, "没有词典.db")   # 不用真实词典; 校验的测试有自己的小词典
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import app as A
 import database, srs
@@ -265,12 +266,12 @@ everything = [x["german"] for x in J(c.get("/api/review/today"))["cards"]] +    
 assert newbefore[0] not in everything and newbefore[0] in [x["german"] for x in J(cb.get("/api/review/today"))["cards"]]
 c.post(f"/api/words/{ids[newbefore[0]]}/unhide")
 
-# 添加单词 = 私有词: 只有自己看得到; 别人访问不了; 不同的人可以各自加同一个词
-z = J(c.post("/api/words", json={"german": "Zebra", "gender": "das", "meaning": "斑马"})); assert z["added"] == 1
-zid = db.execute("SELECT id FROM words WHERE german = 'Zebra' AND owner_id = (SELECT id FROM users WHERE username = 'alice')").fetchone()[0]
+# 词典里没有的词: 待审核, 只有加过的人看得到; 不同的人加同一个词共用一行, 释义各看各的
+z = J(c.post("/api/words", json={"german": "Zebra", "gender": "das", "meaning": "斑马"})); assert z["added"] == 1 and z["pending"] == 1
+zid = db.execute("SELECT id FROM words WHERE german = 'Zebra'").fetchone()[0]
 zw = J(c.get(f"/api/words/{zid}")); assert zw["private"] and zw["meaning"] == "斑马"
 assert [w["private"] for w in J(c.get("/api/words?q=Zebra"))["words"]] == [True]
-assert J(cb.get("/api/words?q=Zebra"))["words"] == []
+assert J(cb.get("/api/words?q=Zebra"))["words"] == [] and J(c.get("/api/words?level=mine&q=Zebra"))["words"]
 assert cb.get(f"/api/words/{zid}").status_code == 404
 assert cb.post("/api/review/answer", json={"word_id": zid, "rating": 3}).status_code == 404
 assert cb.delete(f"/api/words/{zid}").status_code == 404
@@ -278,18 +279,20 @@ assert cb.put(f"/api/words/{zid}", json={**zw, "meaning": "x"}).status_code == 4
 assert J(cb.post("/api/words", json={"german": "Zebra", "gender": "das", "meaning": "斑马(bob)"}))["added"] == 1
 assert [w["meaning"] for w in J(cb.get("/api/words?q=Zebra"))["words"]] == ["斑马(bob)"]
 assert [w["meaning"] for w in J(c.get("/api/words?q=Zebra"))["words"]] == ["斑马"]
-assert J(c.post("/api/words", json={"german": "Zebra", "gender": "das", "meaning": "y"}))["added"] == 0
+assert db.execute("SELECT COUNT(*) FROM words WHERE german = 'Zebra'").fetchone()[0] == 1
+assert J(c.post("/api/words", json={"german": "Zebra", "gender": "das", "meaning": "斑马"}))["added"] == 0
 # 公共词库里已经有的不重复加; 删掉过的再加 = 恢复(自己的私有词也一样)
-kr = J(c.post("/api/words", json={"german": "Katze", "gender": "die", "meaning": "y"})); assert (kr["added"], kr["skipped"]) == (0, 1)
+kr = J(c.post("/api/words", json={"german": "Katze", "gender": "die"})); assert (kr["added"], kr["skipped"]) == (0, 1)
 c.delete(f"/api/words/{ids['Katze']}")
-kr = J(c.post("/api/words", json={"german": "Katze", "gender": "die", "meaning": "y"})); assert (kr["added"], kr["skipped"]) == (1, 0)
+kr = J(c.post("/api/words", json={"german": "Katze", "gender": "die"})); assert (kr["added"], kr["skipped"]) == (1, 0)
 assert not get(c, "Katze")["hidden"] and get(c, "Katze")["meaning"] == "猫"
 c.delete(f"/api/words/{zid}")
-assert J(c.post("/api/words", json={"german": "Zebra", "gender": "das", "meaning": "y"}))["added"] == 1
+assert J(c.post("/api/words", json={"german": "Zebra", "gender": "das", "meaning": "斑马"}))["added"] == 1
 assert not J(c.get(f"/api/words/{zid}"))["hidden"]
-n_alice = db.execute("SELECT COUNT(*) FROM words WHERE owner_id = (SELECT id FROM users WHERE username = 'alice')").fetchone()[0]
-n_public = db.execute("SELECT COUNT(*) FROM words WHERE owner_id IS NULL").fetchone()[0]
-assert J(c.get("/api/stats"))["total"] == n_public + n_alice and J(cb.get("/api/stats"))["total"] == n_public + 1
+pending_of = lambda name: db.execute("SELECT COUNT(*) FROM words w JOIN user_added_words a ON a.word_id = w.id "
+    "JOIN users u ON u.id = a.user_id WHERE w.status != 'public' AND u.username = ?", (name,)).fetchone()[0]
+n_public = db.execute("SELECT COUNT(*) FROM words WHERE status = 'public'").fetchone()[0]
+assert J(c.get("/api/stats"))["total"] == n_public + pending_of("alice") and J(cb.get("/api/stats"))["total"] == n_public + 1
 
 # 句子练习: 没有中文翻译 / 不适合出题的例句不用; 填空要能在句子里找到目标词(含变位)
 import sentences as S
@@ -875,7 +878,7 @@ assert {x["german"] for x in wrongs(cb)["words"]} == {"Tisch", "Katze", "Hund"} 
 assert wrongs(c)["words"] == [] and wrongs(c)["total"] == 0
 assert {x["word_id"] for x in nq(cb, "wrong")} == {x["id"] for x in wrongs(cb)["words"]}
 gl_add = J(ladd(cb, text="Gabelstapler"))                                        # 只在情景课词表里: 加成私有词
-assert gl_add["added"] == 1 and db.execute("SELECT 1 FROM words WHERE german = 'Gabelstapler' AND owner_id IS NOT NULL").fetchone()
+assert gl_add["added"] == 1 and db.execute("SELECT 1 FROM words WHERE german = 'Gabelstapler' AND status = 'pending'").fetchone()
 fork = [x for x in nq(cb, "wrong") if "Gabelstapler" in x["hint"]][0]
 assert fork["prompt"] == "Das ist ___ Gabelstapler." and fork["answer"] == "der"  # 没有变格表, 只考第一格
 ltid = wrongs(cb)["words"][0]["id"]
@@ -892,7 +895,7 @@ assert db.execute("SELECT seen, wrong FROM noun_practice WHERE word_id = ?", (ni
 
 # 练习范围: 只列有名词的书和错题本; 查看单词分页; 选书不改变首页的当前单词书
 nb = J(cb.get("/api/grammar/nouns/books"))
-all_nouns = db.execute("SELECT COUNT(*) FROM words WHERE gender != '' AND owner_id IS NULL").fetchone()[0]
+all_nouns = db.execute("SELECT COUNT(*) FROM words WHERE gender != '' AND status = 'public'").fetchone()[0]
 assert {"book": "all", "nouns": nb["books"][-1]["nouns"]} == nb["books"][-1] and nb["books"][-1]["book"] == "all"
 assert nb["books"][-1]["nouns"] >= all_nouns and nb["wrong"] == wrongs(cb)["total"]
 assert cb.get("/api/grammar/nouns/words?scope=x").status_code == 400 and cb.get("/api/grammar/nouns/words?scope=all&page=x").status_code == 400
@@ -914,24 +917,6 @@ assert J(cb.get("/api/grammar/nouns/books"))["books"][-2:][0] == {"book": "wareh
 assert [x["id"] for x in J(cb.get("/api/grammar/nouns/words?scope=warehouse"))["words"]] == [Tid]
 assert J(c.get("/api/books"))["themes"][-1]["level"] == "warehouse"
 
-# 导入新公共词时, 同名私有词并过去: 进度搬过来, 内容不同的留成自己的修改
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
-import import_wordbook as IW
-mdb = sqlite3.connect(os.environ["DB_PATH"]); mdb.execute("PRAGMA foreign_keys = ON")
-ub = mdb.execute("SELECT id FROM users ORDER BY id DESC LIMIT 1").fetchone()[0]
-mo = mdb.execute("INSERT INTO words (german, pos, gender, plural, meaning, example, owner_id) VALUES ('Rollcontainer','名词','der','','我的释义','',?)", (ub,)).lastrowid
-ms = mdb.execute("INSERT INTO words (german, pos, gender, plural, meaning, example, owner_id) VALUES ('Greifer','名词','der','','抓手','',?)", (ub,)).lastrowid
-mdb.execute("INSERT INTO progress (user_id, word_id, next_review, stability, reps) VALUES (?,?,'2030-01-01 00:00:00',9,3)", (ub, mo))
-mdb.execute("INSERT INTO noun_list (user_id, word_id, added_at) VALUES (?,?,'x')", (ub, mo))
-mp = mdb.execute("INSERT INTO words (german, pos, gender, plural, meaning, example) VALUES ('Rollcontainer','名词','der','Rollcontainer','滚动货架','')").lastrowid
-mq = mdb.execute("INSERT INTO words (german, pos, gender, plural, meaning, example) VALUES ('Greifer','名词','der','','抓手','')").lastrowid
-assert IW.merge_private(mdb, mp, "Rollcontainer", "der") == 1 and IW.merge_private(mdb, mq, "Greifer", "der") == 1
-assert mdb.execute("SELECT 1 FROM words WHERE id IN (?,?)", (mo, ms)).fetchone() is None
-assert mdb.execute("SELECT stability, reps FROM progress WHERE user_id = ? AND word_id = ?", (ub, mp)).fetchone() == (9, 3)
-assert mdb.execute("SELECT 1 FROM noun_list WHERE user_id = ? AND word_id = ?", (ub, mp)).fetchone()
-assert mdb.execute("SELECT meaning FROM user_word_edits WHERE user_id = ? AND word_id = ?", (ub, mp)).fetchone() == ("我的释义",)
-assert mdb.execute("SELECT 1 FROM user_word_edits WHERE word_id = ?", (mq,)).fetchone() is None        # 内容相同不留修改
-mdb.commit(); mdb.close()
 db.close()
 
 # 今日学习: 新词 = 学习量 + 加量 − 已学 − 还没复习的到期词; 换日按本地时间凌晨 4 点
@@ -958,7 +943,7 @@ ct.post("/api/books/current", json={"book": "all"})
 assert tt()["new"] == 20 and tt()["due"] == 0 and tt()["target"] == 20
 assert J(c.get("/api/today"))["goal"] == 500                                      # 各管各的
 # 8 个到期词: 新词变少
-some = [x[0] for x in tdb.execute("SELECT id FROM words WHERE owner_id IS NULL ORDER BY id LIMIT 30").fetchall()]
+some = [x[0] for x in tdb.execute("SELECT id FROM words WHERE status = 'public' ORDER BY id LIMIT 30").fetchall()]
 for w in some[:8]:
     tdb.execute("INSERT INTO progress (user_id, word_id, next_review, stability, difficulty, last_review, reps) "
                 "VALUES (?,?,datetime('now','-1 hour'),3,5,datetime('now','-3 days'),1)", (carol, w))
@@ -996,13 +981,14 @@ tdb.commit()
 assert tt()["due"] == 28 and tt()["new"] == 0
 # 单个添加: 学习量 +1, 到期词再多今天也能学到; 批量导入只排队, 不加量
 xw = J(ct.post("/api/words", json={"german": "Testeinzel", "gender": "der", "pos": "名词", "meaning": "单个"}))
-assert xw == {"added": 1, "skipped": 0, "queued": 1} and tt()["target"] == 21 and tt()["new"] == 1
+q3 = lambda x: (x["added"], x["skipped"], x["queued"])
+assert q3(xw) == (1, 0, 1) and tt()["target"] == 21 and tt()["new"] == 1
 xc = J(ct.get("/api/review/today"))["cards"][-1]
 assert xc["german"] == "Testeinzel" and xc["is_new"]
 pub = J(ct.post("/api/words", json={"german": "Testwort50", "gender": "der", "meaning": "x"}))   # 词库已有: 只进计划
-assert pub == {"added": 0, "skipped": 1, "queued": 1} and tt()["target"] == 22 and tt()["new"] == 2
+assert q3(pub) == (0, 1, 1) and tt()["target"] == 22 and tt()["new"] == 2
 bulk = J(ct.post("/api/words", json=[{"german": "Testbatch", "gender": "der", "pos": "名词", "meaning": "批量"}]))
-assert bulk == {"added": 1, "skipped": 0, "queued": 1} and tt()["target"] == 22 and tt()["new"] == 2     # 排队, 现在没有名额
+assert q3(bulk) == (1, 0, 1) and tt()["target"] == 22 and tt()["new"] == 2     # 排队, 现在没有名额
 assert J(ct.post("/api/review/queue", json={"word_id": some[0]}))["learned"]                              # 学过的不加
 ids_new = [x["id"] for x in J(ct.get("/api/review/today"))["cards"] if x["is_new"]]
 assert len(ids_new) == 2
@@ -1013,6 +999,115 @@ J(ct.post("/api/today/more", json={})); assert tt()["extra"] == 20 and tt()["tar
 tdb.execute("UPDATE user_settings SET value = '2000-01-01' WHERE user_id = ? AND key = 'extra_day'", (carol,)); tdb.commit()
 assert tt()["extra"] == 0
 tdb.close()
+
+# 词典校验加词: 词库有 → 共用; 词典有 → 公开; 变化形式 → 原形; 词典没有 → 待审核
+import zlib
+import lexicon as LX, word_add as WA
+td = os.path.dirname(os.environ["DB_PATH"])
+lp = os.path.join(td, "lex.db")
+ldb = sqlite3.connect(lp); ldb.executescript(LX.SCHEMA)
+rt_forms = {"cases": {"sg": ["das Rolltor", "des Rolltors", "dem Rolltor", "das Rolltor"], "pl": ["die Rolltore", "der Rolltore", "den Rolltoren", "die Rolltore"]}}
+ldb.executemany("INSERT INTO lemmas (german, low, gender, pos, plural, meaning, forms) VALUES (?,?,?,?,?,?,?)", [
+    ("Rolltor", "rolltor", "das", "名词", "Rolltore", "卷帘门", zlib.compress(json.dumps(rt_forms).encode())),
+    ("Greifer", "greifer", "der", "名词", "Greifer", "", None), ("Hub", "hub", "der", "名词", "Hube", "升程", None),
+    ("Wagen", "wagen", "der", "名词", "Wagen", "车", None), ("Band", "band", "das", "名词", "Bänder", "带子", None),
+    ("Band", "band", "die", "名词", "Bands", "乐队", None), ("Sackkarre", "sackkarre", "die", "名词", "Sackkarren", "手推车", None)])
+ldb.execute("INSERT INTO forms (form, german) VALUES ('rolltore', 'Rolltor')"); ldb.commit(); ldb.close()
+LX.PATH = lp
+add = lambda client, **b: client.post("/api/words", json=b)
+assert LX.find("rolltor")[0]["german"] == "Rolltor" and LX.find("Rolltore") == (None, "Rolltor") and LX.find("asdf") == (None, None)
+assert LX.find("Band", "die")[0]["gender"] == "die" and LX.compound("Hubwagen") == "Hub + Wagen" and LX.compound("Asdfgh") is None
+# 只写德语词: 冠词、复数、变格来自词典, 所有人都能看到
+ra = J(add(ct, german="rolltor"))
+assert ra["added"] == 1 and ra["queued"] == 1 and ra["pending"] == 0
+rw_ = J(cb.get("/api/words?q=Rolltor"))["words"][0]
+assert (rw_["german"], rw_["gender"], rw_["plural"], rw_["meaning"], rw_["private"]) == ("Rolltor", "das", "Rolltore", "卷帘门", False)
+assert J(cb.get(f"/api/words/{rw_['id']}"))["forms"] == rt_forms
+assert J(ct.get("/api/words?level=mine&q=Rolltor"))["words"] and not J(cb.get("/api/words?level=mine&q=Rolltor"))["words"]
+# 第二个人加同一个词: 不重复; 他写的释义只对他显示, 公共内容不变; 写的冠词不算数
+rb = J(add(cb, german="Rolltor", gender="der", meaning="我自己的释义"))
+assert rb["skipped"] == 1 and rb["queued"] == 1
+assert J(cb.get(f"/api/words/{rw_['id']}"))["meaning"] == "我自己的释义" and J(ct.get(f"/api/words/{rw_['id']}"))["meaning"] == "卷帘门"
+# 带冠词写也行; 变化形式: 单个要确认, 批量自动用原形
+assert J(add(c, german="die Sackkarre"))["added"] == 1
+assert J(add(c, german="Rolltore")) == {"added": 0, "skipped": 0, "queued": 0, "pending": 0, "lemma": 0, "invalid": [], "form_of": "Rolltor"}
+bk = J(c.post("/api/words", json=[{"german": "Rolltore"}, {"german": "<b>"}, {"german": "Keinwort"}, {"german": "Testneu", "meaning": "新"}]))
+assert (bk["skipped"], bk["lemma"], bk["pending"], bk["added"], bk["invalid_count"]) == (1, 1, 1, 1, 2) and bk["invalid"] == ["<b>", "Keinwort"]
+assert add(c, german="<script>").status_code == 400 and add(c, german="Asdfgh").status_code == 400     # 词典没有又没写释义
+# 词库还没有、词典有的词也查得到, 加入学习时才放进词库; 词典没有释义时要写上
+dg = dq(c, "Greifer")[0]
+assert dg["glossary"] and dg["id"] is None and dg["needs_meaning"] and dg["meaning"] == "暂无释义，写上释义后可以加入学习"
+assert not dq(c, "Hub")[0].get("needs_meaning")
+assert add(cb, german="Greifer").status_code == 400                               # 没有可靠释义, 不放进背不了的卡片
+assert J(add(cb, german="Greifer", meaning="抓斗"))["added"] == 1
+gid = J(cb.get("/api/words?q=Greifer"))["words"][0]["id"]
+assert J(cb.get(f"/api/words/{gid}"))["meaning"] == "抓斗" and J(c.get(f"/api/words/{gid}"))["meaning"] == "释义待补充"
+assert add(c, german="Greifer").status_code == 400 and J(add(cb, german="Greifer"))["skipped"] == 1   # 他自己写过的不用再写
+# 管理员补公共释义: AI 只出草稿, 确认后才写入; 用户自己写的不变
+pending_list = lambda: {x["german"]: x for x in J(c.get("/api/admin/pending"))["words"]}
+assert pending_list()["Greifer"]["kind"] == "no_meaning" and pending_list()["Greifer"]["users"] == 1
+assert cb.post(f"/api/admin/words/{gid}/draft", json={}).status_code == 403
+WA.call_gemini = lambda prompt: json.dumps({"found": True, "german": "Greifer", "gender": "der", "pos": "名词", "plural": "Greifer", "meaning": "抓手", "example": ""})
+assert J(c.post(f"/api/admin/words/{gid}/draft", json={}))["meaning"] == "抓手"
+assert J(c.get(f"/api/words/{gid}"))["meaning"] == "释义待补充"                    # 草稿没写入
+assert c.post(f"/api/admin/words/{gid}/meaning", json={"meaning": "abc"}).status_code == 400
+assert c.post(f"/api/admin/words/{gid}/meaning", json={"meaning": "抓手", "ai": True}).status_code == 200
+assert J(c.get(f"/api/words/{gid}"))["meaning"] == "抓手" and J(c.get(f"/api/words/{gid}"))["details"] == {"machine": True}
+assert J(cb.get(f"/api/words/{gid}"))["meaning"] == "抓斗" and "Greifer" not in pending_list()
+assert c.post(f"/api/admin/words/{gid}/meaning", json={"meaning": "再改"}).status_code == 404
+assert c.post(f"/api/admin/words/{gid}/draft", json={}).status_code == 404
+assert J(add(c, german="Greifer"))["skipped"] == 1                                 # 有公共释义后直接能加
+WA.call_gemini = real_call
+# 审核: 待审核的词只有加过的人看得到, 通过后所有人都有, 编号和进度不变
+assert J(add(ct, german="Hubwagen", gender="der", pos="名词", meaning="手动叉车"))["pending"] == 1
+assert J(add(cb, german="Hubwagen", gender="der", meaning="液压车"))["skipped"] == 0
+assert cb.get("/api/admin/pending").status_code == 403
+pl = {x["german"]: x for x in J(c.get("/api/admin/pending"))["words"]}
+assert pl["Hubwagen"]["users"] == 2 and pl["Hubwagen"]["compound"] == "Hub + Wagen"
+assert J(c.get("/api/words?q=Hubwagen"))["words"] == []                           # 管理员没加过, 词库里也看不到
+hid = pl["Hubwagen"]["id"]
+assert c.post(f"/api/admin/pending/{hid}", json={"status": "x"}).status_code == 400 and cb.post(f"/api/admin/pending/{hid}", json={"status": "public"}).status_code == 403
+assert c.post(f"/api/admin/pending/{hid}", json={"status": "public"}).status_code == 200
+assert c.post(f"/api/admin/pending/{hid}", json={"status": "public"}).status_code == 404   # 已经审过
+hw_ = J(c.get("/api/words?q=Hubwagen"))["words"][0]; assert hw_["id"] == hid and hw_["meaning"] == "手动叉车" and not hw_["private"]
+assert J(cb.get("/api/words?q=Hubwagen"))["words"][0]["meaning"] == "液压车"
+# 拒绝: 不公开, 但还留在加过的人那里
+wz = [x for x in J(c.get("/api/admin/pending"))["words"] if x["german"] == "Testneu"][0]
+assert c.post(f"/api/admin/pending/{wz['id']}", json={"status": "rejected"}).status_code == 200
+assert J(cb.get("/api/words?q=Testneu"))["words"] == [] and J(c.get("/api/words?q=Testneu"))["words"][0]["private"]
+assert "Testneu" not in [x["german"] for x in J(c.get("/api/admin/pending"))["words"]]
+# 待审核的词进了单词书: 就是这一行, 变成公开
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+import import_wordbook as IW
+zpid = zid
+wb = os.path.join(td, "wb.json")
+keep_words = [{"german": r0, "gender": r1, "pos": "", "plural": "", "meaning": r2, "example": "", "books": {"dsh": 1}}
+              for r0, r1, r2 in [("Zebra", "das", "斑马（单词书）")]]
+json.dump({"words": keep_words}, open(wb, "w", encoding="utf-8"), ensure_ascii=False)
+argv0 = sys.argv; sys.argv = ["x", wb]; IW.main(); sys.argv = argv0
+assert J(ct.get(f"/api/words/{zpid}"))["meaning"] == "斑马（单词书）" and not J(ct.get(f"/api/words/{zpid}"))["private"]
+# 迁移旧版私有词: 同一个词合并成一行, 进度搬过来, 自己写的内容留着, 词典有的公开
+mdb = sqlite3.connect(os.environ["DB_PATH"]); mdb.execute("PRAGMA foreign_keys = ON")
+ua, ub = [mdb.execute("SELECT id FROM users WHERE username = ?", (n,)).fetchone()[0] for n in ("alice", "carol")]
+ins = "INSERT INTO words (german, pos, gender, plural, meaning, example, owner_id, status) VALUES (?,'名词',?,'',?,'',?,'public')"
+m1 = mdb.execute(ins, ("Altwort", "der", "旧释义一", ua)).lastrowid
+m2 = mdb.execute(ins, ("Altwort", "der", "旧释义二", ub)).lastrowid
+m3 = mdb.execute(ins, ("Band", "das", "我的带子", ub)).lastrowid
+mdb.execute("INSERT INTO progress (user_id, word_id, next_review, stability, reps) VALUES (?,?,'2030-01-01 00:00:00',9,3)", (ub, m2))
+mdb.execute("INSERT INTO noun_list (user_id, word_id, added_at) VALUES (?,?,'x')", (ub, m2))
+database.share_private_words(mdb); mdb.commit()
+assert mdb.execute("SELECT COUNT(*) FROM words WHERE owner_id IS NOT NULL").fetchone()[0] == 0
+assert mdb.execute("SELECT id, status FROM words WHERE german = 'Altwort'").fetchall() == [(m1, "pending")]
+assert mdb.execute("SELECT stability, reps FROM progress WHERE user_id = ? AND word_id = ?", (ub, m1)).fetchone() == (9, 3)
+assert mdb.execute("SELECT 1 FROM noun_list WHERE user_id = ? AND word_id = ?", (ub, m1)).fetchone()
+assert mdb.execute("SELECT COUNT(*) FROM user_added_words WHERE word_id = ?", (m1,)).fetchone()[0] == 2
+assert mdb.execute("SELECT meaning FROM user_word_edits WHERE user_id = ? AND word_id = ?", (ub, m1)).fetchone() == ("旧释义二",)
+assert mdb.execute("SELECT 1 FROM user_word_edits WHERE user_id = ? AND word_id = ?", (ua, m1)).fetchone() is None
+assert mdb.execute("SELECT status, meaning FROM words WHERE id = ?", (m3,)).fetchone() == ("public", "带子")
+assert mdb.execute("SELECT meaning FROM user_word_edits WHERE user_id = ? AND word_id = ?", (ub, m3)).fetchone() == ("我的带子",)
+database.share_private_words(mdb); mdb.close()                                    # 再跑一次没影响
+LX.PATH = "没有这个文件"
+assert LX.find("Rolltor") == (None, None) and LX.compound("Hubwagen") is None
 
 c.post("/api/logout", json={})
 assert c.get("/api/review/today").status_code == 401

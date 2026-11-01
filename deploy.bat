@@ -12,12 +12,25 @@ if "%IP%"=="" set /p IP=Phone IP (e.g. 192.168.1.23):
 if "%IP%"=="" goto :eof
 
 echo == Packing...
-tar -czf sb.tar.gz app.py database.py helpers.py auth.py srs.py vocab.py today.py vocab_seed.py tts.py sentences.py lessons.py custom_lessons.py explain.py dictionary.py form_drills.py grammar.py grammar_seed.py gender_hint.py word_parts.py noun_quiz.py requirements.txt deploy_phone.sh static tools/import_wordbook.py data/wordbook.json
+tar -czf sb.tar.gz app.py database.py helpers.py auth.py srs.py vocab.py today.py vocab_seed.py tts.py sentences.py lessons.py custom_lessons.py explain.py dictionary.py form_drills.py grammar.py grammar_seed.py gender_hint.py word_parts.py word_add.py word_store.py lexicon.py noun_quiz.py requirements.txt deploy_phone.sh static tools/import_wordbook.py data/wordbook.json
 if errorlevel 1 goto fail
 
 echo == Uploading (enter phone password if asked)...
 scp -P 8022 sb.tar.gz %PHONE_USER%@%IP%:~/
 if errorlevel 1 goto fail
+
+rem The dictionary is about 40 MB, so upload it only when it changed. It must arrive before the app restarts.
+if not exist data\lexicon.db goto lexicon_done
+for %%F in (data\lexicon.db) do set LEXICON_NOW=%%~zF %%~tF
+set LEXICON_SENT=
+if exist data\.lexicon.sent set /p LEXICON_SENT=<data\.lexicon.sent
+if "%LEXICON_NOW%"=="%LEXICON_SENT%" goto lexicon_done
+echo == Uploading dictionary...
+ssh -p 8022 %PHONE_USER%@%IP% "mkdir -p ~/sprachbruecke/data"
+scp -P 8022 data/lexicon.db %PHONE_USER%@%IP%:~/sprachbruecke/data/lexicon.db
+if errorlevel 1 goto fail
+(echo %LEXICON_NOW%)>data\.lexicon.sent
+:lexicon_done
 
 echo == Installing and starting on phone (enter password again if asked)...
 ssh -p 8022 %PHONE_USER%@%IP% "mkdir -p ~/sprachbruecke && tar -xzf ~/sb.tar.gz -C ~/sprachbruecke && cd ~/sprachbruecke && sed -i 's/\r$//' deploy_phone.sh && bash deploy_phone.sh"

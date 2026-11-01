@@ -21,8 +21,9 @@ from dictionary import all_glossary
 from gender_hint import short_meaning
 from grammar import HINT_NOUN
 from helpers import current_user_id, err, json_body, login_required
-from lessons import find_word, private_word_id
+from lessons import find_word
 from vocab import BOOKS, book_filter, current_book, query
+from word_store import word_id_for
 
 bp = Blueprint("noun_quiz", __name__)
 
@@ -248,14 +249,14 @@ def result():
 
 # ---------- 错题本里手动加的词 ----------
 def resolve_noun(name):
-    """一个词 → 词库里的名词编号; 情景课的仓储词加成私有词; 找不到返回 None"""
+    """一个词 → 词库里的名词编号; 自建对话词表里的词加进词库; 找不到返回 None"""
     hit = find_word(name)
     if hit and hit["gender"]:
         return hit["id"]
     key = name.lower()
     for g in all_glossary():
         if g["gender"] and key in (g["german"].lower(), g["plural"].lower()):
-            return private_word_id((g["german"], g["pos"], g["gender"], g["plural"], g["meaning"], ""))
+            return word_id_for(get_db(), current_user_id(), (g["german"], g["pos"], g["gender"], g["plural"], g["meaning"], ""))
     return None
 
 

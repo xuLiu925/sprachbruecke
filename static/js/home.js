@@ -134,8 +134,47 @@ onShow.me = async () => {
   $("meStats").textContent = `已学 ${s.learned} · 已掌握 ${s.mastered}`;
   try { $("optGoal").value = String((await api("/api/today?" + tzQuery())).goal); } catch (e) {}
   $("adminBox").classList.toggle("hidden", !isAdmin);
-  if (isAdmin) loadAdmin();
+  if (isAdmin) { loadAdmin(); loadPending(); }
 };
+
+// 用户加的、词典里没有的词: 通过后所有人都能查到, 拒绝后还留在加过的人的学习计划里
+async function loadPending() {
+  let r;
+  try { r = await api("/api/admin/pending"); } catch (e) { return toast(e.message); }
+  const box = $("pendingList"); box.textContent = "";
+  if (!r.words.length) box.textContent = "没有待审核的词";
+  for (const w of r.words) {
+    const row = document.createElement("div"); row.className = "lline nwordhead";
+    const t = document.createElement("span");
+    const head = document.createElement("b"); wordInto(head, w);
+    const note = document.createElement("div"); note.className = "lzh";
+    note.textContent = [`${w.users} 人加过`, w.compound ? `可能是复合词：${w.compound}` : "",
+                        w.kind === "no_meaning" ? "缺公共释义" : ""].filter(Boolean).join(" · ");
+    t.append(head, "  " + w.meaning, note);
+    const act = document.createElement("span"); act.style.flex = "none";
+    const button = (label, fn) => {
+      const b = document.createElement("button"); b.className = "mini"; b.textContent = label;
+      b.onclick = async () => { try { await fn(); } catch (e) { toast(e.message); } };
+      act.appendChild(b);
+    };
+    if (w.kind === "pending") {
+      for (const [label, status] of [["通过", "public"], ["拒绝", "rejected"]]) {
+        button(label, async () => { await api("/api/admin/pending/" + w.id, "POST", { status }); loadPending(); });
+      }
+    } else {
+      button("写释义", () => confirmMeaning(w, "", false));
+      if (r.ai) button("AI 草稿", async () => confirmMeaning(w, (await api(`/api/admin/words/${w.id}/draft`, "POST", {})).meaning, true));
+    }
+    row.append(t, act); box.appendChild(row);
+  }
+}
+// 公共释义要管理员确认才写入, AI 的草稿也一样
+async function confirmMeaning(w, draft, ai) {
+  const meaning = (prompt(`「${w.german}」的中文释义：`, draft) || "").trim();
+  if (!meaning) return;
+  await api(`/api/admin/words/${w.id}/meaning`, "POST", { meaning, ai });
+  loadPending();
+}
 
 // 改密码
 $("btnPwToggle").onclick = () => { $("pwBox").classList.toggle("hidden"); $("pwMsg").textContent = ""; };

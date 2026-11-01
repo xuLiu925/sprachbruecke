@@ -1,4 +1,5 @@
 """数据库: 连接、时间工具、建表和迁移"""
+import json
 import os
 import shutil
 import sqlite3
@@ -6,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import g
 
+import lexicon
 from grammar_seed import SEED_QUESTIONS
 from srs import W
 from vocab_seed import SEED_WORDS, seed_forms
@@ -55,8 +57,8 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL
 );
--- owner_id 为空 = 公共词库(单词书、示例词); 有值 = 这个用户自己加的私有词, 只有他能看到
--- 唯一性(公共词之间 / 同一个人的私有词之间)用 migrate() 里建的两个部分索引保证
+-- 总词库: 每个词只有一行。status = public 所有人都能看到; pending 待审核 / rejected 已拒绝, 只有加过的人看得到
+-- owner_id 是旧版私有词留下的, 已不再使用(migrate 里转成 status + user_added_words), 全部为空
 CREATE TABLE IF NOT EXISTS words (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     german TEXT NOT NULL,
@@ -65,7 +67,15 @@ CREATE TABLE IF NOT EXISTS words (
     plural TEXT NOT NULL DEFAULT '',
     meaning TEXT NOT NULL,
     example TEXT NOT NULL DEFAULT '',
-    owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'public'
+);
+-- 用户加过的词: 他自己的“标签”, 待审核的词靠它才看得到
+CREATE TABLE IF NOT EXISTS user_added_words (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, word_id)
 );
 CREATE TABLE IF NOT EXISTS progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -312,15 +322,78 @@ def rebuild_words(db):
     db.execute("PRAGMA foreign_keys = ON")
 
 
+USER_WORD_TABLES = ("progress", "review_log", "study_queue", "noun_practice", "noun_list", "user_hidden_words",
+                    "user_word_edits")
+
+
+def keep_own_content(db, owner, word_id, content, old_id):
+    """他的内容和词库这一行不同(比如自己写的释义): 留成他自己的版本。content = (德语, 词性, 冠词, 复数, 释义, 例句)"""
+    row = db.execute("SELECT german, pos, gender, plural, meaning, example FROM words WHERE id = ?", (word_id,)).fetchone()
+    if tuple(row) == tuple(content):
+        return
+    forms = (db.execute("SELECT forms FROM word_forms WHERE word_id = ?", (old_id,)).fetchone()
+             or db.execute("SELECT forms FROM word_forms WHERE word_id = ?", (word_id,)).fetchone())
+    db.execute("INSERT OR IGNORE INTO user_word_edits (user_id, word_id, german, pos, gender, plural, meaning, example, "
+               "forms, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+               (owner, word_id, *content, forms[0] if forms else None, now_str()))
+
+
+def share_private_words(db):
+    """旧版的私有词转成“词库一行 + 用户标签”: 同一个词只留一行, 进度搬过来。词典有的公开, 没有的待审核。重复运行没影响"""
+    columns = "id, owner_id, german, pos, gender, plural, meaning, example"
+    keys = db.execute("SELECT DISTINCT german, gender FROM words WHERE owner_id IS NOT NULL").fetchall()
+    if not keys:
+        return
+    db.commit()
+    backup = DB_PATH + ".bak-before-shared-words"
+    if os.path.exists(DB_PATH) and not os.path.exists(backup):
+        shutil.copy2(DB_PATH, backup)
+    db.execute("PRAGMA foreign_keys = ON")
+    for german, gender in keys:
+        rows = db.execute(f"SELECT {columns} FROM words WHERE german = ? AND gender = ? AND owner_id IS NOT NULL "
+                          "ORDER BY id", (german, gender)).fetchall()
+        found = db.execute("SELECT id FROM words WHERE german = ? AND gender = ? AND owner_id IS NULL",
+                           (german, gender)).fetchone()
+        if found:
+            keep = found[0]
+        else:
+            keep = rows[0][0]
+            hit = lexicon.find(german, gender)[0]
+            if hit and hit["german"] == german and hit["gender"] == gender:
+                db.execute("UPDATE words SET owner_id = NULL, status = 'public', pos = ?, "
+                           "plural = CASE WHEN ? = '' THEN plural ELSE ? END, "
+                           "meaning = CASE WHEN ? = '' THEN meaning ELSE ? END WHERE id = ?",
+                           (hit["pos"], hit["plural"], hit["plural"], hit["meaning"], hit["meaning"], keep))
+                if hit["forms"]:
+                    db.execute("INSERT OR IGNORE INTO word_forms (word_id, forms) VALUES (?, ?)",
+                               (keep, json.dumps(hit["forms"], ensure_ascii=False)))
+            else:
+                db.execute("UPDATE words SET owner_id = NULL, status = 'pending' WHERE id = ?", (keep,))
+        for old, owner, *content in rows:
+            if old != keep:
+                for table in USER_WORD_TABLES:
+                    db.execute(f"UPDATE OR IGNORE {table} SET word_id = ? WHERE word_id = ? AND user_id = ?",
+                               (keep, old, owner))
+            keep_own_content(db, owner, keep, content, old)
+            db.execute("INSERT OR IGNORE INTO user_added_words (user_id, word_id, added_at) VALUES (?,?,?)",
+                       (owner, keep, now_str()))
+            if old != keep:
+                db.execute("DELETE FROM words WHERE id = ?", (old,))
+
+
 def migrate(db):
     """老数据库升级(不删任何数据):
     1. progress 补 FSRS 字段, 并把 Leitner 进度换算过来
-    2. words 加 owner_id(私有词), 唯一约束改成按「公共 / 每个人」分别唯一"""
+    2. words 加 owner_id, 唯一约束改成按「公共 / 每个人」分别唯一
+    3. words 加 status, 私有词转成“词库一行 + 用户标签”"""
     if "owner_id" not in {r[1] for r in db.execute("PRAGMA table_info(words)")}:
         rebuild_words(db)
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_words_public ON words (german, gender) WHERE owner_id IS NULL")
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_words_private ON words (owner_id, german, gender) "
                "WHERE owner_id IS NOT NULL")
+    if "status" not in {r[1] for r in db.execute("PRAGMA table_info(words)")}:
+        db.execute("ALTER TABLE words ADD COLUMN status TEXT NOT NULL DEFAULT 'public'")
+    share_private_words(db)
     if "bonus" not in {r[1] for r in db.execute("PRAGMA table_info(study_queue)")}:
         db.execute("ALTER TABLE study_queue ADD COLUMN bonus INTEGER NOT NULL DEFAULT 0")
     db.execute("CREATE INDEX IF NOT EXISTS idx_review_log_day ON review_log (user_id, reviewed_at)")

@@ -8,47 +8,19 @@
     更新级别、专题书和详情。(用户在 App 里改的内容存在 user_word_edits, 不受影响)
   - 这次单词书里没有了的词(被规则或排除名单踢掉的): 没人学过就删掉, 有人学过就只移出单词书、保留进度
   - 在 App 里删掉过的词: 跳过, 不会加回来
-  - 新词和用户以前加的私有词同名: 进度搬到新词上, 删掉私有词; 内容不同就留成他自己的修改
+  - 用户加的待审核的词进了单词书: 就是这一行, 变成公开, 进度不用动
 导入前先备份数据库!
 """
 import json
 import os
 import sqlite3
 import sys
-from datetime import datetime, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 import database  # noqa: E402
 from vocab import LEVELS, clean_forms, clean_word  # noqa: E402
-
-USER_WORD_TABLES = ("progress", "review_log", "study_queue", "noun_practice", "noun_list", "user_hidden_words",
-                    "user_word_edits")
-
-
-def merge_private(db, word_id, german, gender):
-    """公共词 word_id 是新加的: 把同名私有词的学习记录搬过来, 再删掉私有词。返回搬了几个"""
-    public = db.execute("SELECT pos, plural, meaning, example FROM words WHERE id = ?", (word_id,)).fetchone()
-    row = db.execute("SELECT forms FROM word_forms WHERE word_id = ?", (word_id,)).fetchone()
-    public_forms = row[0] if row else None
-    privates = db.execute("SELECT id, owner_id, pos, plural, meaning, example FROM words "
-                          "WHERE german = ? AND gender = ? AND owner_id IS NOT NULL", (german, gender)).fetchall()
-    for old, owner, *content in privates:
-        for table in USER_WORD_TABLES:
-            db.execute(f"UPDATE OR IGNORE {table} SET word_id = ? WHERE word_id = ? AND user_id = ?",
-                       (word_id, old, owner))
-        if tuple(content) != public:         # 他的内容和新词不同(比如自己写的释义): 留成他自己的修改
-            row = db.execute("SELECT forms FROM word_forms WHERE word_id = ?", (old,)).fetchone()
-            db.execute(
-                "INSERT OR IGNORE INTO user_word_edits "
-                "(user_id, word_id, german, pos, gender, plural, meaning, example, forms, updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (owner, word_id, german, content[0], gender, content[1], content[2], content[3],
-                 row[0] if row else public_forms, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
-            )
-        db.execute("DELETE FROM words WHERE id = ?", (old,))
-    return len(privates)
 
 
 def main():
@@ -60,7 +32,7 @@ def main():
     database.init_db()
     db = sqlite3.connect(database.DB_PATH)
     db.execute("PRAGMA foreign_keys = ON")
-    added = updated = skipped = moved = 0
+    added = updated = skipped = 0
     seen = set(db.execute("SELECT german, gender FROM deleted_words").fetchall())   # 在 App 里删掉过的词不再加回来
     kept = set()   # 这次单词书里有的词
     before = db.execute("SELECT word_id FROM word_levels UNION SELECT word_id FROM word_books").fetchall()
@@ -91,7 +63,7 @@ def main():
             word_id = db.execute("SELECT id FROM words WHERE german = ? AND gender = ? AND owner_id IS NULL",
                                  key).fetchone()[0]
             # 用户自己改的内容在 user_word_edits 里, 不受影响
-            db.execute("UPDATE words SET pos = ?, plural = ?, meaning = ?, example = ? WHERE id = ?",
+            db.execute("UPDATE words SET pos = ?, plural = ?, meaning = ?, example = ?, status = 'public' WHERE id = ?",
                        (row[1], row[3], row[4], row[5], word_id))
             updated += 1
         kept.add(word_id)
@@ -103,8 +75,6 @@ def main():
                 merged = {**json.loads(forms), **json.loads(old[0])}
                 db.execute("UPDATE word_forms SET forms = ? WHERE word_id = ?",
                            (json.dumps(merged, ensure_ascii=False), word_id))
-        if cur.rowcount:
-            moved += merge_private(db, word_id, *key)
         if d.get("level") in LEVELS:
             db.execute(
                 "INSERT INTO word_levels (word_id, level, rank) VALUES (?, ?, ?) "
@@ -134,7 +104,7 @@ def main():
     counts = db.execute("SELECT level, COUNT(*) FROM word_levels GROUP BY level ORDER BY level").fetchall()
     themes = db.execute("SELECT book, COUNT(*) FROM word_books GROUP BY book ORDER BY book").fetchall()
     db.close()
-    print(f"新增 {added} 个, 已有的更新 {updated} 个, 格式不对跳过 {skipped} 个, 私有词并入 {moved} 个")
+    print(f"新增 {added} 个, 已有的更新 {updated} 个, 格式不对跳过 {skipped} 个")
     print(f"不在单词书里了: 删除 {removed} 个(没人学过), 只移出单词书 {unlisted} 个(有人学过, 保留进度)")
     print("各级词数:", ", ".join(f"{lv} {n}" for lv, n in counts))
     print("专题书词数:", ", ".join(f"{b} {n}" for b, n in themes))

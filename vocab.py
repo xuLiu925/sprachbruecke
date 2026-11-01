@@ -1,9 +1,10 @@
 """词汇模块: 评分、冠词练习、听写、单词(查看/添加/编辑/删除/恢复)、单词书、统计。今天学什么在 today.py
 
-词库分两种: 公共词(owner_id 为空, 单词书和示例词) 和 每个用户自己加的私有词(只有他能看到)。
-每个用户的「编辑」和「删除」也只对他自己生效, 原文不动:
+总词库每个词一行: 公开的词所有人都能看到, 待审核和拒绝的词只有加过的人看得到(user_added_words)。
+每个用户的「编辑」和「删除」只对他自己生效, 原文不动:
   编辑 → user_word_edits(存一份他的版本), 删除 → user_hidden_words(对他隐藏, 进度保留), 都能恢复。
-所以查词时都从 my_words 取: 公共词 + 自己的私有词, 套上自己的修改, 去掉自己删掉的。SQL 用命名参数 :uid
+所以查词时都从 my_words 取: 公开的词 + 自己加的词, 套上自己的修改, 去掉自己删掉的。SQL 用命名参数 :uid
+添加单词在 word_add.py 和 word_store.py。
 """
 import json
 from datetime import datetime, timedelta, timezone
@@ -29,12 +30,14 @@ WITH all_my_words AS (
            CASE WHEN e.word_id IS NULL THEN f.forms ELSE e.forms END AS forms,
            e.word_id IS NOT NULL AS edited,
            h.word_id IS NOT NULL AS hidden,
-           w.owner_id IS NOT NULL AS private
+           w.status != 'public' AS private,
+           a.word_id IS NOT NULL AS mine
     FROM words w
     LEFT JOIN word_forms f ON f.word_id = w.id
     LEFT JOIN user_word_edits e ON e.word_id = w.id AND e.user_id = :uid
     LEFT JOIN user_hidden_words h ON h.word_id = w.id AND h.user_id = :uid
-    WHERE w.owner_id IS NULL OR w.owner_id = :uid
+    LEFT JOIN user_added_words a ON a.word_id = w.id AND a.user_id = :uid
+    WHERE w.status = 'public' OR a.word_id IS NOT NULL
 ),
 my_words AS (SELECT * FROM all_my_words WHERE NOT hidden)
 """
@@ -352,8 +355,8 @@ def list_words():
         theme_join = "JOIN word_books b ON b.word_id = w.id AND b.book = :level"
         args["level"] = level
         order = "b.rank"
-    elif level == "mine":     # 自己加的私有词
-        where += " AND w.private"
+    elif level == "mine":     # 自己加的词
+        where += " AND w.mine"
     elif level == "hidden":   # 自己删掉的词(可以恢复)
         source = "all_my_words"
         where += " AND w.hidden"
@@ -486,59 +489,6 @@ def unhide_word(word_id):
     db.execute("DELETE FROM user_hidden_words WHERE user_id = ? AND word_id = ?", (current_user_id(), word_id))
     db.commit()
     return jsonify({"ok": True})
-
-
-@bp.route("/api/words", methods=["POST"])
-@login_required
-def add_words():
-    """添加单词 —— 加成当前用户的私有词, 别人看不到, 并加入学习计划。
-    公共词库里已经有(德语 + 冠词相同)就不重复加, 只加入计划; 如果是他删掉过的, 这次添加 = 恢复。
-    单个添加时今天的学习量 +1, 批量导入只排队, 占每天的正常名额。返回 added / skipped / queued"""
-    data = request.get_json(silent=True)
-    items = data if isinstance(data, list) else ([data] if isinstance(data, dict) else None)
-    if items is None or len(items) == 0:
-        return err("请求格式错误")
-    if len(items) > 2000:
-        return err("一次最多导入 2000 个")
-    db = get_db()
-    uid = current_user_id()
-    bonus = 1 if isinstance(data, dict) else 0
-    added = skipped = queued = 0
-    for d in items:
-        row, e = clean_word(d)
-        if e:
-            return err(e)
-        forms, e = clean_forms(d.get("forms"))
-        if e:
-            return err(f"{row[0]}: {e}")
-        public = db.execute("SELECT id FROM words WHERE german = ? AND gender = ? AND owner_id IS NULL",
-                            (row[0], row[2])).fetchone()
-        if public:
-            cur = db.execute("DELETE FROM user_hidden_words WHERE user_id = ? AND word_id = ?", (uid, public[0]))
-            added += cur.rowcount     # 删掉过的 → 恢复, 算加上了
-            skipped += 1 - cur.rowcount
-            queued += enqueue(db, uid, public[0], bonus)
-            continue
-        cur = db.execute(
-            "INSERT OR IGNORE INTO words (german, pos, gender, plural, meaning, example, owner_id) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (*row, uid),
-        )
-        if cur.rowcount:
-            added += 1
-            word_id = cur.lastrowid
-            if forms:
-                db.execute("INSERT INTO word_forms (word_id, forms) VALUES (?, ?)",
-                           (word_id, forms))
-        else:   # 自己已经加过: 删掉过的就恢复
-            word_id = db.execute("SELECT id FROM words WHERE german = ? AND gender = ? AND owner_id = ?",
-                                 (row[0], row[2], uid)).fetchone()[0]
-            cur = db.execute("DELETE FROM user_hidden_words WHERE user_id = ? AND word_id = ?", (uid, word_id))
-            added += cur.rowcount
-            skipped += 1 - cur.rowcount
-        queued += enqueue(db, uid, word_id, bonus)
-    db.commit()
-    return jsonify({"added": added, "skipped": skipped, "queued": queued})
 
 
 # ---------- 统计 ----------

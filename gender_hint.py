@@ -64,14 +64,14 @@ def compound_rule(word, gender):
     for i in range(MIN_PART, len(word) - MIN_PART + 1):
         tail = word[i:].capitalize()
         hit = tail in tails or db.execute(
-            "SELECT 1 FROM words WHERE german = ? AND gender = ? AND owner_id IS NULL LIMIT 1", (tail, gender),
+            "SELECT 1 FROM words WHERE german = ? AND gender = ? AND status = 'public' LIMIT 1", (tail, gender),
         ).fetchone()
         if not hit:
             continue
         names = sorted(stems(word[:i]))
         marks = ",".join("?" * len(names))
         real = known & set(names) or db.execute(
-            f"SELECT 1 FROM words WHERE owner_id IS NULL AND (lower(german) IN ({marks}) OR lower(plural) IN ({marks})) LIMIT 1",
+            f"SELECT 1 FROM words WHERE status = 'public' AND (lower(german) IN ({marks}) OR lower(plural) IN ({marks})) LIMIT 1",
             names + names,
         ).fetchone()
         if real:
@@ -80,7 +80,7 @@ def compound_rule(word, gender):
 
 
 def is_verb(name):
-    return get_db().execute("SELECT 1 FROM words WHERE german = ? AND pos LIKE '动词%' AND owner_id IS NULL LIMIT 1",
+    return get_db().execute("SELECT 1 FROM words WHERE german = ? AND pos LIKE '动词%' AND status = 'public' LIMIT 1",
                             (name,)).fetchone() is not None
 
 
@@ -117,7 +117,7 @@ def examples_of(word, gender, ending, tail):
     agent = ending == "er" and tail is None        # 动词加 -er: Vater、Bruder 只是碰巧以 -er 结尾, 不能当同类词
     rows = get_db().execute(
         "SELECT w.german, w.gender, w.meaning FROM words w LEFT JOIN word_levels l ON l.word_id = w.id "
-        "WHERE w.owner_id IS NULL AND w.gender = ? AND w.german LIKE ? AND w.german != ? "
+        "WHERE w.status = 'public' AND w.gender = ? AND w.german LIKE ? AND w.german != ? "
         "ORDER BY w.german = ? DESC, COALESCE(l.rank, 1000000000), length(w.german) LIMIT ?",
         (gender, "%" + ending, word, tail or "", 200 if agent else EXAMPLES),
     ).fetchall()

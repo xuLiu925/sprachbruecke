@@ -17,6 +17,7 @@ from database import BASE, fmt_time, get_db, now_str, parse_time
 from helpers import current_user_id, err, json_body, login_required
 from srs import fsrs_review
 from vocab import clean_word, enqueue, query
+from word_store import word_id_for
 
 bp = Blueprint("lessons", __name__)
 
@@ -193,21 +194,6 @@ def lookup():
     return jsonify({"word": dict(row) if row else None})
 
 
-def private_word_id(row):
-    """课文里的词: 词库已有就用它(删掉过的恢复), 没有就加成当前用户的私有词"""
-    db = get_db()
-    uid = current_user_id()
-    german, _pos, gender = row[:3]
-    found = query("SELECT id FROM all_my_words WHERE german = :g AND gender = :a", g=german, a=gender).fetchone()
-    if found:
-        db.execute("DELETE FROM user_hidden_words WHERE user_id = ? AND word_id = ?", (uid, found[0]))
-        return found[0]
-    return db.execute(
-        "INSERT INTO words (german, pos, gender, plural, meaning, example, owner_id) VALUES (?,?,?,?,?,?,?)",
-        (*row, uid),
-    ).lastrowid
-
-
 @bp.route("/api/review/queue", methods=["POST"])
 @login_required
 def queue_word():
@@ -226,7 +212,7 @@ def queue_word():
         row, e = clean_word(data)
         if e:
             return err(e)
-        word_id = private_word_id(row)
+        word_id = word_id_for(get_db(), current_user_id(), row)
     db = get_db()
     queued = enqueue(db, current_user_id(), word_id, 1)
     db.commit()

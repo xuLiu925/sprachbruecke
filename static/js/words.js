@@ -67,7 +67,7 @@ async function loadWords() {
     const t = document.createElement("b"); wordInto(t, w);
     const s = document.createElement("small");
     s.textContent = [w.form ? `${w.form} 的原形` : "", w.glossary ? "📦 仓储词" : "", w.ai_word ? "✨ AI" : "",
-                     w.private ? "🔒 我加的" : "", w.edited ? "✏️ 已改" : "",
+                     w.private ? "🔒 待审核" : "", w.edited ? "✏️ 已改" : "",
                      w.level, w.pos, w.meaning].filter(Boolean).join(" · ");
     body.append(t, s);
     if (w.hidden) {
@@ -110,7 +110,7 @@ onShow.view = async () => {
   try { w = await api("/api/words/" + viewingId); } catch (e) { return switchTab("words"); }
   viewWord = w;
   const bookTags = w.books.map(b => BOOK_NAMES[b] || b);
-  $("vLevel").textContent = w.private ? "🔒 我加的词（只有你能看到）"
+  $("vLevel").textContent = w.private ? "🔒 词典里没有这个词，审核前只有加过的人能看到"
     : [w.level && w.level + " 单词书", ...bookTags].filter(Boolean).join(" · ") || "示例词";
   wordInto($("vWord"), w);
   $("vPos").textContent = w.pos || "";
@@ -306,7 +306,7 @@ onShow.add = () => {
   $("btnAdd").textContent = "添加";
   $("btnDelete").classList.add("hidden");
   $("editInfo").classList.remove("hidden");
-  $("editInfo").textContent = "🔒 加的词只有你自己能看到。词库里已经有的词不会重复添加。";
+  $("editInfo").textContent = "写德语词就行，冠词、复数和变格会自动补全。词典没有中文释义的词要写上释义，你写的释义只有你能看到。";
 };
 
 onShow.edit = async () => {
@@ -337,10 +337,15 @@ $("btnAdd").onclick = async () => {
     return;
   }
   try {
-    const r = await api("/api/words", "POST", { ...body, forms: readForms() });
+    let r = await api("/api/words", "POST", { ...body, forms: readForms() });
+    if (r.form_of) {           // 写的是变化形式, 确认后加原形
+      if (!confirm(`「${body.german}」是「${r.form_of}」的变化形式，加入「${r.form_of}」吗？`)) return;
+      r = await api("/api/words", "POST", { ...body, german: r.form_of, gender: "" });
+    }
     m.className = "msg ok";
-    m.textContent = r.queued ? "已加入今日学习" : r.added ? "已添加" : "这个词你已经学过了";
-    if (r.added) {
+    m.textContent = !r.queued ? "这个词你已经学过了"
+      : r.pending ? "已加入今日学习。词典里没有这个词，管理员审核前只有你能看到" : "已加入今日学习";
+    if (r.added || r.queued) {
       ["nGerman","nPos","nPlural","nMeaning","nExample"].forEach(i => $(i).value = "");
       document.querySelectorAll("#formsInputs input").forEach(i => i.value = "");
       updateFormsBox();
@@ -361,7 +366,10 @@ $("btnBulk").onclick = async () => {
   if (!items.length) { m.textContent = "没有内容"; return; }
   try {
     const r = await api("/api/words", "POST", items);
-    m.className = "msg ok"; m.textContent = `新增 ${r.added} 个，已有 ${r.skipped} 个，${r.queued} 个进入学习计划`;
+    m.className = "msg ok";
+    m.textContent = [`${r.queued} 个进入学习计划`, `新增 ${r.added} 个`, `已有 ${r.skipped} 个`,
+      r.lemma ? `${r.lemma} 个改成原形` : "", r.pending ? `${r.pending} 个待审核` : "",
+      r.invalid_count ? `${r.invalid_count} 个无效：${r.invalid.join("、")}` : ""].filter(Boolean).join("，");
     $("bulk").value = "";
   } catch (e) { m.textContent = e.message; }
 };

@@ -349,6 +349,14 @@ $("wsFull").onclick = () => {
 $("wsAdd").onclick = async () => {
   const w = wsWord;
   if (!w) return;
+  if (w.needs_meaning) {                     // 词典有这个词但没有中文释义: 写上才能加入, 只有他能看到
+    const meaning = (prompt(`「${w.german}」的中文释义：`) || "").trim();
+    if (!meaning) return;
+    try { await api("/api/words", "POST", { german: w.german, gender: w.gender, meaning }); }
+    catch (e) { return toast(e.message); }
+    w.queued = true; wsButton(w); toast("已加入今日学习");
+    return;
+  }
   const body = w.id ? { word_id: w.id }
     : { german: w.german, gender: w.gender, pos: w.pos, plural: w.plural, meaning: w.meaning, example: w.example || "" };
   try {
