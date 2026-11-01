@@ -119,6 +119,7 @@ onShow.view = async () => {
   genderReason($("vGender"), w.german, w.gender, w.meaning);
   wordParts($("vParts"), w.german, w.meaning);
   spellReset($("vSpell"));
+  spellTitle($("vWord"), $("vSpellBtn"));
   exampleInto($("vExample"), w.example, w.level || "B1");
   $("vSpeakEx").classList.toggle("hidden", !w.example);
   renderForms(w.forms, $("vForms"));

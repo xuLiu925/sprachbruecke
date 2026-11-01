@@ -39,7 +39,7 @@ function toast(msg) {
 function needArticle() {
   try { return localStorage.getItem("sb_needArticle") !== "0"; } catch (e) { return true; }
 }
-const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "learned" };
+const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "learned", spellMode: "button" };
 function getSetting(k) {
   try { const v = localStorage.getItem("sb_" + k); return v === null ? SETTING_DEFAULTS[k] : JSON.parse(v); }
   catch (e) { return SETTING_DEFAULTS[k]; }

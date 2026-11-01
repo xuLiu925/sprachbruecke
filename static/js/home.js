@@ -220,6 +220,8 @@ $("optAutoWord").checked = getSetting("autoWord");
 $("optAutoWord").onchange = () => setSetting("autoWord", $("optAutoWord").checked);
 $("optAutoExample").checked = getSetting("autoExample");
 $("optAutoExample").onchange = () => setSetting("autoExample", $("optAutoExample").checked);
+$("optSpellMode").value = getSetting("spellMode");
+$("optSpellMode").onchange = () => setSetting("spellMode", $("optSpellMode").value);
 $("optRate").value = String(getSetting("rate"));
 $("optRate").onchange = () => setSetting("rate", parseFloat($("optRate").value));
 $("optVoice").onchange = () => setSetting("voice", $("optVoice").value);
