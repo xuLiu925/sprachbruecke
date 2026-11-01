@@ -30,6 +30,7 @@
   article_quiz.py 不定冠词、否定冠词、物主冠词填空题(按格子练, 不按词排期)
   verb_quiz.py   动词填空题的接口和现在时出题(手写句子在 verb_sentences.py)
   perfekt_quiz.py 动词完成时出题, 接口在 verb_quiz.py
+  verb_usage.py  动词搭配表和出题, 接口在 verb_quiz.py
   tts.py         在线德语发音(设备没有德语语音时用)
   vocab_seed.py  示例词和变格 / 变位
 """
@@ -52,6 +53,7 @@ import article_quiz
 import plural_quiz
 import verb_quiz
 import perfekt_quiz  # noqa: F401  导入时登记到 verb_quiz.KINDS
+import verb_usage  # noqa: F401  同上
 import sentences
 import tts
 import today

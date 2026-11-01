@@ -684,6 +684,35 @@ const GRAMMAR_TOPICS = [
     quiz: () => bankQuiz(verbQuiz(["sein", "haben", "werden"], 12), "verb"),
   },
   {
+    id: "verb-usage", group: "动词", level: "A1–B1", title: "动词搭配：介词和格",
+    intro: ["很多动词后面要接固定的介词，介词又固定接第几格。这些搭配没有规律，要连动词、介词和格一起记：warten auf + 第四格。",
+            "有介词的题选“介词 + 冠词”；没有介词的题考动词支配第几格。",
+            "helfen、danken、gefallen 这些动词支配第三格，和中文的感觉不一样；anrufen、fragen 支配第四格。"],
+    tables: [
+      { title: "介词 + 第四格", head: ["动词", "意思", "例句"], rows: [
+        ["warten auf", "等", "Ich warte auf den Bus."],
+        ["denken an", "想到", "Ich denke an den Termin."],
+        ["sich kümmern um", "负责", "Ich kümmere mich um die Lieferung."],
+        ["sich freuen auf", "期待", "Ich freue mich auf das Wochenende."],
+        ["sich freuen über", "因为…高兴", "Ich freue mich über das Geschenk."],
+      ] },
+      { title: "介词 + 第三格", head: ["动词", "意思", "例句"], rows: [
+        ["sprechen mit", "和…说话", "Ich spreche mit dem Fahrer."],
+        ["fragen nach", "询问", "Der Kunde fragt nach der Lieferung."],
+        ["teilnehmen an", "参加", "Ich nehme an der Schulung teil."],
+      ] },
+      { title: "不带介词", head: ["支配", "动词", "例句"], rows: [
+        ["第三格", "helfen, danken, gefallen, gehören", "Ich helfe dir."],
+        ["第四格", "fragen, anrufen", "Ich rufe dich an."],
+      ] },
+    ],
+    examples: ["Ich warte auf den Bus.", "Der Kollege hilft dem Fahrer.", "Ich kümmere mich um die Lieferung."],
+    bank: true,
+    verb: "usage",
+    hintLabel: "显示搭配提示",
+    quiz: () => bankQuiz([], "usage"),
+  },
+  {
     id: "order-main", group: "语序", level: "A1", title: "主句语序：动词在第二位",
     intro: ["陈述句里，变位动词永远在第二位。第一位可以是主语，也可以是时间、地点等；主语不在第一位时就放到动词后面。",
             "框架结构：有情态动词、助动词时，它们在第二位，另一个动词（不定式 / 过去分词）放到句末；可分动词的前缀也放句末。",

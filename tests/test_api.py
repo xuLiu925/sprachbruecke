@@ -1189,6 +1189,41 @@ for german, items in PERFEKT.items():
     for item in items:
         assert item[0] in range(6) and item[1].count("___") == 2 and not vq.CHINESE.search(item[1]) and vq.CHINESE.search(item[2]), item
         assert len(item) == 3 or item[3] in pq.AUX, item
+# 动词搭配: 只练搭配表里的动词, 介词错和格错都算忘了
+import verb_usage as vu
+for german, usages in vu.USAGES.items():
+    for prep, case_no, zh_word, wrong_preps, items in usages:
+        assert case_no in (2, 3) and vq.CHINESE.search(zh_word) and items, german
+        assert (len(wrong_preps) == 2 and prep not in wrong_preps) if prep else wrong_preps == (), german
+        for prompt, right, wrong, zh in items:
+            assert prompt.count("___") == (2 if prep else 1) and vq.CHINESE.search(zh) and not vq.CHINESE.search(prompt), prompt
+            assert (isinstance(wrong, str) and right != wrong) if prep else (isinstance(wrong, tuple) and wrong and right not in wrong), prompt
+            assert not (prep in ("von", "zu", "bei", "an", "in") and right == "dem"), prompt     # 这些要缩写
+            q = vu.question({"id": 1, "german": german, "meaning": "x"}, (prep, case_no, zh_word, wrong_preps, items), (prompt, right, wrong, zh))
+            assert q["answer"] in q["options"] and len(set(q["options"])) == len(q["options"]) >= 2 and q["answer"] not in q["kinds"], prompt
+            assert set(q["kinds"].values()) <= {"prep", "case"}, prompt
+vu1 = lambda g, m: vdb.execute("INSERT INTO words (german, pos, meaning) VALUES (?,'动词',?)", (g, m)).lastrowid
+vwa, vhe = vu1("warten", "等"), vu1("helfen", "帮助")
+vdb.commit()
+uqs = J(cb.get("/api/grammar/usage?scope=all&n=30"))["questions"]
+assert {x["word_id"] for x in uqs} >= {vwa, vhe} and vfa not in {x["word_id"] for x in uqs}, uqs
+uq = next(x for x in uqs if x["word_id"] == vwa)
+assert uq["must"] == "（warten）" and uq["answer"].startswith("auf … ") and uq["prompt"].count("___") == 2 and uq["skip_kind"] == "case"
+assert vu.label("freuen") == "sich freuen" and vu.label("warten") == "warten"
+ures = lambda wid, ok, **b: cb.post("/api/grammar/usage/result", json={"word_id": wid, "ok": ok, **b})
+ust = lambda wid: db.execute("SELECT stability, weak, wrong FROM usage_practice WHERE word_id = ?", (wid,)).fetchone()
+assert ures(vwa, False, kind="prep").status_code == 200 and ust(vwa)[1:] == (1, 1)
+assert db.execute("SELECT tense, kind, person FROM verb_answers ORDER BY id DESC LIMIT 1").fetchone() == ("usage", "prep", None)
+assert ures(vhe, True).status_code == 200 and ust(vhe)[1:] == (0, 0)
+ub = J(cb.get("/api/grammar/usage/books"))
+assert ub["wrong"] == 1 and {"book": "all"}.items() <= [x for x in ub["books"] if x["book"] == "all"][0].items()
+assert [x for x in ub["books"] if x["book"] == "all"][0]["nouns"] >= 2
+assert J(cb.get("/api/grammar/usage/words?scope=wrong"))["words"][0]["id"] == vwa
+assert vwa in {x["word_id"] for x in J(cb.get("/api/grammar/usage?scope=wrong"))["questions"]}
+ul = J(cb.post("/api/grammar/usage/list", json={"text": "helfen, zzfahren"}))
+assert ul["added"] == 1 and ul["missing"] == ["zzfahren"], ul        # 不在搭配表里的动词加不进来
+assert cb.delete(f"/api/grammar/usage/list/{vhe}").status_code == 200 and cb.delete(f"/api/grammar/usage/list/{vwa}").status_code == 200
+assert J(cb.get("/api/grammar/usage/books"))["wrong"] == 0
 # 手写句子: 每句一个空, 德语不混中文, 第一位不用 sie / Sie
 for german, items in WRITTEN.items():
     assert len(items) >= 2 and len({x[1] for x in items}) == len(items), german

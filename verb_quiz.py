@@ -26,7 +26,7 @@ from vocab import book_filter, current_book, query
 
 bp = Blueprint("verb_quiz", __name__)
 
-ROUTE = "<any(verbs, perfekt):which>"
+ROUTE = "<any(verbs, perfekt, usage):which>"
 IS_VERB = "w.gender = '' AND w.forms LIKE '%\"praesens\"%' AND w.german NOT LIKE '% %'"
 PERSONS = ["ich", "du", "er / sie / es", "wir", "ihr", "sie / Sie"]
 SHORT_SUBJECT = ["ich", "du", "er", "wir", "ihr", "Sie"]     # 短题的主语; 第三人称单数一律用 er
@@ -191,9 +191,13 @@ def make_round(rows, n, weights, make=make_question):
 
 
 # 现在时和完成时是两种能力, 记录分开存, 接口结构一样。完成时在 perfekt_quiz.py 里登记
-# kinds = 前端能传的错因, 其中 person 不改记忆状态, 其他算忘了
+# kinds = 前端能传的错因, 其中 person 不改记忆状态, 其他算忘了; where = 只练这些动词, 不写就是有现在时变位的动词
 KINDS = {"verbs": {"tense": "praesens", "practice": "verb_practice", "list": "verb_list", "kinds": ("stem", "person"),
                    "make": make_question}}
+
+
+def verb_filter(cfg):
+    return cfg.get("where", IS_VERB)
 
 
 def marks(cfg):
@@ -225,7 +229,7 @@ def verbs(which):
     make = cfg["make"]
     base = ("SELECT w.id, w.german, w.meaning, w.example, w.forms, d.details FROM my_words w {join} "
             f"LEFT JOIN word_details d ON d.word_id = w.id {marks(cfg)} "
-            f"LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid WHERE {IS_VERB} {{where}}")
+            f"LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid WHERE {verb_filter(cfg)} {{where}}")
     now = now_str()
     if scope == "wrong":
         rows = query(base.format(join="", where=nq.IN_WRONG) + f" ORDER BY {nq.RISK} LIMIT :pool", pool=nq.POOL, now=now).fetchall()
@@ -249,16 +253,16 @@ def verbs(which):
 @login_required
 def verb_books(which):
     """练习范围, 格式同 /api/grammar/nouns/books(前端共用), nouns = 这本书的动词数"""
-    join_marks = marks(KINDS[which])
+    join_marks, verb_where = marks(KINDS[which]), verb_filter(KINDS[which])
     counts = ("COUNT(*) AS nouns, COUNT(np.word_id) AS practiced, "
               f"COALESCE(SUM(CASE WHEN 1 {nq.IN_WRONG} THEN 1 ELSE 0 END), 0) AS weak, "
               "COALESCE(SUM(np.stability >= :master), 0) AS mastered")
     by = {}
     for table_name, key in (("word_levels", "level"), ("word_books", "book")):
         for r in query(f"SELECT l.{key} AS book, {counts} FROM my_words w JOIN {table_name} l ON l.word_id = w.id "
-                       f"{join_marks} WHERE {IS_VERB} GROUP BY l.{key}", master=nq.MASTER_S).fetchall():
+                       f"{join_marks} WHERE {verb_where} GROUP BY l.{key}", master=nq.MASTER_S).fetchall():
             by[r["book"]] = dict(r)
-    whole = query(f"SELECT {counts} FROM my_words w {join_marks} WHERE {IS_VERB}", master=nq.MASTER_S).fetchone()
+    whole = query(f"SELECT {counts} FROM my_words w {join_marks} WHERE {verb_where}", master=nq.MASTER_S).fetchone()
     by["all"] = {**dict(whole), "book": "all"}
     return jsonify({"current": current_book(current_user_id()), "wrong": whole["weak"],
                     "books": [by[b] for b in nq.BOOKS if b in by]})
@@ -280,7 +284,7 @@ def verb_words(which):
     else:
         join, args, order = book_filter(scope)
         where = ""
-    source = f"FROM my_words w {join} {marks(KINDS[which])} WHERE {IS_VERB} {where}"
+    source = f"FROM my_words w {join} {marks(KINDS[which])} WHERE {verb_filter(KINDS[which])} {where}"
     total = query(f"SELECT COUNT(*) {source}", **args).fetchone()[0]
     rows = query(
         "SELECT w.id, w.german, w.gender, w.meaning, COALESCE(np.wrong, 0) AS wrong, COALESCE(np.streak, 0) AS streak, "
@@ -331,7 +335,7 @@ def add_verbs(which):
     ids, missing = [], []
     for name in names[:100]:
         hit = find_word(name)
-        if hit and query(f"SELECT 1 FROM my_words w WHERE w.id = :id AND {IS_VERB}", id=hit["id"]).fetchone():
+        if hit and query(f"SELECT 1 FROM my_words w WHERE w.id = :id AND {verb_filter(KINDS[which])}", id=hit["id"]).fetchone():
             ids.append(hit["id"])
         else:
             missing.append(name)
