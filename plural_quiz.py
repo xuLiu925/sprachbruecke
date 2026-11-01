@@ -22,7 +22,7 @@ bp = Blueprint("plural_quiz", __name__)
 
 SCOPES = BOOKS + ["wrong"]
 ROUND_SIZE = 10
-HAS_PLURAL = "w.gender != '' AND w.plural != '' AND w.plural NOT GLOB '*[^A-Za-zÄÖÜäöüß-]*'"   # 挡掉 Poulets(CH) 这类数据
+HAS_PLURAL = "w.gender != '' AND w.plural != '' AND w.plural NOT GLOB '*[^A-Za-zÄÖÜäöüßé-]*'"   # 挡掉 Poulets(CH) 这类数据; é 是 Cafés
 MARKS = ("LEFT JOIN plural_practice pp ON pp.word_id = w.id AND pp.user_id = :uid "
          "LEFT JOIN plural_list pl ON pl.word_id = w.id AND pl.user_id = :uid")
 IN_WRONG = "AND ((pp.wrong > 0 AND pp.streak < :done) OR pl.word_id IS NOT NULL)"

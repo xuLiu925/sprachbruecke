@@ -29,6 +29,7 @@ RAW = os.path.join(ROOT, "data", "raw")
 SRC = os.path.join(ROOT, "data", "work", "wordbook_translated.json")
 OUT = os.path.join(ROOT, "data", "wordbook.json")
 FIXES = os.path.join(ROOT, "tools", "wordbook_fixes.tsv")
+PLURAL_FIXES = os.path.join(ROOT, "tools", "plural_fixes.tsv")
 EXCLUDE = os.path.join(ROOT, "tools", "wordbook_exclude.txt")
 REVIEWED = os.path.join(ROOT, "tools", "wordbook_reviewed.txt")
 TODO = os.path.join(ROOT, "data", "待查单词.txt")
@@ -306,6 +307,43 @@ def fix_function_words(book):
             book.index[german].append(w)
 
 
+def load_plural_fixes():
+    with open(PLURAL_FIXES, encoding="utf-8") as f:
+        return [(l.rstrip("\n").split("\t") + [""])[:4] for l in f if l.strip() and not l.startswith("#")]
+
+
+def plural_cases(plural):
+    """规则的复数四个格; 第三格加 -n, 以 -n / -s / -i 结尾的不加(Boni)"""
+    dative = plural if plural.endswith(("n", "s", "i")) else plural + "n"
+    return [f"die {plural}", f"der {plural}", f"den {dative}", f"die {plural}"]
+
+
+def apply_plural_fixes(book, rows):
+    """rows = [(冠词, 德语词, 复数, 新冠词)]。返回对不上的行: 词已经不在单词书里了, 这一行可以删"""
+    stale = []
+    for gender, german, plural, new_gender in rows:
+        w = book.find(german, gender)
+        if w is None:
+            stale.append(f"{gender} {german}")
+            continue
+        if new_gender:
+            right = book.find(german, new_gender)
+            if right:                # 正确冠词的词条已经有了(die Schülerin): 去掉写错的
+                book.words.remove(w)
+                book.index[german].remove(w)
+                w = right
+            else:                    # old_gender 让导入时改原来的词条, 学习进度不丢
+                w.update(old_gender=gender, gender=new_gender)
+        if plural == "=":
+            continue
+        w["plural"] = "" if plural == "-" else plural
+        cases = (w.get("forms") or {}).get("cases")
+        if cases and all(cases.get("sg") or []):      # 只有复数形式的词(Eltern)没有单数, 变格表不动
+            cases["pl"] = plural_cases(plural) if plural != "-" else [""] * 4
+            w["forms_fixed"] = True                   # 导入时要盖掉数据库里已有的变格表
+    return stale
+
+
 def absorb(w, e, rank_meaning, meaning_rank):
     """把一个来源的词条并进单词书的词。rank_meaning 越小的来源越优先"""
     if e["meaning"] and rank_meaning < meaning_rank.get(id(w), 99):
@@ -506,6 +544,9 @@ def main():
         if w:
             w["meaning"] = meaning
             meaning_rank[id(w)] = 0
+    stale = apply_plural_fixes(book, load_plural_fixes())
+    if stale:
+        log("plural_fixes.tsv 里这些词不在单词书里: " + "、".join(stale))
 
     with open(REVIEWED, encoding="utf-8") as f:
         reviewed = {l.strip() for l in f if not l.startswith("#")}

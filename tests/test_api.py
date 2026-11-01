@@ -1161,6 +1161,38 @@ keep_words = [{"german": r0, "gender": r1, "pos": "", "plural": "", "meaning": r
 json.dump({"words": keep_words}, open(wb, "w", encoding="utf-8"), ensure_ascii=False)
 argv0 = sys.argv; sys.argv = ["x", wb]; IW.main(); sys.argv = argv0
 assert J(ct.get(f"/api/words/{zpid}"))["meaning"] == "斑马（单词书）" and not J(ct.get(f"/api/words/{zpid}"))["private"]
+# 复数修正: 改复数、重写变格表、改冠词(编号不变)、去掉重复的词条
+import merge_wordbook as MW
+sg = ["der Keks", "des Kekses", "dem Keks", "den Keks"]
+mw = lambda g, a, p, f=None: {"german": g, "gender": a, "plural": p, "forms": f}
+fixb = MW.Book([mw("Keks", "der", "Keks", {"cases": {"sg": sg, "pl": ["die Keks"] * 4}}), mw("Eigentum", "das", "Eigentume", {"cases": {"sg": sg, "pl": ["x"] * 4}}),
+                mw("Eltern", "die", "Eltern", {"cases": {"sg": ["", "", "", ""], "pl": ["die Eltern"] * 4}}),
+                mw("Kilo", "der", "Kilo"), mw("Schülerin", "die", "Schülerinnen"), mw("Schülerin", "der", "Schülerinnen")])
+assert MW.apply_plural_fixes(fixb, [("der", "Keks", "Kekse", ""), ("das", "Eigentum", "-", ""), ("die", "Eltern", "-", ""),
+                                    ("der", "Kilo", "=", "das"), ("der", "Schülerin", "=", "die"), ("der", "Weg", "x", "")]) == ["der Weg"]
+fw = {(w["german"], w["gender"]): w for w in fixb.words}
+assert fw["Keks", "der"]["forms"]["cases"]["pl"] == ["die Kekse", "der Kekse", "den Keksen", "die Kekse"] and fw["Keks", "der"]["forms_fixed"]
+assert fw["Eigentum", "das"]["plural"] == "" and fw["Eigentum", "das"]["forms"]["cases"]["pl"] == [""] * 4
+assert fw["Eltern", "die"]["plural"] == "" and fw["Eltern", "die"]["forms"]["cases"]["pl"][0] == "die Eltern" and "forms_fixed" not in fw["Eltern", "die"]
+assert fw["Kilo", "das"]["old_gender"] == "der" and fw["Kilo", "das"]["plural"] == "Kilo"
+assert len(fixb.words) == 5 and ("Schülerin", "der") not in fw
+assert MW.plural_cases("Autos")[2] == "den Autos" and MW.plural_cases("Boni")[2] == "den Boni" and MW.plural_cases("Leitern")[2] == "den Leitern"
+assert MW.plural_cases("Kekse")[2] == "den Keksen" and MW.plural_cases("Kaufleute")[2] == "den Kaufleuten"
+idb = sqlite3.connect(os.environ["DB_PATH"])
+kid = idb.execute("INSERT INTO words (german, pos, gender, plural, meaning, example) VALUES ('Testkeks','名词','der','Testkeks','饼干','')").lastrowid
+oldc = json.dumps({"cases": {"sg": ["der Testkeks", "des Testkekses", "dem Testkeks", "den Testkeks"], "pl": ["die Testkeks"] * 4}, "past": ["a", "b"]})
+idb.execute("INSERT INTO word_forms (word_id, forms) VALUES (?,?)", (kid, oldc)); idb.commit()
+newc = {"sg": ["der Testkeks", "des Testkekses", "dem Testkeks", "den Testkeks"], "pl": ["die Testkekse", "der Testkekse", "den Testkeksen", "die Testkekse"]}
+for fixed, first in ((False, "die Testkeks"), (True, "die Testkekse")):
+    item = {"german": "Testkeks", "gender": "der", "pos": "名词", "plural": "Testkekse", "meaning": "饼干", "example": "", "level": "A1", "rank": 1,
+            "forms": {"cases": newc}}
+    if fixed:
+        item["forms_fixed"] = True
+    json.dump({"words": keep_words + [item]}, open(wb, "w", encoding="utf-8"), ensure_ascii=False)
+    argv0 = sys.argv; sys.argv = ["x", wb]; IW.main(); sys.argv = argv0
+    assert json.loads(idb.execute("SELECT forms FROM word_forms WHERE word_id = ?", (kid,)).fetchone()[0])["cases"]["pl"][0] == first
+assert idb.execute("SELECT plural FROM words WHERE id = ?", (kid,)).fetchone()[0] == "Testkekse"
+idb.close()
 # 迁移旧版私有词: 同一个词合并成一行, 进度搬过来, 自己写的内容留着, 词典有的公开
 mdb = sqlite3.connect(os.environ["DB_PATH"]); mdb.execute("PRAGMA foreign_keys = ON")
 ua, ub = [mdb.execute("SELECT id FROM users WHERE username = ?", (n,)).fetchone()[0] for n in ("alice", "carol")]

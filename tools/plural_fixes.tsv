@@ -1,0 +1,58 @@
+# 手工修正的复数和冠词, merge_wordbook.py 最后应用, 优先级最高。2026-11-01 由 Claude 对照维基词典词表(lexicon.db)逐条判断
+# 格式: 现在的冠词<Tab>德语词<Tab>复数<Tab>改成的冠词(不改就不写)
+# 复数写 - = 没有复数(或只有复数形式, 不用出题); 写 = = 复数不动
+# 有变格表的词, 复数各格会按新复数重写; 改了冠词的词编号不变, 学习进度不丢
+
+# 同形词串了词条: 取到了别的词性的复数
+die	Steuer	Steuern
+die	Leiter	Leitern
+die	Band	Bands
+das	Schild	Schilder
+das	Gehalt	Gehälter
+# 数据错误
+der	Keks	Kekse
+der	Bonus	Boni
+der	Creek	Creeks
+das	Poulet	Poulets
+das	Rüebli	Rüebli
+die	Serviceangestellte	Serviceangestellten
+# -mann 的复合词, 通用的复数是 -leute
+der	Hauptmann	Hauptleute
+der	Kaufmann	Kaufleute
+der	Zimmermann	Zimmerleute
+der	Seemann	Seeleute
+der	Fachmann	Fachleute
+# 没有复数的物质名词、抽象名词
+das	Eigentum	-
+das	Plastik	-
+die	Kosmetik	-
+das	Schach	-
+das	Popcorn	-
+das	Wiederhören	-
+# 词条本身就是复数形式, 问“复数是什么”没有意义
+die	Eltern	-
+die	Ferien	-
+die	Daten	-
+die	Geschwister	-
+die	Spaghetti	-
+# 同形词漏了复数
+der	Band	Bände
+der	Schild	Schilde
+der	Grad	Grade
+das	Moment	Momente
+das	Stift	Stifte
+die	Kunde	Kunden
+der	Hausmann	Hausmänner
+# 冠词写错
+der	Sekretärin	=	die
+der	Schülerin	=	die
+der	Friseurin	=	die
+der	Kilo	=	das
+die	Dschungel	=	der
+der	Ghetto	=	das
+der	Riff	=	das
+der	Logo	=	das
+die	Joghurt	=	der
+der	Virus	=	das
+der	Toto	=	das
+die	Mars	-	der

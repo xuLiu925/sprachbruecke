@@ -4,7 +4,8 @@
                     数据库默认是项目里的 vocab.db, 要导到别处就先设环境变量 DB_PATH
 可以重复运行:
   - 新词: 加进词库, 带上变格/变位和级别
-  - 已经有的词(德语 + 冠词相同): 释义、词性、复数、例句换成新的; 已有的变格/变位不动, 只补上缺的部分(如过去式);
+  - 已经有的词(德语 + 冠词相同): 释义、词性、复数、例句换成新的; 已有的变格/变位不动, 只补上缺的部分(如过去式,
+    带 forms_fixed 的词除外: 复数修正过, 用新的变格表);
     更新级别、专题书和详情。(用户在 App 里改的内容存在 user_word_edits, 不受影响)
   - 这次单词书里没有了的词(被规则或排除名单踢掉的): 没人学过就删掉, 有人学过就只移出单词书、保留进度
   - 在 App 里删掉过的词: 跳过, 不会加回来
@@ -71,8 +72,9 @@ def main():
             old = db.execute("SELECT forms FROM word_forms WHERE word_id = ?", (word_id,)).fetchone()
             if old is None:
                 db.execute("INSERT INTO word_forms (word_id, forms) VALUES (?, ?)", (word_id, forms))
-            else:   # 已有的部分不动(可能改过), 只补上缺的(比如原来没有过去式)
-                merged = {**json.loads(forms), **json.loads(old[0])}
+            else:   # 已有的部分不动(可能改过), 只补上缺的(比如原来没有过去式); plural_fixes.tsv 改过的以新的为准
+                new_forms, old_forms = json.loads(forms), json.loads(old[0])
+                merged = {**old_forms, **new_forms} if d.get("forms_fixed") else {**new_forms, **old_forms}
                 db.execute("UPDATE word_forms SET forms = ? WHERE word_id = ?",
                            (json.dumps(merged, ensure_ascii=False), word_id))
         if d.get("level") in LEVELS:

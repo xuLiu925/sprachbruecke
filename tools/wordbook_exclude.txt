@@ -203,3 +203,7 @@ safe
 Diner
 frieden
 Klingone
+# 词条本身有问题(2026-11-01 查复数时发现): das Iren 应是 der Ire 的复数, der Kerle 是 Kerl 的复数, Hermann 是人名
+Iren
+Kerle
+Hermann
