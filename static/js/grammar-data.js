@@ -902,6 +902,24 @@ const GRAMMAR_TOPICS = [
     })),
   },
   {
+    id: "perf-bank", group: "完成时", level: "A1–B1", title: "完成时③：从单词书练",
+    intro: ["把前两个知识点用起来：一题两个空，选助动词和过去分词。",
+            "移动和状态变化用 sein，其他大多用 haben；过去分词看动词类型。",
+            "有的动词两种助动词都有，看句子：带第四格宾语用 haben（Ich habe das Auto gefahren），表示移动用 sein（Ich bin nach Hause gefahren）。"],
+    tables: [{ head: ["答错时", "说明"], rows: [
+      ["助动词错了", "算没记住这个词，进错题本"],
+      ["过去分词错了", "算没记住这个词，进错题本"],
+      ["人称错了", "habe / hat 选错，不进错题本，明天再出"],
+    ] }],
+    examples: ["Ich bin um fünf Uhr aufgestanden.", "Der Fahrer hat die Ware abgeholt.", "Wir haben zwei Stunden gebraucht."],
+    bank: true,
+    verb: "perfekt",
+    hintLabel: "显示人称和助动词提示",
+    quiz: () => bankQuiz(shuffle(PERFEKT_SENTENCES).slice(0, 12).map(([prompt, verb, answer, options, explain]) => ({
+      prompt, hint: `（${verb}）`, answer, options, explain,
+    })), "perfekt"),
+  },
+  {
     id: "sep-verbs", group: "可分动词", level: "A1–A2", title: "可分动词和不可分动词",
     intro: ["可分前缀（重读）：ab-, an-, auf-, aus-, ein-, mit-, nach-, vor-, weg-, zu-, zurück-, fern- …；不可分前缀（不重读）：be-, emp-, ent-, er-, ge-, miss-, ver-, zer-。",
             "主句和问句里，可分前缀和动词分开，前缀放到句末：Ich stehe um 7 Uhr auf。",

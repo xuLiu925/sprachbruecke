@@ -4,6 +4,7 @@ const NOUN_LIST = {
   start(scope) { gScopeNow = scope; setSetting("gScope", scope); go("gquiz"); },
 };
 const VERB_LIST = { ...NOUN_LIST, api: "/api/grammar/verbs", unit: "动词", sample: "例如：fahren, geben, abholen" };
+const PERFEKT_LIST = { ...VERB_LIST, api: "/api/grammar/perfekt" };
 let gnScope = "", gnPage = 1, gnKind = NOUN_LIST;
 
 function gnOpen(scope, kind = NOUN_LIST) {

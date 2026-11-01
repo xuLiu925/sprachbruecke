@@ -2,6 +2,8 @@
 
 {动词原形: [(人称, 句子, 翻译)]}。人称 0–5 = ich du er wir ihr sie/Sie, ___ = 变位的动词, 可分动词的前缀写在句子里。
 第一位不要用 sie / Sie 做主语: 分不清是“她”“他们”还是“您”, 答案就不唯一了。
+PERFEKT 是完成时: 两个空 = 助动词 + 过去分词; 词库标了两种助动词的动词, 第四项写明这句用 "sein" 还是 "haben"。
+PERFEKT 是完成时: 两个空 = 助动词 + 过去分词; 词库标了两种助动词的动词, 第四项写明这句用 "sein" 还是 "haben"。
 """
 
 WRITTEN = {
@@ -94,4 +96,80 @@ WRITTEN = {
     "einkaufen": [(1, "Wo ___ du ein?", "你在哪里买东西？"), (3, "Wir ___ am Samstag ein.", "我们星期六去买东西。")],
     "aufmachen": [(1, "___ du bitte das Tor auf?", "你能把大门打开吗？"), (2, "Der Kollege ___ den Karton auf.", "同事打开纸箱。")],
     "zumachen": [(1, "___ du bitte die Tür zu?", "你能把门关上吗？"), (2, "Das Lager ___ um sechs Uhr zu.", "仓库六点关门。")],
+}
+
+PERFEKT = {
+    # 用 sein: 移动、状态变化、单独记
+    "sein": [(1, "Wo ___ du gestern ___?", "你昨天在哪里？"), (3, "Wir ___ noch nie in Berlin ___.", "我们还没去过柏林。")],
+    "werden": [(2, "Mein Bruder ___ Lagerleiter ___.", "我哥哥当上了仓库主管。"), (2, "Es ___ heute sehr warm ___.", "今天变得很热。")],
+    "bleiben": [(0, "Ich ___ am Wochenende zu Hause ___.", "我周末待在家里。"), (4, "___ ihr lange im Lager ___?", "你们在仓库待了很久吗？")],
+    "gehen": [(1, "Wann ___ du gestern nach Hause ___?", "你昨天什么时候回的家？"), (2, "Der Kollege ___ schon ___.", "同事已经走了。")],
+    "kommen": [(2, "Der Fahrer ___ zu spät ___.", "司机来晚了。"), (4, "Warum ___ ihr nicht ___?", "你们为什么没来？")],
+    "passieren": [(2, "Was ___ gestern im Lager ___?", "昨天仓库里发生了什么？", "sein"), (2, "Das ___ noch nie ___.", "这种事从来没发生过。", "sein")],
+    "fahren": [(0, "Ich ___ mit dem Bus zur Arbeit ___.", "我坐公交车去上班了。", "sein"), (1, "Wohin ___ du im Urlaub ___?", "你假期去了哪里？", "sein"),
+               (2, "Der Kollege ___ den Stapler in die Halle ___.", "同事把叉车开进了仓库。", "haben")],
+    "fliegen": [(1, "___ du schon einmal nach China ___?", "你坐飞机去过中国吗？", "sein"), (3, "Wir ___ im Sommer nach Spanien ___.", "我们夏天飞去了西班牙。", "sein")],
+    "laufen": [(0, "Ich ___ schnell zum Bus ___.", "我快步跑去赶公交车。", "sein"), (2, "Mein Kollege ___ nach Hause ___.", "我的同事走回了家。", "sein")],
+    "schwimmen": [(1, "___ du bis zur Insel ___?", "你游到岛上了吗？", "sein"), (3, "Wir ___ ans andere Ufer ___.", "我们游到了对岸。", "sein")],
+    "aufstehen": [(1, "Wann ___ du heute ___?", "你今天什么时候起床的？", "sein"), (0, "Ich ___ um fünf Uhr ___.", "我五点起床了。", "sein")],
+    "abfahren": [(2, "Der Lkw ___ schon ___.", "卡车已经开走了。", "sein"), (2, "Der Bus ___ pünktlich ___.", "公交车准时开走了。", "sein")],
+    "umziehen": [(1, "Wann ___ du nach Hamburg ___?", "你什么时候搬到汉堡的？", "sein"), (3, "Wir ___ letztes Jahr ___.", "我们去年搬家了。", "sein")],
+    "ankommen": [(2, "Die Ware ___ heute Morgen ___.", "货今天早上到了。"), (1, "Wann ___ du ___?", "你什么时候到的？")],
+    "einsteigen": [(0, "Ich ___ am Bahnhof ___.", "我在火车站上的车。"), (3, "Wir ___ in den falschen Bus ___.", "我们上错了公交车。")],
+    "aussteigen": [(1, "Wo ___ du ___?", "你在哪里下的车？"), (2, "Der Fahrer ___ kurz ___.", "司机下了一下车。")],
+    # 标准德语用 haben, 南德用 sein
+    "stehen": [(2, "Die Palette ___ gestern vor dem Regal ___.", "托盘昨天放在货架前面。", "haben"), (0, "Ich ___ den ganzen Tag ___.", "我站了一整天。", "haben")],
+    "sitzen": [(0, "Ich ___ lange im Büro ___.", "我在办公室坐了很久。", "haben"), (1, "Wo ___ du ___?", "你坐在哪里了？", "haben")],
+    "liegen": [(2, "Das Paket ___ auf dem Tisch ___.", "包裹之前放在桌子上。", "haben"), (0, "Ich ___ den ganzen Tag im Bett ___.", "我在床上躺了一整天。", "haben")],
+    # 规则动词
+    "haben": [(1, "___ du gestern Zeit ___?", "你昨天有时间吗？"), (0, "Ich ___ heute viel Arbeit ___.", "我今天工作很多。")],
+    "machen": [(1, "Was ___ du am Wochenende ___?", "你周末做了什么？"), (3, "Wir ___ um zehn Pause ___.", "我们十点休息了。")],
+    "arbeiten": [(0, "Ich ___ gestern lange ___.", "我昨天工作到很晚。"), (4, "___ ihr am Samstag ___?", "你们星期六上班了吗？")],
+    "lernen": [(1, "Wo ___ du Deutsch ___?", "你在哪里学的德语？"), (0, "Ich ___ heute viele Wörter ___.", "我今天学了很多单词。")],
+    "kaufen": [(2, "Der Chef ___ einen neuen Scanner ___.", "老板买了一把新的扫描枪。"), (1, "Was ___ du ___?", "你买了什么？")],
+    "sagen": [(1, "Was ___ du ___?", "你说了什么？"), (2, "Der Fahrer ___ nichts ___.", "司机什么也没说。")],
+    "fragen": [(0, "Ich ___ den Chef ___.", "我问了老板。"), (4, "___ ihr den Kunden ___?", "你们问客户了吗？")],
+    "hören": [(1, "___ du das ___?", "你听到了吗？"), (0, "Ich ___ nichts ___.", "我什么也没听到。")],
+    "warten": [(2, "Der Fahrer ___ eine Stunde ___.", "司机等了一个小时。"), (3, "Wir ___ lange auf die Ware ___.", "我们等货等了很久。")],
+    "brauchen": [(0, "Ich ___ heute lange ___.", "我今天用了很长时间。"), (3, "Wir ___ zwei Stunden ___.", "我们花了两个小时。")],
+    "suchen": [(0, "Ich ___ den Scanner lange ___.", "我找了扫描枪很久。"), (3, "Wir ___ überall ___.", "我们到处都找了。")],
+    "schicken": [(2, "Die Firma ___ die Rechnung ___.", "公司寄了发票。"), (1, "___ du die E-Mail ___?", "你发邮件了吗？")],
+    "bezahlen": [(2, "Der Kunde ___ die Rechnung ___.", "客户付了账单。"), (1, "___ du schon ___?", "你已经付钱了吗？")],
+    "besuchen": [(0, "Ich ___ meine Eltern ___.", "我去看了父母。"), (1, "Wen ___ du ___?", "你去看了谁？")],
+    "bestellen": [(3, "Wir ___ neue Kartons ___.", "我们订了新纸箱。"), (2, "Der Kunde ___ zehn Paletten ___.", "客户订了十托货。")],
+    "erklären": [(2, "Der Kollege ___ mir den Scanner ___.", "同事给我讲了扫描枪怎么用。"), (1, "___ du ihm die Liste ___?", "你给他讲清单了吗？")],
+    "verkaufen": [(3, "Wir ___ alle Kartons ___.", "我们把纸箱都卖掉了。"), (2, "Er ___ sein Auto ___.", "他把车卖了。")],
+    "reparieren": [(2, "Der Techniker ___ die Maschine ___.", "技术员修好了机器。"), (1, "___ du den Hubwagen ___?", "你修好手动叉车了吗？")],
+    "telefonieren": [(0, "Ich ___ mit dem Kunden ___.", "我和客户打了电话。"), (1, "Mit wem ___ du ___?", "你和谁打电话了？")],
+    "studieren": [(2, "Mein Bruder ___ in Berlin ___.", "我哥哥在柏林上过大学。"), (1, "Was ___ du ___?", "你学的什么专业？")],
+    # 不规则动词
+    "essen": [(1, "Was ___ du zu Mittag ___?", "你午饭吃了什么？"), (3, "Wir ___ schon ___.", "我们已经吃过了。")],
+    "trinken": [(0, "Ich ___ zu viel Kaffee ___.", "我喝了太多咖啡。"), (1, "Was ___ du ___?", "你喝了什么？")],
+    "schreiben": [(0, "Ich ___ dem Kunden eine E-Mail ___.", "我给客户写了一封邮件。"), (2, "Der Fahrer ___ seinen Namen auf die Liste ___.", "司机把名字写在了清单上。")],
+    "lesen": [(1, "___ du die Liste ___?", "你看过这份清单了吗？"), (2, "Der Kollege ___ die Etiketten ___.", "同事看了标签。")],
+    "sehen": [(0, "Ich ___ den Lkw nicht ___.", "我没看到卡车。"), (4, "___ ihr den Fahrer ___?", "你们看到司机了吗？")],
+    "nehmen": [(2, "Der Kollege ___ den Hubwagen ___.", "同事拿走了手动叉车。"), (1, "Welchen Bus ___ du ___?", "你坐的哪路公交车？")],
+    "geben": [(2, "Der Fahrer ___ mir den Lieferschein ___.", "司机把送货单给了我。"), (1, "___ du ihm den Schlüssel ___?", "你把钥匙给他了吗？")],
+    "finden": [(0, "Ich ___ den Fehler ___.", "我找到了错误。"), (1, "___ du den Scanner ___?", "你找到扫描枪了吗？")],
+    "sprechen": [(0, "Ich ___ mit dem Chef ___.", "我和老板谈过了。"), (4, "___ ihr mit dem Fahrer ___?", "你们和司机说过了吗？")],
+    "helfen": [(2, "Der Kollege ___ mir ___.", "同事帮了我。"), (1, "Wem ___ du ___?", "你帮了谁？")],
+    "vergessen": [(0, "Ich ___ meinen Ausweis ___.", "我忘带证件了。"), (1, "___ du die Liste ___?", "你把清单忘了吗？")],
+    "verstehen": [(1, "___ du das ___?", "你听懂了吗？"), (0, "Ich ___ den Fahrer nicht ___.", "我没听懂司机的话。")],
+    "treffen": [(0, "Ich ___ den Kunden ___.", "我见了客户。"), (3, "Wir ___ uns vor dem Tor ___.", "我们在大门前碰了面。")],
+    "tragen": [(2, "Er ___ den Karton ins Lager ___.", "他把纸箱搬进了仓库。"), (3, "Wir ___ die Pakete zum Lkw ___.", "我们把包裹搬到了卡车旁。")],
+    "schlafen": [(0, "Ich ___ schlecht ___.", "我没睡好。"), (1, "Wie lange ___ du ___?", "你睡了多久？")],
+    "bringen": [(2, "Der Fahrer ___ die Ware ___.", "司机把货送来了。"), (1, "___ du den Karton ins Lager ___?", "你把纸箱送进仓库了吗？")],
+    "denken": [(0, "Ich ___ oft an dich ___.", "我常常想起你。"), (1, "Was ___ du ___?", "你当时怎么想的？")],
+    "wissen": [(0, "Das ___ ich nicht ___.", "这个我之前不知道。"), (4, "___ ihr das ___?", "你们之前知道这件事吗？")],
+    "kennen": [(0, "Ich ___ ihn schon lange ___.", "我很早就认识他了。"), (2, "Der Kollege ___ den Weg ___.", "同事之前认识路。")],
+    "anfangen": [(2, "Die Schicht ___ um sechs Uhr ___.", "这一班六点开始了。", "haben"), (1, "Wann ___ du ___?", "你什么时候开始的？", "haben")],
+    "bekommen": [(0, "Ich ___ eine E-Mail ___.", "我收到了一封邮件。", "haben"), (4, "___ ihr die Ware ___?", "你们收到货了吗？", "haben")],
+    # 可分动词
+    "abholen": [(2, "Der Fahrer ___ die Ware ___.", "司机取走了货。"), (0, "Ich ___ das Paket ___.", "我取了包裹。")],
+    "anrufen": [(1, "___ du den Kunden ___?", "你给客户打电话了吗？"), (0, "Ich ___ dich gestern ___.", "我昨天给你打过电话。")],
+    "einkaufen": [(0, "Ich ___ gestern ___.", "我昨天买了东西。"), (1, "Wo ___ du ___?", "你在哪里买的东西？")],
+    "aufmachen": [(2, "Der Kollege ___ den Karton ___.", "同事打开了纸箱。"), (1, "___ du das Tor ___?", "你把大门打开了吗？")],
+    "zumachen": [(1, "___ du die Tür ___?", "你把门关上了吗？"), (0, "Ich ___ das Fenster ___.", "我关了窗户。")],
+    "einladen": [(2, "Der Chef ___ uns zum Essen ___.", "老板请我们吃了饭。"), (1, "Wen ___ du ___?", "你邀请了谁？")],
+    "mitbringen": [(2, "Der Fahrer ___ die Papiere ___.", "司机带来了文件。"), (1, "___ du den Lieferschein ___?", "你把送货单带来了吗？")],
 }

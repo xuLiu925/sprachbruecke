@@ -1114,6 +1114,7 @@ vtb = lambda scope="all", n=30: J(cb.get(f"/api/grammar/verbs?scope={scope}&n={n
 vqs = vtb()
 assert vqs and all(x["verb"] and x["answer"] in x["options"] and x["prompt"].count("___") == 1 for x in vqs)
 assert vbad not in {x["word_id"] for x in vqs} and len({x["word_id"] for x in vqs}) == len(vqs)
+assert next(x for x in vqs if x["word_id"] == vfa)["german"] == "zzfahren"       # 答完打开单词卡用
 assert any(x["word_id"] == vho and x["prompt"].endswith(" ab") for x in vqs)
 assert cb.get("/api/grammar/verbs?scope=x").status_code == 400 and cb.get("/api/grammar/verbs?n=x").status_code == 400
 assert A.app.test_client().get("/api/grammar/verbs").status_code == 401
@@ -1136,6 +1137,58 @@ assert vl["added"] == 1 and "Tisch" in vl["missing"], vl
 assert J(cb.post("/api/grammar/verbs/list", json={"text": "zzfahren"}))["skipped"] == 1
 assert cb.post("/api/grammar/verbs/list", json={"text": " "}).status_code == 400
 assert J(cb.get("/api/grammar/verbs/books"))["wrong"] == 1
+# 完成时: 两个空, 和现在时分开记录; 两种助动词都标了的词没有句子时不出题
+import perfekt_quiz as pq
+from verb_sentences import PERFEKT
+vperf = lambda german, part, particle="", aux="hat", pr=None: pq.perf_info(vrow(german=german, forms=json.dumps(
+    {"praesens": pr or ["mache", "machst", "macht", "machen", "macht", "machen"], "past": ["x", f"{aux} {part}"]})))
+for german, part, pr, wrong in (("machen", "gemacht", None, "gemachen"), ("trinken", "getrunken", None, "getrinkt"),
+                                ("bringen", "gebracht", None, "gebringt"), ("arbeiten", "gearbeitet", None, "gearbeiten"),
+                                ("besuchen", "besucht", None, "gebesucht"), ("studieren", "studiert", None, "gestudiert"),
+                                ("gewinnen", "gewonnen", None, "gegewonnen"), ("gehen", "gegangen", None, "gegeht"),
+                                ("abholen", "abgeholt", ["hole ab", "holst ab", "holt ab", "holen ab", "holt ab", "holen ab"], "geabholt"),
+                                ("aufstehen", "aufgestanden", ["stehe auf", "stehst auf", "steht auf", "stehen auf", "steht auf", "stehen auf"], "geaufstanden")):
+    assert pq.wrong_participle(german, vperf(german, part, pr=pr)) == wrong, german
+assert pq.wrong_participle("gefallen", vperf("gefallen", "gefallen")) == "gegefallen" and pq.wrong_participle("geben", vperf("geben", "gegeben")) == "gegebt"
+assert [pq.participle_note(g, vperf(g, p)) for g, p in (("machen", "gemacht"), ("bringen", "gebracht"), ("trinken", "getrunken"), ("besuchen", "besucht"), ("studieren", "studiert"))] \
+    == ["规则变化 ge-…-t", "混合变化，要单独记", "不规则，过去分词要单独记", "不可分前缀的动词不加 ge-", "-ieren 结尾的动词不加 ge-"]
+assert vperf("gehen", "gegangen", aux="ist")["aux"] == "sein" and vperf("fahren", "gefahren", aux="ist/hat")["aux"] is None
+pv = vperf("gehen", "gegangen", aux="ist")
+pex = lambda text, v=pv: pq.example_sentences(vrow(german="gehen", example=text), v)
+assert pex("Er ist nach Hause gegangen.\n他回家了。")[0][:4] == (2, "Er ___ nach Hause ___.", "他回家了。", "sein")
+assert pex("Wann bist du gegangen?\n你什么时候走的？")[0][0] == 1
+pv2 = vperf("verbieten", "verboten")
+for bad in ("Hier ist Rauchen verboten.\n这里禁止吸烟。", "Sie haben das verboten.\n他们禁止了。", "Er hatte das verboten.\n他禁止过。",
+            "Das stimmt. Er hat es verboten.\n对。他禁止了。"):
+    assert pex(bad, pv2) == [], bad
+assert pq.make_question(vrow(german="zzdual", forms=json.dumps({"praesens": ["mache", "machst", "macht", "machen", "macht", "machen"],
+                                                                 "past": ["x", "ist/hat gemacht"]})), {p: 1 for p in range(6)}) is None
+pq1 = pq.make_question(vrow(german="zzgehen", forms=json.dumps({"praesens": ["gehe", "gehst", "geht", "gehen", "geht", "gehen"],
+                                                                  "past": ["ging", "ist gegangen"]})), {p: 1 for p in range(6)})
+assert pq1["short"] and pq1["prompt"].count("___") == 2 and pq1["answer"] in pq1["options"] and len(set(pq1["options"])) == 4
+assert set(pq1["kinds"].values()) <= {"aux", "part", "person"} and "aux" in pq1["kinds"].values() and pq1["answer"] not in pq1["kinds"]
+ptb = lambda scope="all": J(cb.get(f"/api/grammar/perfekt?scope={scope}&n=30"))["questions"]
+pqs = ptb()
+assert pqs and all(x["verb"] and x["answer"] in x["options"] and x["prompt"].count("___") == 2 for x in pqs), pqs
+assert next(x for x in pqs if x["word_id"] == vfa)["german"] == "zzfahren"
+pres = lambda wid, ok, **b: cb.post("/api/grammar/perfekt/result", json={"word_id": wid, "ok": ok, **b})
+pst = lambda wid: db.execute("SELECT stability, weak, wrong FROM perfekt_practice WHERE word_id = ?", (wid,)).fetchone()
+vbefore = vst(vfa)
+assert pres(vfa, False, person=1, kind="person").status_code == 200 and pst(vfa) == (None, 0, 0)
+assert pres(vfa, False, person=1, kind="aux").status_code == 200 and pst(vfa)[1:] == (1, 1) and vst(vfa) == vbefore
+assert db.execute("SELECT tense, kind FROM verb_answers ORDER BY id DESC LIMIT 1").fetchone() == ("perfekt", "aux")
+assert pres(vfa, False, person=1, kind="stem").status_code == 200       # 现在时的错因在这里无效, 不记
+assert db.execute("SELECT kind FROM verb_answers ORDER BY id DESC LIMIT 1").fetchone() == (None,)
+assert J(cb.get("/api/grammar/perfekt/books"))["wrong"] == 1 and vfa in {x["word_id"] for x in ptb("wrong")}
+assert J(cb.post("/api/grammar/perfekt/list", json={"text": "zzabholen"}))["added"] == 1
+assert J(cb.get("/api/grammar/perfekt/words?scope=wrong"))["total"] == 2
+assert cb.delete(f"/api/grammar/perfekt/list/{vho}").status_code == 200 and J(cb.get("/api/grammar/perfekt/books"))["wrong"] == 1
+assert cb.get("/api/grammar/nope").status_code == 404 and cb.get("/api/grammar/perfekt?scope=x").status_code == 400
+for german, items in PERFEKT.items():
+    assert len(items) >= 2 and len({x[1] for x in items}) == len(items), german
+    for item in items:
+        assert item[0] in range(6) and item[1].count("___") == 2 and not vq.CHINESE.search(item[1]) and vq.CHINESE.search(item[2]), item
+        assert len(item) == 3 or item[3] in pq.AUX, item
 # 手写句子: 每句一个空, 德语不混中文, 第一位不用 sie / Sie
 for german, items in WRITTEN.items():
     assert len(items) >= 2 and len({x[1] for x in items}) == len(items), german

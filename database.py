@@ -336,6 +336,27 @@ CREATE TABLE IF NOT EXISTS verb_list (
     added_at TEXT NOT NULL,
     PRIMARY KEY (user_id, word_id)
 );
+-- 完成时练习记录, 字段含义同 verb_practice。作答明细也在 verb_answers(tense = 'perfekt', kind = aux / part / person)
+CREATE TABLE IF NOT EXISTS perfekt_practice (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    seen INTEGER NOT NULL DEFAULT 0,
+    wrong INTEGER NOT NULL DEFAULT 0,
+    streak INTEGER NOT NULL DEFAULT 0,
+    last_at TEXT NOT NULL,
+    stability REAL,
+    difficulty REAL,
+    last_review TEXT,
+    next_review TEXT,
+    weak INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, word_id)
+);
+CREATE TABLE IF NOT EXISTS perfekt_list (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, word_id)
+);
 -- 情景课的整句复习进度。item_key 由「对方的话 + 参考回答」算出, 课文没改这一句, 进度就一直有效
 CREATE TABLE IF NOT EXISTS sentence_progress (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -397,7 +418,8 @@ def rebuild_words(db):
 
 
 USER_WORD_TABLES = ("progress", "review_log", "study_queue", "noun_practice", "noun_list", "plural_practice",
-                    "plural_list", "verb_practice", "verb_answers", "verb_list", "user_hidden_words", "user_word_edits")
+                    "plural_list", "verb_practice", "verb_answers", "verb_list", "perfekt_practice", "perfekt_list",
+                    "user_hidden_words", "user_word_edits")
 
 
 def keep_own_content(db, owner, word_id, content, old_id):

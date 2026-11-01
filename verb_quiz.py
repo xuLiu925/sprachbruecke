@@ -26,9 +26,8 @@ from vocab import book_filter, current_book, query
 
 bp = Blueprint("verb_quiz", __name__)
 
+ROUTE = "<any(verbs, perfekt):which>"
 IS_VERB = "w.gender = '' AND w.forms LIKE '%\"praesens\"%' AND w.german NOT LIKE '% %'"
-MARKS = ("LEFT JOIN verb_practice np ON np.word_id = w.id AND np.user_id = :uid "
-         "LEFT JOIN verb_list nl ON nl.word_id = w.id AND nl.user_id = :uid")
 PERSONS = ["ich", "du", "er / sie / es", "wir", "ihr", "sie / Sie"]
 SHORT_SUBJECT = ["ich", "du", "er", "wir", "ihr", "Sie"]     # 短题的主语; 第三人称单数一律用 er
 ENDINGS = ["-e", "-st", "-t", "-en", "-t", "-en"]
@@ -107,7 +106,7 @@ def question(row, v, person, prompt, zh, source, fill=None, short=False):
     others = [h for h in dict.fromkeys(v["heads"]) if h != answer and h not in picks]
     wrong = random.sample(picks, len(picks)) + random.sample(others, len(others))
     note = " · du 和 er 词干要变" if v["changes"] else " · 不规则" if v["irregular"] else ""
-    return {"word_id": row["id"], "meaning": row["meaning"], "prompt": prompt, "answer": answer,
+    return {"word_id": row["id"], "german": row["german"], "meaning": row["meaning"], "prompt": prompt, "answer": answer,
             "fill": fill or (answer.capitalize() if prompt.startswith("___") else answer), "options": [answer] + wrong[:3],
             "explain": explain(row, v, person), "zh": zh, "source": source, "must": f"（{row['german']}）",
             "hint": f"{row['german']} · {PERSONS[person]}{note}", "person": person, "verb": True, "stem_picks": picks,
@@ -180,27 +179,40 @@ def make_question(row, weights):
                     "template", short=True)
 
 
-def make_round(rows, n, weights):
+def make_round(rows, n, weights, make=make_question):
     out = []
     for r in rows:
         if len(out) >= n:
             break
-        q = make_question(r, weights)
+        q = make(r, weights)
         if q:
             out.append(q)
     return out
 
 
-def person_weights(uid):
-    rows = get_db().execute("SELECT person, ok FROM verb_answers WHERE user_id = ? AND person IS NOT NULL ORDER BY id DESC LIMIT ?",
-                            (uid, RECENT_ANSWERS)).fetchall()
+# 现在时和完成时是两种能力, 记录分开存, 接口结构一样。完成时在 perfekt_quiz.py 里登记
+# kinds = 前端能传的错因, 其中 person 不改记忆状态, 其他算忘了
+KINDS = {"verbs": {"tense": "praesens", "practice": "verb_practice", "list": "verb_list", "kinds": ("stem", "person"),
+                   "make": make_question}}
+
+
+def marks(cfg):
+    """练习记录和手动加的词; 别名和定冠词一样, 错题本和“最容易忘”的条件才能共用"""
+    return (f"LEFT JOIN {cfg['practice']} np ON np.word_id = w.id AND np.user_id = :uid "
+            f"LEFT JOIN {cfg['list']} nl ON nl.word_id = w.id AND nl.user_id = :uid")
+
+
+def person_weights(uid, tense):
+    rows = get_db().execute("SELECT person, ok FROM verb_answers WHERE user_id = ? AND tense = ? AND person IS NOT NULL "
+                            "ORDER BY id DESC LIMIT ?", (uid, tense, RECENT_ANSWERS)).fetchall()
     return aq.weights_from([tuple(r) for r in rows], range(6))
 
 
-@bp.route("/api/grammar/verbs")
+@bp.route(f"/api/grammar/{ROUTE}")
 @login_required
-def verbs():
+def verbs(which):
     """?scope=单词书或 wrong&n=14: 一组题, 每个动词最多一题。不带 scope 时用当前单词书。选词规则同定冠词"""
+    cfg = KINDS[which]
     uid = current_user_id()
     scope = request.args.get("scope") or current_book(uid)
     if scope not in nq.SCOPES:
@@ -209,14 +221,15 @@ def verbs():
         n = min(max(int(request.args.get("n", "14")), 1), nq.MAX_ROUND)
     except ValueError:
         return err("题数无效")
-    weights = person_weights(uid)
+    weights = person_weights(uid, cfg["tense"])
+    make = cfg["make"]
     base = ("SELECT w.id, w.german, w.meaning, w.example, w.forms, d.details FROM my_words w {join} "
-            f"LEFT JOIN word_details d ON d.word_id = w.id {MARKS} "
+            f"LEFT JOIN word_details d ON d.word_id = w.id {marks(cfg)} "
             f"LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid WHERE {IS_VERB} {{where}}")
     now = now_str()
     if scope == "wrong":
         rows = query(base.format(join="", where=nq.IN_WRONG) + f" ORDER BY {nq.RISK} LIMIT :pool", pool=nq.POOL, now=now).fetchall()
-        questions = make_round(rows, n, weights)
+        questions = make_round(rows, n, weights, make)
         random.shuffle(questions)
         return jsonify({"questions": questions})
     join, args, order = book_filter(scope)
@@ -227,31 +240,33 @@ def verbs():
     due = rows("AND np.word_id IS NOT NULL AND (np.next_review IS NULL OR np.next_review < :end)", nq.RISK)
     new = rows("AND np.word_id IS NULL", f"p.word_id IS NULL, {order}")
     spare = rows("AND np.next_review >= :end", nq.RISK)
-    fresh = sorted(make_round(new, nq.POOL, weights), key=lambda q: q["short"])      # 新词里有句子的先出
-    return jsonify({"questions": nq.pick_round(make_round(due, n, weights), fresh, make_round(spare, n, weights), n)})
+    fresh = sorted(make_round(new, nq.POOL, weights, make), key=lambda q: q["short"])      # 新词里有句子的先出
+    return jsonify({"questions": nq.pick_round(make_round(due, n, weights, make), fresh,
+                                               make_round(spare, n, weights, make), n)})
 
 
-@bp.route("/api/grammar/verbs/books")
+@bp.route(f"/api/grammar/{ROUTE}/books")
 @login_required
-def verb_books():
+def verb_books(which):
     """练习范围, 格式同 /api/grammar/nouns/books(前端共用), nouns = 这本书的动词数"""
+    join_marks = marks(KINDS[which])
     counts = ("COUNT(*) AS nouns, COUNT(np.word_id) AS practiced, "
               f"COALESCE(SUM(CASE WHEN 1 {nq.IN_WRONG} THEN 1 ELSE 0 END), 0) AS weak, "
               "COALESCE(SUM(np.stability >= :master), 0) AS mastered")
     by = {}
     for table_name, key in (("word_levels", "level"), ("word_books", "book")):
         for r in query(f"SELECT l.{key} AS book, {counts} FROM my_words w JOIN {table_name} l ON l.word_id = w.id "
-                       f"{MARKS} WHERE {IS_VERB} GROUP BY l.{key}", master=nq.MASTER_S).fetchall():
+                       f"{join_marks} WHERE {IS_VERB} GROUP BY l.{key}", master=nq.MASTER_S).fetchall():
             by[r["book"]] = dict(r)
-    whole = query(f"SELECT {counts} FROM my_words w {MARKS} WHERE {IS_VERB}", master=nq.MASTER_S).fetchone()
+    whole = query(f"SELECT {counts} FROM my_words w {join_marks} WHERE {IS_VERB}", master=nq.MASTER_S).fetchone()
     by["all"] = {**dict(whole), "book": "all"}
     return jsonify({"current": current_book(current_user_id()), "wrong": whole["weak"],
                     "books": [by[b] for b in nq.BOOKS if b in by]})
 
 
-@bp.route("/api/grammar/verbs/words")
+@bp.route(f"/api/grammar/{ROUTE}/words")
 @login_required
-def verb_words():
+def verb_words(which):
     """查看一个范围里的动词 ?scope=&page=: 带练习记录, manual = 手动加进错题本的"""
     scope = request.args.get("scope", "")
     if scope not in nq.SCOPES:
@@ -265,7 +280,7 @@ def verb_words():
     else:
         join, args, order = book_filter(scope)
         where = ""
-    source = f"FROM my_words w {join} {MARKS} WHERE {IS_VERB} {where}"
+    source = f"FROM my_words w {join} {marks(KINDS[which])} WHERE {IS_VERB} {where}"
     total = query(f"SELECT COUNT(*) {source}", **args).fetchone()[0]
     rows = query(
         "SELECT w.id, w.german, w.gender, w.meaning, COALESCE(np.wrong, 0) AS wrong, COALESCE(np.streak, 0) AS streak, "
@@ -276,10 +291,11 @@ def verb_words():
                     "pages": max((total + nq.PAGE_SIZE - 1) // nq.PAGE_SIZE, 1)})
 
 
-@bp.route("/api/grammar/verbs/result", methods=["POST"])
+@bp.route(f"/api/grammar/{ROUTE}/result", methods=["POST"])
 @login_required
-def result():
-    """记一次作答 {word_id, ok, person, kind, hinted}: 只记每组第一次作答, 不影响今日学习。kind = stem / person"""
+def result(which):
+    """记一次作答 {word_id, ok, person, kind, hinted}: 只记每组第一次作答, 不影响今日学习。kind 见 KINDS"""
+    cfg = KINDS[which]
     data = json_body()
     word_id, ok = (data.get("word_id"), data.get("ok")) if data else (None, None)
     if isinstance(word_id, bool) or not isinstance(word_id, int) or not isinstance(ok, bool):
@@ -288,23 +304,23 @@ def result():
         return err("单词不存在", 404)
     person, kind = data.get("person"), data.get("kind")
     person = person if person in range(6) and not isinstance(person, bool) else None
-    kind = kind if kind in ("stem", "person") and not ok else None
+    kind = kind if isinstance(kind, str) and kind in cfg["kinds"] and not ok else None
     if data.get("hinted") is True or kind == "person":
         rating = None
     else:
         rating = 3 if ok else 1
     db = get_db()
     uid = current_user_id()
-    nq.update_practice(db, uid, word_id, rating, "verb_practice")
-    db.execute("INSERT INTO verb_answers (user_id, word_id, person, ok, kind, answered_at) VALUES (?,?,?,?,?,?)",
-               (uid, word_id, person, ok, kind, now_str()))
+    nq.update_practice(db, uid, word_id, rating, cfg["practice"])
+    db.execute("INSERT INTO verb_answers (user_id, word_id, tense, person, ok, kind, answered_at) VALUES (?,?,?,?,?,?,?)",
+               (uid, word_id, cfg["tense"], person, ok, kind, now_str()))
     db.commit()
     return jsonify({"ok": True})
 
 
-@bp.route("/api/grammar/verbs/list", methods=["POST"])
+@bp.route(f"/api/grammar/{ROUTE}/list", methods=["POST"])
 @login_required
-def add_verbs():
+def add_verbs(which):
     """加入错题本 {text: "fahren, geben"}: 逗号、空格或换行分隔, 变化形式也能找到原形。返回 added / skipped / missing"""
     data = json_body()
     if data is None:
@@ -322,19 +338,20 @@ def add_verbs():
     db = get_db()
     added = 0
     for word_id in dict.fromkeys(ids):
-        added += db.execute("INSERT OR IGNORE INTO verb_list (user_id, word_id, added_at) VALUES (?,?,?)",
+        added += db.execute(f"INSERT OR IGNORE INTO {KINDS[which]['list']} (user_id, word_id, added_at) VALUES (?,?,?)",
                             (current_user_id(), word_id, now_str())).rowcount
     db.commit()
     return jsonify({"added": added, "skipped": len(set(ids)) - added, "missing": missing})
 
 
-@bp.route("/api/grammar/verbs/list/<int:word_id>", methods=["DELETE"])
+@bp.route(f"/api/grammar/{ROUTE}/list/<int:word_id>", methods=["DELETE"])
 @login_required
-def remove_verb(word_id):
+def remove_verb(which, word_id):
     """移出错题本: 手动加的删掉, 错过的记录清零; 练过几次还留着"""
     db = get_db()
-    db.execute("DELETE FROM verb_list WHERE user_id = ? AND word_id = ?", (current_user_id(), word_id))
-    db.execute("UPDATE verb_practice SET wrong = 0, streak = 0, weak = 0 WHERE user_id = ? AND word_id = ?",
+    cfg = KINDS[which]
+    db.execute(f"DELETE FROM {cfg['list']} WHERE user_id = ? AND word_id = ?", (current_user_id(), word_id))
+    db.execute(f"UPDATE {cfg['practice']} SET wrong = 0, streak = 0, weak = 0 WHERE user_id = ? AND word_id = ?",
                (current_user_id(), word_id))
     db.commit()
     return jsonify({"ok": True})
