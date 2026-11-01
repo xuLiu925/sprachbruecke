@@ -265,7 +265,7 @@ CREATE TABLE IF NOT EXISTS noun_practice (
     PRIMARY KEY (user_id, word_id)
 );
 -- 定冠词每次作答的明细, 以后统计每个格的正确率用。number = 单数 / 复数, case_no = 0–3(一到四格), 不确定时为空
--- kind = 答错的原因 gender(词性) / case(格), 答对或老记录为空
+-- kind = 答错的原因 gender(词性) / case(格), 答对或老记录为空; cell = ein / kein / 物主冠词的格子(如 indef:der:3), 定冠词为空
 CREATE TABLE IF NOT EXISTS noun_answers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -274,7 +274,8 @@ CREATE TABLE IF NOT EXISTS noun_answers (
     case_no INTEGER,
     ok INTEGER NOT NULL,
     answered_at TEXT NOT NULL,
-    kind TEXT
+    kind TEXT,
+    cell TEXT
 );
 -- 我的词性本: 用户自己挑的名词
 CREATE TABLE IF NOT EXISTS noun_list (
@@ -442,8 +443,10 @@ def migrate(db):
             db.execute(f"ALTER TABLE noun_practice ADD COLUMN {name} {typ}")
     if "weak" not in cols:                     # 老错题按原来的规则留在错题本里
         db.execute("UPDATE noun_practice SET weak = 1 WHERE wrong > 0 AND streak < 3")
-    if "kind" not in {r[1] for r in db.execute("PRAGMA table_info(noun_answers)")}:
-        db.execute("ALTER TABLE noun_answers ADD COLUMN kind TEXT")
+    cols = {r[1] for r in db.execute("PRAGMA table_info(noun_answers)")}
+    for name in ("kind", "cell"):
+        if name not in cols:
+            db.execute(f"ALTER TABLE noun_answers ADD COLUMN {name} TEXT")
     if "bonus" not in {r[1] for r in db.execute("PRAGMA table_info(study_queue)")}:
         db.execute("ALTER TABLE study_queue ADD COLUMN bonus INTEGER NOT NULL DEFAULT 0")
     db.execute("CREATE INDEX IF NOT EXISTS idx_review_log_day ON review_log (user_id, reviewed_at)")

@@ -29,8 +29,10 @@ function articleQuiz(form, nouns, cases, genders) {
 }
 
 // 题库在后端的知识点: 从选中的单词书或错题本出题, 取不到时用程序生成的题。fixed = 选项每题都一样, 按钮不换位置
-async function bankQuiz(local) {
-  try { return (await api(`/api/grammar/nouns?scope=${gScopeNow}&n=14&` + tzQuery())).questions; }
+// kind = indef / kein / poss: 不定冠词、否定冠词、物主冠词, 不带就是定冠词
+async function bankQuiz(local, kind) {
+  const url = kind ? `/api/grammar/articles?type=${kind}&scope=${gScopeNow}&n=14` : `/api/grammar/nouns?scope=${gScopeNow}&n=14&` + tzQuery();
+  try { return (await api(url)).questions; }
   catch (e) { toast("题库加载失败，先做基础题"); return shuffle(local); }
 }
 
@@ -246,7 +248,7 @@ onShow.gtopic = () => {
   const best = bestScore(t.id);
   // 题库知识点的进度显示在练习范围里; 每组固定题数, 最好成绩很快就满分, 没有参考价值
   $("gStart").textContent = "开始练习" + (best && !t.bank ? `（上次最好 ${best[0]} / ${best[1]}）` : "");
-  $("gBank").classList.toggle("hidden", !(t.bank && isAdmin));
+  $("gBank").classList.toggle("hidden", !(t.adminBank && isAdmin));
   $("gScopeRow").classList.toggle("hidden", !t.bank);
   if (t.bank) gScopeLoad();
 };
@@ -356,10 +358,11 @@ function gRender() {
   if (seen) gShowAnswer(seen.value);
 }
 
-// 定冠词题答错的原因: gender = 词性记错了, case = 词性没错, 格用错了(复数的冠词不分词性, 只可能是格)
+// 冠词题答错的原因: gender = 词性记错了, case = 词性没错, 格或词尾用错了(复数的冠词不分词性, 只可能是格)
+// ein / kein / 物主冠词的题点“不会”不算词性错: 更可能是词尾没记住
 function gErrKind(q, value) {
   if (!q.gender_picks || value === q.answer) return null;
-  if (value === null) return q.must === "复数" ? "case" : "gender";
+  if (value === null) return q.must === "复数" || q.article ? "case" : "gender";
   return q.gender_picks.includes(value) ? "gender" : "case";
 }
 
@@ -372,7 +375,7 @@ function gChoose(value) {
     if (ok) gScore++;
     else if (gTopic.bank) gQs.push({ ...q, retry: true });
     if (q.word_id) api("/api/grammar/nouns/result?" + tzQuery(), "POST", { word_id: q.word_id, ok, must: q.must, case: q.case,
-                       kind: gErrKind(q, value), hinted: !!getSetting("gHints") }).catch(() => {});
+                       kind: gErrKind(q, value), hinted: !!getSetting("gHints"), cell: q.cell }).catch(() => {});
   }
   gPicks[gi] = { value, opts: gOpts };
   gShowAnswer(value);
@@ -388,7 +391,7 @@ function gShowAnswer(value) {
   });
   if (!q.wide) promptInto($("gqPrompt"), q.prompt, q.fill || q.answer);
   gHint();
-  const why = { gender: "词性错了，", case: "格用错了，" }[gErrKind(q, value)] || "";
+  const why = { gender: "词性错了，", case: q.article ? "词尾用错了，" : "格用错了，" }[gErrKind(q, value)] || "";
   $("gqResult").textContent = ok ? "✔ 正确" : (value === null ? "不会，正确答案：" : `✘ ${why}正确答案：`) + q.answer;
   $("gqResult").className = ok ? "ok" : "msg";
   $("gqZh").textContent = gTopic.bank ? "" : q.zh || "";
@@ -421,6 +424,16 @@ $("gqSay").onclick = () => speakDe(gSentence());
 $("gqNext").onclick = () => { gi++; gRender(); };
 $("gqPrev").onclick = () => { if (gi > 0) { gi--; gRender(); } };   // 只回看, 不能改答案
 
+// 这一组错得最多的格子(ein / kein / 物主冠词), 只看第一次作答
+function gWeakCell() {
+  const count = {};
+  gQs.forEach((q, i) => {
+    if (q.cell_name && !q.retry && gPicks[i] && gPicks[i].value !== q.answer) count[q.cell_name] = (count[q.cell_name] || 0) + 1;
+  });
+  const top = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
+  return top ? `错得最多：${top[0]}（${top[1]} 题）。` : "";
+}
+
 function gDone() {
   $("gqBox").classList.add("hidden");
   $("gqDone").classList.remove("hidden");
@@ -435,7 +448,7 @@ function gDone() {
   if (!best || gScore / total > best[0] / best[1]) {
     try { localStorage.setItem("sb_gbest_" + gTopic.id, JSON.stringify([gScore, total])); } catch (e) {}
   }
-  $("gqDoneMsg").textContent = gScore === total ? "全对了 🎉" : "错的地方回到速查表再看一眼，再练一次。";
+  $("gqDoneMsg").textContent = gScore === total ? "全对了 🎉" : gWeakCell() + "错的地方回到速查表再看一眼，再练一次。";
 }
 $("gqAgain").onclick = () => onShow.gquiz();
 $("gqBack").onclick = () => $("btnBack").click();

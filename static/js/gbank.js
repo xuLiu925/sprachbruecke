@@ -5,7 +5,7 @@ function gbMsg(text, ok) { $("gbMsg").textContent = text || ""; $("gbMsg").class
 const gbUrl = path => `/api/grammar/${gTopic.id}/${path}`;
 
 onShow.gbank = async () => {
-  if (!gTopic || !gTopic.bank) return location.replace("#grammar");
+  if (!gTopic || !gTopic.adminBank) return location.replace("#grammar");
   $("title").textContent = gTopic.title + "题库";
   gbMsg("");
   await gbLoad();

@@ -43,6 +43,7 @@ PAGE_SIZE = 100       # 查看单词时一页多少个
 MASTER_S = 21         # 稳定性到多少天算已掌握, 和词汇模块一样
 WEAK_DONE_S = 7       # 稳定性到多少天移出错题本
 CASE_IN_TEXT = re.compile("第([一二三四])格")
+CELL = re.compile("(indef|kein|poss):(der|die|das|pl):[0-3]")   # ein / kein / 物主冠词的格子, 见 article_quiz.py
 # 练习记录和手动加的词; 下面的查询都带这两张表, 错题本的条件要用到
 MARKS = ("LEFT JOIN noun_practice np ON np.word_id = w.id AND np.user_id = :uid "
          "LEFT JOIN noun_list nl ON nl.word_id = w.id AND nl.user_id = :uid")
@@ -210,13 +211,45 @@ def pick_round(due, new, spare, n):
     return out
 
 
-def memory_rating(ok, number, hinted, kind):
-    """这次作答对词性记忆算什么: 3 = 良好, 1 = 忘了, None = 不能说明记没记住"""
+def memory_rating(ok, number, hinted, kind, article=False):
+    """这次作答对词性记忆算什么: 3 = 良好, 1 = 忘了, None = 不能说明记没记住
+    article = ein / kein / 物主冠词的题: 答对不算(第一格 ein 分不清阳性中性), 只有词性答错才算"""
     if hinted or number == "复数":
         return None
     if ok:
-        return 3
+        return None if article else 3
     return None if kind == "case" else 1
+
+
+def update_practice(db, uid, word_id, rating):
+    row = db.execute("SELECT * FROM noun_practice WHERE user_id = ? AND word_id = ?", (uid, word_id)).fetchone()
+    p = dict(row) if row else {"seen": 0, "wrong": 0, "streak": 0, "stability": None, "difficulty": None,
+                               "last_review": None, "next_review": None, "weak": 0}
+    now = datetime.now(timezone.utc)
+    tomorrow = fmt_time(now + timedelta(days=1))
+    last = parse_time(p["last_review"]) if p["last_review"] else None
+    if rating is None:                   # 不改记忆状态, 只是今天别再出
+        p["next_review"] = max(p["next_review"] or "", tomorrow)
+    else:
+        p["wrong"] += rating == 1
+        p["streak"] = 0 if rating == 1 else p["streak"] + 1
+        if rating == 1 or last is None or day_gap(last, now) >= 1:     # 同一天再答对不算数, 错题一天内刷不掉
+            s, d, days = fsrs_review(p["stability"], p["difficulty"], last, rating, now)
+            p.update(stability=s, difficulty=d, last_review=fmt_time(now),
+                     next_review=fmt_time(now + timedelta(days=max(days, 1))))   # 答错这一组里已重练, 最早明天再出
+        if rating == 1:
+            p["weak"] = 1
+        elif p["stability"] >= WEAK_DONE_S:
+            p["weak"] = 0
+    db.execute(
+        "INSERT INTO noun_practice (user_id, word_id, seen, wrong, streak, last_at, stability, difficulty, "
+        "last_review, next_review, weak) VALUES (?,?,1,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(user_id, word_id) DO UPDATE SET seen = seen + 1, wrong = excluded.wrong, streak = excluded.streak, "
+        "last_at = excluded.last_at, stability = excluded.stability, difficulty = excluded.difficulty, "
+        "last_review = excluded.last_review, next_review = excluded.next_review, weak = excluded.weak",
+        (uid, word_id, p["wrong"], p["streak"], fmt_time(now), p["stability"], p["difficulty"], p["last_review"],
+         p["next_review"], p["weak"]),
+    )
 
 
 @bp.route("/api/grammar/nouns")
@@ -301,8 +334,9 @@ def noun_words():
 @bp.route("/api/grammar/nouns/result", methods=["POST"])
 @login_required
 def result():
-    """记一次作答 {word_id, ok, must, case, kind, hinted}: 只记每组第一次作答, 不影响今日学习。
-    kind = 答错的原因 gender / case, hinted = 开着词性提示。词性的记忆用 FSRS 排期, 见 memory_rating()"""
+    """记一次作答 {word_id, ok, must, case, kind, hinted, cell}: 只记每组第一次作答, 不影响今日学习。
+    kind = 答错的原因 gender / case, hinted = 开着词性提示, cell = ein / kein / 物主冠词的格子。
+    词性的记忆用 FSRS 排期, 见 memory_rating()"""
     data = json_body()
     word_id, ok = (data.get("word_id"), data.get("ok")) if data else (None, None)
     if isinstance(word_id, bool) or not isinstance(word_id, int) or not isinstance(ok, bool):
@@ -311,41 +345,16 @@ def result():
         return err("单词不存在", 404)
     db = get_db()
     uid = current_user_id()
-    must, case_no, kind = data.get("must"), data.get("case"), data.get("kind")
-    rating = memory_rating(ok, must, data.get("hinted") is True, kind)
-    row = db.execute("SELECT * FROM noun_practice WHERE user_id = ? AND word_id = ?", (uid, word_id)).fetchone()
-    p = dict(row) if row else {"seen": 0, "wrong": 0, "streak": 0, "stability": None, "difficulty": None,
-                               "last_review": None, "next_review": None, "weak": 0}
-    now = datetime.now(timezone.utc)
-    tomorrow = fmt_time(now + timedelta(days=1))
-    last = parse_time(p["last_review"]) if p["last_review"] else None
-    if rating is None:                   # 不改记忆状态, 只是今天别再出
-        p["next_review"] = max(p["next_review"] or "", tomorrow)
-    else:
-        p["wrong"] += rating == 1
-        p["streak"] = 0 if rating == 1 else p["streak"] + 1
-        if rating == 1 or last is None or day_gap(last, now) >= 1:     # 同一天再答对不算数, 错题一天内刷不掉
-            s, d, days = fsrs_review(p["stability"], p["difficulty"], last, rating, now)
-            p.update(stability=s, difficulty=d, last_review=fmt_time(now),
-                     next_review=fmt_time(now + timedelta(days=max(days, 1))))   # 答错这一组里已重练, 最早明天再出
-        if rating == 1:
-            p["weak"] = 1
-        elif p["stability"] >= WEAK_DONE_S:
-            p["weak"] = 0
+    must, case_no, kind, cell = data.get("must"), data.get("case"), data.get("kind"), data.get("cell")
+    cell = cell if isinstance(cell, str) and CELL.fullmatch(cell) else None
+    rating = memory_rating(ok, must, data.get("hinted") is True, kind, cell is not None)
+    if cell is None or rating is not None:    # ein / kein / 物主冠词的题不能说明词性时, 不算练过这个词
+        update_practice(db, uid, word_id, rating)
     db.execute(
-        "INSERT INTO noun_practice (user_id, word_id, seen, wrong, streak, last_at, stability, difficulty, "
-        "last_review, next_review, weak) VALUES (?,?,1,?,?,?,?,?,?,?,?) "
-        "ON CONFLICT(user_id, word_id) DO UPDATE SET seen = seen + 1, wrong = excluded.wrong, streak = excluded.streak, "
-        "last_at = excluded.last_at, stability = excluded.stability, difficulty = excluded.difficulty, "
-        "last_review = excluded.last_review, next_review = excluded.next_review, weak = excluded.weak",
-        (uid, word_id, p["wrong"], p["streak"], fmt_time(now), p["stability"], p["difficulty"], p["last_review"],
-         p["next_review"], p["weak"]),
-    )
-    db.execute(
-        "INSERT INTO noun_answers (user_id, word_id, number, case_no, ok, answered_at, kind) VALUES (?,?,?,?,?,?,?)",
+        "INSERT INTO noun_answers (user_id, word_id, number, case_no, ok, answered_at, kind, cell) VALUES (?,?,?,?,?,?,?,?)",
         (uid, word_id, must if must in ("单数", "复数") else None,
-         case_no if case_no in (0, 1, 2, 3) and not isinstance(case_no, bool) else None, ok, fmt_time(now),
-         kind if kind in ("gender", "case") and not ok else None),
+         case_no if case_no in (0, 1, 2, 3) and not isinstance(case_no, bool) else None, ok, now_str(),
+         kind if kind in ("gender", "case") and not ok else None, cell),
     )
     db.commit()
     return jsonify({"ok": True})

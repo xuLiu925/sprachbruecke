@@ -892,7 +892,7 @@ na = J(cb.get("/api/grammar/nouns?scope=all&n=10"))["questions"]
 assert len(na) == 10 and len({x["word_id"] for x in na}) == 10 and all(x["answer"] in x["options"] and x["fixed"] and x["must"] for x in na)
 assert c.get("/api/grammar/nouns?scope=learned").status_code == 400 and c.get("/api/grammar/nouns?scope=mine").status_code == 400
 assert J(c.get("/api/grammar/nouns?n=5"))["questions"] is not None                                  # 默认当前单词书
-nid = na[0]["word_id"]
+nid = [x["word_id"] for x in na if not any(w in x["hint"] for w in ("Hund", "Lampe", "Tisch", "Katze"))][0]    # 这几个词后面有专门的测试
 nrep = lambda client, **b: client.post("/api/grammar/nouns/report", json={"word_id": nid, "prompt": "p ___", "reason": "这题不对", **b})
 assert nrep(cb, reason="x").status_code == 400 and nrep(cb, word_id="1").status_code == 400 and nrep(cb, word_id=999999).status_code == 404
 assert nrep(cb).status_code == 200 and cb.get("/api/grammar/nouns/reports").status_code == 403
@@ -1032,6 +1032,50 @@ res(cb, Tid, False)                                                             
 assert J(cb.get("/api/grammar/nouns/books"))["books"][-2:][0] == {"book": "warehouse", "nouns": 1, "practiced": 1, "weak": 1, "mastered": 0}
 assert [x["id"] for x in J(cb.get("/api/grammar/nouns/words?scope=warehouse"))["words"]] == [Tid]
 assert J(c.get("/api/books"))["themes"][-1]["level"] == "warehouse"
+
+# 不定冠词、否定冠词、物主冠词: 按格子练, 词性答错才算进词性记忆
+import article_quiz as AQ
+assert [AQ.form("euer", "die", 0), AQ.form("euer", "der", 0), AQ.form("unser", "der", 3)] == ["eure", "euer", "unseren"]
+assert [AQ.form("ein", "das", 3), AQ.form("kein", "pl", 2), AQ.form("Ihr", "die", 2), AQ.form("ein", "der", 1)] == ["ein", "keinen", "Ihrer", "eines"]
+assert AQ.gender_picks("ein", "der", 0) == ["eine"] and AQ.gender_picks("ein", "der", 3) == ["ein", "eine"]   # 第一格 ein 阳性中性都对
+assert AQ.gender_picks("kein", "die", 2) == ["keinem"]
+assert len(AQ.all_cells("indef")) == 12 and len(AQ.all_cells("kein")) == 12 and len(AQ.all_cells("poss")) == 16
+assert not [x for x in AQ.all_cells("indef") if ":pl:" in x] and not [x for x in AQ.all_cells("kein") if x.endswith(":1")]
+w1 = AQ.weights_from([("a", 0), ("a", 0), ("b", 1)], ["a", "b", "c"])
+assert w1 == {"a": 4, "b": 1, "c": AQ.UNSEEN_WEIGHT}
+assert AQ.weights_from([("a", 1)] * 10 + [("a", 0)] * 5, ["a"])["a"] == 1          # 只看最近 10 次
+same = {x: 1 for x in "abcde"}
+assert len(AQ.deal_cells(list("ab"), {"a": 1, "b": 1}, 5)) == 5 and set(AQ.deal_cells(list("ab"), {"a": 1, "b": 1}, 5)) == {"a", "b"}
+assert len(set(AQ.deal_cells(list("abcde"), same, 3))) == 3
+nowasser = {"cases": {"sg": ["das Wasser", "des Wassers", "dem Wasser", "das Wasser"], "pl": ["", "", "", ""]}}
+assert AQ.noun_table("indef", nr(forms=nowasser, gender="das", german="Wasser")) == {} and AQ.noun_table("kein", nr(forms=nowasser, gender="das", german="Wasser"))
+mq = AQ.make_question(nr(), "indef:der:3", "Mann")
+assert mq["prompt"] == "Wir suchen ___ Mann." and mq["answer"] == "einen" and mq["must"] == "单数" and mq["case"] == 3
+assert mq["gender_picks"] == ["ein", "eine"] and mq["cell_name"] == "第四格阳性" and "男人" in mq["zh"] and "einen" in mq["options"]
+pq2 = AQ.make_question(nr(), "kein:pl:2", "Männern")
+assert pq2["prompt"] == "Das hat mit ___ Männern zu tun." and pq2["answer"] == "keinen" and pq2["gender_picks"] == [] and pq2["must"] == "复数"
+for _ in range(30):
+    oq = AQ.make_question(nr(), "poss:die:3", "Frau")
+    assert oq["answer"] in oq["options"] and len(oq["options"]) == 6 and "的" in oq["zh"]
+assert c.get("/api/grammar/articles?type=x").status_code == 400 and c.get("/api/grammar/articles?type=kein&scope=x").status_code == 400
+assert c.get("/api/grammar/articles?type=kein&n=x").status_code == 400 and A.app.test_client().get("/api/grammar/articles?type=kein").status_code == 401
+for kind in ("indef", "kein", "poss"):
+    aq = J(cb.get(f"/api/grammar/articles?type={kind}&scope=all&n=8"))["questions"]
+    assert 0 < len(aq) <= 8 and len({x["word_id"] for x in aq}) == len(aq), aq
+    assert all(x["article"] == kind and x["answer"] in x["options"] and x["prompt"].count("___") == 1 and x["cell"].startswith(kind) for x in aq)
+assert J(cb.get("/api/grammar/articles?type=kein&scope=warehouse"))["questions"][0]["word_id"] == Tid
+pcount = lambda: db.execute("SELECT COUNT(*) FROM noun_practice").fetchone()[0]
+acell = lambda: db.execute("SELECT cell, kind FROM noun_answers ORDER BY id DESC LIMIT 1").fetchone()
+ppc = pcount()
+fresh = db.execute("SELECT id FROM words WHERE gender != '' AND status = 'public' AND id NOT IN (SELECT word_id FROM noun_practice) LIMIT 1").fetchone()[0]
+assert res(cb, fresh, True, must="单数", cell="indef:der:3").status_code == 200 and pcount() == ppc and acell() == ("indef:der:3", None)   # 答对不算练过
+res(cb, fresh, False, must="单数", kind="case", cell="indef:der:3")
+assert pcount() == ppc and acell() == ("indef:der:3", "case")
+res(cb, fresh, False, must="单数", kind="gender", cell="bad:cell")
+assert pcount() == ppc + 1 and acell() == (None, "gender")
+res(cb, fresh, False, must="单数", kind="gender", cell="kein:der:3")
+assert npr(fresh)[2] == 1 and acell() == ("kein:der:3", "gender")                 # 词性答错进错题本, 和定冠词共用
+assert NQ.memory_rating(True, "单数", False, None, True) is None and NQ.memory_rating(False, "单数", False, "gender", True) == 1
 
 db.close()
 

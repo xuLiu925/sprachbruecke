@@ -442,7 +442,8 @@ const GRAMMAR_TOPICS = [
       links: ["prep-akk", "prep-dat", "prep-wechsel"] },
     ],
     examples: ["Der Mann trinkt Kaffee.", "Ich sehe den Mann.", "Ich helfe dem Mann.", "Das ist das Auto des Mannes."],
-    bank: true,      // 题库在后端(grammar.py), 管理员能加题
+    bank: true,      // 从单词书或错题本出题, 有练习范围和提示开关
+    adminBank: true, // 手写题在后端(grammar.py), 管理员能加题
     quiz: () => bankQuiz(
       articleQuiz((c, g) => DEF_ARTICLES[c][g], QUIZ_NOUNS, [0, 1, 2, 3], ["m", "f", "n", "pl"]).slice(0, 4)),
   },
@@ -458,7 +459,8 @@ const GRAMMAR_TOPICS = [
       [CASE_NAMES[3], "eines", "einer", "eines", "—"],
     ] }],
     examples: ["Das ist ein Hund.", "Ich habe einen Bruder.", "Er wohnt in einer Wohnung.", "Ich sehe Kinder."],
-    quiz: () => articleQuiz((c, g) => "ein" + KEIN_ENDINGS[c][g], QUIZ_NOUNS, [0, 1, 2, 3], ["m", "f", "n"]),
+    bank: true,
+    quiz: () => bankQuiz(articleQuiz((c, g) => "ein" + KEIN_ENDINGS[c][g], QUIZ_NOUNS, [0, 1, 2, 3], ["m", "f", "n"]), "indef"),
   },
   {
     id: "art-kein", group: "冠词", level: "A1", title: "否定冠词 kein",
@@ -467,7 +469,8 @@ const GRAMMAR_TOPICS = [
             "否定带不定冠词或不带冠词的名词用 kein；否定动词、形容词等用 nicht。"],
     tables: [{ head: GENDER_HEAD, rows: KEIN_ENDINGS.map((r, c) => [CASE_NAMES[c], ...r.map(e => "kein" + e)]) }],
     examples: ["Ich habe keinen Hunger.", "Das ist keine gute Idee.", "Wir haben keine Kinder.", "Er hat kein Geld."],
-    quiz: () => articleQuiz((c, g) => "kein" + KEIN_ENDINGS[c][g], QUIZ_NOUNS, [0, 1, 2], ["m", "f", "n", "pl"]),
+    bank: true,
+    quiz: () => bankQuiz(articleQuiz((c, g) => "kein" + KEIN_ENDINGS[c][g], QUIZ_NOUNS, [0, 1, 2], ["m", "f", "n", "pl"]), "kein"),
   },
   {
     id: "art-poss", group: "冠词", level: "A1–A2", title: "物主冠词 mein / dein / sein …",
@@ -480,7 +483,8 @@ const GRAMMAR_TOPICS = [
         rows: KEIN_ENDINGS.map((r, c) => [CASE_NAMES[c], ...r.map(e => possForm("mein", e))]) },
     ],
     examples: ["Das ist mein Bruder.", "Ich besuche meine Eltern.", "Hast du deinen Schlüssel?", "Wir wohnen bei unserer Tante."],
-    quiz: () => {
+    bank: true,
+    quiz: () => bankQuiz((() => {
       const qs = [];
       for (const [person, stem] of POSSESSIVES) {
         const c = rand([0, 1, 2, 3]), g = rand(["m", "f", "n", "pl"]);
@@ -493,7 +497,7 @@ const GRAMMAR_TOPICS = [
         });
       }
       return qs;
-    },
+    })(), "poss"),
   },
   {
     id: "pron", group: "代词", level: "A1–A2", title: "人称代词四格",
