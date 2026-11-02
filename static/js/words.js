@@ -61,23 +61,28 @@ async function loadWords() {
     $("wAi").classList.remove("hidden");
   }
   for (const w of r.words) {
-    const row = document.createElement("button"); row.className = "item wordrow";
-    row.onclick = () => w.id ? openView(w.id) : openGlossaryWord(w);   // 情景课的仓储词还不在词库里, 用单词卡显示
-    const body = document.createElement("span"); body.className = "body";
-    const t = document.createElement("b"); wordInto(t, w);
-    const s = document.createElement("small");
-    s.textContent = [w.form ? `${w.form} 的原形` : "", w.glossary ? "📦 仓储词" : "", w.ai_word ? "✨ AI" : "",
-                     w.private ? "🔒 待审核" : "", w.edited ? "✏️ 已改" : "",
-                     w.level, w.pos, w.meaning].filter(Boolean).join(" · ");
-    body.append(t, s);
-    if (w.hidden) {
-      const c = document.createElement("span"); c.className = "chip"; c.textContent = "已删除";
-      row.append(body, c);
-    } else row.append(body, statusChip(w));
-    box.appendChild(row);
+    box.appendChild(wordRow(w, () => w.id ? openView(w.id) : openGlossaryWord(w)));   // 情景课的仓储词还不在词库里, 用单词卡显示
   }
 }
 onShow.words = loadWords;
+
+// 词库和全局搜索共用的一行
+function wordRow(w, open) {
+  const row = document.createElement("button"); row.className = "item wordrow";
+  row.onclick = open;
+  const body = document.createElement("span"); body.className = "body";
+  const t = document.createElement("b"); wordInto(t, w);
+  const s = document.createElement("small");
+  s.textContent = [w.form ? `${w.form} 的原形` : "", w.glossary ? "📦 仓储词" : "", w.ai_word ? "✨ AI" : "",
+                   w.private ? "🔒 待审核" : "", w.edited ? "✏️ 已改" : "",
+                   w.level, w.pos, w.meaning].filter(Boolean).join(" · ");
+  body.append(t, s);
+  if (w.hidden) {
+    const c = document.createElement("span"); c.className = "chip"; c.textContent = "已删除";
+    row.append(body, c);
+  } else row.append(body, statusChip(w));
+  return row;
+}
 $("wAi").onclick = async () => {
   const btn = $("wAi"), q = btn.dataset.q;
   btn.disabled = true; btn.textContent = "AI 正在查询…";

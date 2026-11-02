@@ -296,7 +296,7 @@ function openGlossaryWord(g, keep = false, back = false) {
   $("wsNoun").classList.toggle("hidden", !g.gender);
   if (getSetting("autoWord") && !back) speakDe(wordText(g));
 }
-// 今日学习: 按编号打开, 同形词(der See / die See)不会找错。这个词已在学习计划里, 不放“加入学习”, 也不再朗读
+// 按编号打开, 同形词(der See / die See)不会找错。不朗读; 学过的词不放“加入学习”, 今日学习的新词已在计划里, 也不放
 async function openWordId(id, label, back = false) {
   if (!back) wsEnter({ wordId: id, label });
   const seq = ++wsSeq;
@@ -307,7 +307,8 @@ async function openWordId(id, label, back = false) {
   openGlossaryWord(w, true, true);
   wsWord = { ...w };
   $("wsExample").textContent = "";           // 例句在详情里, 可以点词
-  $("wsAdd").classList.add("hidden");
+  wsButton(wsWord);
+  $("wsAdd").classList.toggle("hidden", w.status !== "new" || current === "review");
   $("wsView").classList.remove("hidden");
   if (!back) wsMoreFill(w);                  // 返回时由 wsBack 按原来的状态展开
 }

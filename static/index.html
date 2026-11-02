@@ -28,6 +28,8 @@
   <header class="topbar">
     <button class="back hidden" id="btnBack">‹ 返回</button>
     <h1 id="title">通德</h1>
+    <button class="searchbtn" id="btnSearch" title="搜索单词（/）" aria-label="搜索单词">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
   </header>
 
   <main>
@@ -624,6 +626,20 @@
     </section>
   </main>
 
+  <!-- 全局搜索 -->
+  <div class="search hidden" id="search">
+    <div class="sebar">
+      <input id="seInput" type="search" placeholder="查词：德语、变化形式或中文" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+      <button id="seClose">取消</button>
+    </div>
+    <div class="sebody" id="seBody">
+      <div class="meta left" id="seMsg"></div>
+      <div class="serecent" id="seRecent"></div>
+      <button class="secondary hidden" id="seAi" style="width:100%"></button>
+      <div class="list hidden" id="seList"></div>
+    </div>
+  </div>
+
   <!-- 情景课点词时弹出的单词卡 -->
   <div class="sheet hidden" id="wsheet">
     <div class="sheetbox">
@@ -684,6 +700,7 @@
 <script src="static/js/lessonnew.js"></script>
 <script src="static/js/parts.js"></script>
 <script src="static/js/spell.js"></script>
+<script src="static/js/search.js"></script>
 <script>boot();</script>
 </body>
 </html>

@@ -39,7 +39,7 @@ function toast(msg) {
 function needArticle() {
   try { return localStorage.getItem("sb_needArticle") !== "0"; } catch (e) { return true; }
 }
-const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "", pHints: false, pScope: "", spellMode: "button" };
+const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "", pHints: false, pScope: "", spellMode: "button", recentSearch: [] };
 function getSetting(k) {
   try { const v = localStorage.getItem("sb_" + k); return v === null ? SETTING_DEFAULTS[k] : JSON.parse(v); }
   catch (e) { return SETTING_DEFAULTS[k]; }
@@ -223,7 +223,12 @@ document.addEventListener("keydown", e => {
     else if (e.key === "Backspace" && wsStack.length) { e.preventDefault(); wsBack(); }
     return;
   }
+  if (searchIsOpen()) {                                          // 搜索层打开时同样不影响下面的页面
+    if (e.key === "Escape") { e.preventDefault(); closeSearch(); }
+    return;
+  }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if (e.key === "/" && !typing && !e.ctrlKey) { e.preventDefault(); openSearch(); return; }
   if (e.key === "Escape") {
     if (typing) e.target.blur();                                  // 输入框里按 Esc 只是退出输入
     else if (!$("btnBack").classList.contains("hidden")) { e.preventDefault(); $("btnBack").click(); }
