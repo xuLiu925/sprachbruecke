@@ -216,6 +216,15 @@ CREATE TABLE IF NOT EXISTS content_reports (
     created_at TEXT NOT NULL,
     PRIMARY KEY (kind, sent_key)
 );
+-- 意见反馈(「我的」页随便写的, 不针对某道题): page = 写反馈时在哪个页面; done_at 不为空 = 管理员处理过
+CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    text TEXT NOT NULL,
+    page TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    done_at TEXT
+);
 -- 语法题库(手写题和 AI 题)。topic = 知识点 id; prompt 里的 ___ 是空; 选项在 grammar.py 的 TOPICS 里
 --   source = seed / manual / ai; status = active / hidden(停用, 保留记录)
 CREATE TABLE IF NOT EXISTS grammar_questions (

@@ -134,8 +134,47 @@ onShow.me = async () => {
   $("meStats").textContent = `已学 ${s.learned} · 已掌握 ${s.mastered}`;
   try { $("optGoal").value = String((await api("/api/today?" + tzQuery())).goal); } catch (e) {}
   $("adminBox").classList.toggle("hidden", !isAdmin);
-  if (isAdmin) { loadAdmin(); loadPending(); }
+  if (isAdmin) { loadAdmin(); loadPending(); loadReports(); }
 };
+
+// 意见反馈: 所有人都能写; 管理员在下面的列表里看到
+$("btnFeedback").onclick = async () => {
+  const text = $("fbText").value.trim();
+  if (!text) return toast("请先写一下遇到了什么问题");
+  try { await api("/api/feedback", "POST", { text }); } catch (e) { return toast(e.message); }
+  $("fbText").value = "";
+  toast("已提交，谢谢！");
+  if (isAdmin) loadReports();
+};
+
+// 管理员: 意见反馈和各处的报错放在一起, 处理完点“已处理”
+async function loadReports() {
+  let r;
+  try { r = await api("/api/admin/feedback"); } catch (e) { return toast(e.message); }
+  const box = $("reportList"); box.textContent = "";
+  if (!r.items.length) box.textContent = "没有新的反馈和报错";
+  for (const x of r.items) {
+    const row = adminRow(box, "");
+    const t = row.firstChild;
+    const head = document.createElement("div"); head.className = "meta left"; head.style.fontSize = "13px";
+    head.textContent = `${x.kind_name} · ${x.user || "（已删除的用户）"} · ${localDate(x.created_at).text}`;
+    t.appendChild(head);
+    if (x.target) {
+      const tg = document.createElement("div"); tg.textContent = x.target; t.appendChild(tg);
+    } else if (x.type === "report") {
+      const tg = document.createElement("div"); tg.className = "meta left"; tg.textContent = "（内容已被删掉或重新生成）";
+      t.appendChild(tg);
+    }
+    const reason = document.createElement("div"); reason.className = "lzh"; reason.textContent = x.reason;
+    t.appendChild(reason);
+    if (x.word_id) miniBtn(row, "单词卡", () => openWordId(x.word_id, x.target));
+    miniBtn(row, "已处理", async () => {
+      const body = x.type === "feedback" ? { type: "feedback", id: x.id } : { type: "report", kind: x.kind, key: x.key };
+      try { await api("/api/admin/feedback/done", "POST", body); } catch (e) { return toast(e.message); }
+      loadReports();
+    });
+  }
+}
 
 // 用户加的、词典里没有的词: 通过后所有人都能查到, 拒绝后还留在加过的人的学习计划里
 async function loadPending() {

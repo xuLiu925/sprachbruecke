@@ -187,6 +187,29 @@ assert d2.get("/api/stats").status_code == 401
 assert d2.post("/api/login", json={"username": "dave", "password": tmp}).status_code == 200
 assert d2.post("/api/logout", json={}).status_code == 200 and d2.get("/api/stats").status_code == 401
 assert J(c.get("/api/me"))["username"] is not None             # 管理员没受影响
+# 意见反馈和报错汇总: 谁都能写反馈; 只有管理员能看; 已处理后不再显示(报错删掉, 反馈记处理时间)
+cf = A.app.test_client()
+assert cf.post("/api/feedback", json={"text": "x"}).status_code == 401
+assert cf.post("/api/login", json={"username": "dave", "password": tmp}).status_code == 200
+assert cf.post("/api/feedback", json={"text": " "}).status_code == 400
+assert cf.post("/api/feedback", json={"text": "a" * 1001}).status_code == 400
+assert cf.post("/api/feedback", json={"text": "听写页打不开", "page": "dictation"}).status_code == 200
+assert cf.get("/api/admin/feedback").status_code == 403
+dbf = sqlite3.connect(os.environ["DB_PATH"])
+dbf.execute("INSERT INTO content_reports VALUES ('noun', '1', 'Ich sehe ___ Tisch.｜冠词不对', ?, '2026-01-01 00:00:00')", (did,))
+dbf.execute("INSERT INTO content_reports VALUES ('note', 'gone', '讲错了', NULL, '2026-01-02 00:00:00')")
+dbf.commit()
+fb = J(c.get("/api/admin/feedback"))["items"]
+assert [x["kind_name"] for x in fb] == ["意见反馈", "句子讲解", "自动出的题"], fb
+assert fb[0]["reason"] == "听写页打不开" and fb[0]["user"] == "dave" and fb[0]["page"] == "dictation"
+assert fb[1]["target"] == "" and fb[1]["user"] is None
+assert fb[2]["word_id"] == 1 and fb[2]["target"].endswith("：Ich sehe ___ Tisch.") and fb[2]["reason"] == "冠词不对"
+assert cf.post("/api/admin/feedback/done", json={"type": "feedback", "id": fb[0]["id"]}).status_code == 403
+assert J(c.post("/api/admin/feedback/done", json={"type": "feedback", "id": fb[0]["id"]}))["done"] == 1
+assert J(c.post("/api/admin/feedback/done", json={"type": "report", "kind": "noun", "key": "1"}))["done"] == 1
+assert c.post("/api/admin/feedback/done", json={"type": "x"}).status_code == 400
+assert [x["kind_name"] for x in J(c.get("/api/admin/feedback"))["items"]] == ["句子讲解"]
+dbf.execute("DELETE FROM content_reports"); dbf.commit(); dbf.close()
 
 # 单词书: 还没有分级的词时默认「全部」; 有了以后默认 A1, 新词按 rank 出
 assert J(c.get("/api/books"))["current"] == "all"

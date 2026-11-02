@@ -116,7 +116,15 @@
           <div id="pwMsg" class="msg"></div>
         </div>
       </div>
+      <h2>意见反馈</h2>
+      <div class="card">
+        <p class="meta left" style="margin-top:0">页面打不开、按钮没反应、想要什么功能，都可以写在这里。题目或讲解有错，用那里的“⚠️ 报错”更方便。</p>
+        <textarea id="fbText" style="min-height:90px" maxlength="1000" placeholder="遇到了什么问题？在哪个页面？"></textarea>
+        <button id="btnFeedback" style="width:100%">提交</button>
+      </div>
       <div id="adminBox" class="hidden">
+        <h2>反馈和报错（只有管理员能看到）</h2>
+        <div class="card" id="reportList"></div>
         <h2>待审核单词（只有管理员能看到）</h2>
         <div class="card" id="pendingList"></div>
         <h2>邀请朋友（只有管理员能看到）</h2>

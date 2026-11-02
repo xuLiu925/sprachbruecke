@@ -44,6 +44,7 @@ import auth
 import custom_lessons
 import dictionary
 import explain
+import feedback
 import form_drills
 import gender_hint
 import grammar
@@ -114,6 +115,7 @@ app.register_blueprint(grammar.bp)
 app.register_blueprint(gender_hint.bp)
 app.register_blueprint(word_parts.bp)
 app.register_blueprint(tts.bp)
+app.register_blueprint(feedback.bp)
 
 init_db()
 
