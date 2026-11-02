@@ -54,7 +54,7 @@ def main(kind):
     else:
         folder = BACKUPS
         dest = os.path.join(folder, f"vocab.db.{now:%Y%m%d-%H%M%S}.gz")
-        pattern = os.path.join(folder, "vocab.db.*.gz")  # 以前没压缩的部署备份不动, 要删手动删
+        pattern = os.path.join(folder, "vocab.db.*")    # 也清理以前没压缩的部署备份(名字同样以日期开头)
     os.makedirs(folder, exist_ok=True)
     if os.path.exists(dest):
         return
