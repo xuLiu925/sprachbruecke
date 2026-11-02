@@ -135,6 +135,8 @@ c.post("/api/words", json={"german": "<img src=x onerror=alert(1)>", "meaning": 
 c3 = A.app.test_client()
 assert c3.post("/api/login", json={"username": "alice", "password": "wrongwrong"}).status_code == 401
 assert c3.post("/api/login", json={"username": "alice", "password": "12345678"}).status_code == 200
+assert J(c.get("/api/me"))["username"] is None                  # 同一账号在 c3 登录, c 下线
+assert c.post("/api/login", json={"username": "alice", "password": "12345678"}).status_code == 200
 for _ in range(8): c3.post("/api/login", json={"username": "carol", "password": "x"})
 assert c3.post("/api/login", json={"username": "carol", "password": "x"}).status_code == 429
 
@@ -172,6 +174,19 @@ me_id = next(u["id"] for u in us if u["me"])
 assert c.post(f"/api/admin/users/{me_id}/reset_password", json={}).status_code == 400
 tmp = J(c.post(f"/api/admin/users/{did}/reset_password", json={}))["password"]
 assert login("dave", tmp) == 200 and login("dave", "abcdefgh") == 401
+# 一个账号同时只能一个设备登录: 新设备登录后旧设备下线; 重置密码后已登录的设备下线; 退出后令牌作废
+d1, d2 = A.app.test_client(), A.app.test_client()
+assert d1.post("/api/login", json={"username": "dave", "password": tmp}).status_code == 200
+assert J(d1.get("/api/me"))["username"] == "dave"
+assert d2.post("/api/login", json={"username": "dave", "password": tmp}).status_code == 200
+r = d1.get("/api/stats")
+assert r.status_code == 401 and "别的设备" in J(r)["error"] and J(d1.get("/api/me"))["username"] is None
+assert J(d2.get("/api/me"))["username"] == "dave" and d2.get("/api/stats").status_code == 200
+tmp = J(c.post(f"/api/admin/users/{did}/reset_password", json={}))["password"]
+assert d2.get("/api/stats").status_code == 401
+assert d2.post("/api/login", json={"username": "dave", "password": tmp}).status_code == 200
+assert d2.post("/api/logout", json={}).status_code == 200 and d2.get("/api/stats").status_code == 401
+assert J(c.get("/api/me"))["username"] is not None             # 管理员没受影响
 
 # 单词书: 还没有分级的词时默认「全部」; 有了以后默认 A1, 新词按 rank 出
 assert J(c.get("/api/books"))["current"] == "all"

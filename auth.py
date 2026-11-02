@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database import fmt_time, get_db, now_str
@@ -26,6 +26,7 @@ FAIL_MAX = 8
 
 INVITE_DAYS = 7                                   # 邀请码几天后过期
 CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"    # 去掉了容易看错的 I L O 0 1
+LOGIN_KEY = "login_token"                         # user_settings 里存当前登录令牌的键
 
 
 def too_many_fails(name):
@@ -69,10 +70,40 @@ def admin_required(fn):
 
 
 def login_ok(uid, username):
+    # 一个账号同时只能一个设备登录: 每次登录换一个令牌, 存在 user_settings, 旧设备的令牌就对不上了
+    tok = secrets.token_hex(16)
+    db = get_db()
+    db.execute("INSERT INTO user_settings (user_id, key, value) VALUES (?, ?, ?) "
+               "ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value", (uid, LOGIN_KEY, tok))
+    db.commit()
     session.clear()
     session["uid"] = uid
+    session["tok"] = tok
     session.permanent = True
     return jsonify({"username": username, "admin": is_admin(uid)})
+
+
+def drop_login(uid):
+    """让这个账号所有设备的登录失效"""
+    get_db().execute("DELETE FROM user_settings WHERE user_id = ? AND key = ?", (uid, LOGIN_KEY))
+
+
+@bp.before_app_request
+def check_login():
+    """会话里的令牌和数据库里的不一样 = 这个账号后来在别的设备登录了(或被重置了密码), 这边下线。
+    两边都没有令牌 = 这个功能上线前登的, 先放行, 下次在任何设备登录后就要对上了。"""
+    uid = session.get("uid")
+    if uid is None:
+        return None
+    row = get_db().execute("SELECT value FROM user_settings WHERE user_id = ? AND key = ?",
+                           (uid, LOGIN_KEY)).fetchone()
+    stored = row["value"] if row else None
+    if session.get("tok") == stored:
+        return None
+    session.clear()
+    if request.path.startswith("/api/") and request.path not in ("/api/me", "/api/login", "/api/register"):
+        return err("这个账号已在别的设备登录, 请重新登录", 401)
+    return None
 
 
 @bp.route("/api/register", methods=["POST"])
@@ -138,6 +169,9 @@ def login():
 
 @bp.route("/api/logout", methods=["POST"])
 def logout():
+    if session.get("uid") is not None:
+        drop_login(session["uid"])
+        get_db().commit()
     session.clear()
     return jsonify({"ok": True})
 
@@ -242,6 +276,7 @@ def reset_password(uid):
         return err("用户不存在", 404)
     temp = random_code(10)
     db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(temp), uid))
+    drop_login(uid)   # 他已登录的设备下线
     db.commit()
     _fail.pop(row["username"].lower(), None)   # 他之前输错被限速的话, 一起解开
     return jsonify({"username": row["username"], "password": temp})
