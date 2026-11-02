@@ -65,6 +65,15 @@ def gender_picks(stem, gender, case_no):
     return sorted({form(stem, g, case_no) for g in GENDERS} - {form(stem, gender, case_no)})
 
 
+def answer_note(kind, stem, owner, ending):
+    """单词卡上的说明: 词库按原形显示, 这里说清这个答案是怎么变来的, 如 sein 的卡片只写着“是，在”"""
+    name = {"indef": "不定冠词", "kein": "否定冠词", "poss": "物主冠词"}[kind]
+    rule = f"{stem} + 词尾 -{ending}" if ending else f"{stem}，没有词尾"
+    if stem == "euer" and ending:
+        rule += "，去掉中间的 e"
+    return f"{name}：{owner}（{rule}）" if owner else f"{name}：{rule}"
+
+
 def all_cells(kind):
     keys = GENDERS if kind == "indef" else GENDERS + ["pl"]      # 复数没有不定冠词
     return [f"{kind}:{key}:{i}" for key in keys for i in FRAMES[kind]]
@@ -116,7 +125,8 @@ def make_question(row, cell, noun):
     return {**q, "options": [stem + e for e in ("", "e", "en", "em", "er", "es")] if stem != "euer"
                  else ["euer", "eure", "euren", "eurem", "eurer", "eures"],
             "gender_picks": [] if plural else gender_picks(stem, row["gender"], i),
-            "article": kind, "cell": cell, "cell_name": name}
+            "article": kind, "cell": cell, "cell_name": name,
+            "answer_lemma": stem, "answer_note": answer_note(kind, stem, owner, ENDINGS[key][i])}
 
 
 def fill_round(kind, rows, cells, n):

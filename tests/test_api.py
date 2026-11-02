@@ -1063,6 +1063,10 @@ for kind in ("indef", "kein", "poss"):
     aq = J(cb.get(f"/api/grammar/articles?type={kind}&scope=all&n=8"))["questions"]
     assert 0 < len(aq) <= 8 and len({x["word_id"] for x in aq}) == len(aq), aq
     assert all(x["article"] == kind and x["answer"] in x["options"] and x["prompt"].count("___") == 1 and x["cell"].startswith(kind) for x in aq)
+    assert all(x["answer"].startswith(x["answer_lemma"][:2]) and x["answer_lemma"] in x["answer_note"] for x in aq), aq
+assert AQ.answer_note("poss", "sein", "他的", "en") == "物主冠词：他的（sein + 词尾 -en）"
+assert AQ.answer_note("poss", "euer", "你们的", "em") == "物主冠词：你们的（euer + 词尾 -em，去掉中间的 e）"
+assert AQ.answer_note("indef", "ein", "", "") == "不定冠词：ein，没有词尾"
 assert J(cb.get("/api/grammar/articles?type=kein&scope=warehouse"))["questions"][0]["word_id"] == Tid
 pcount = lambda: db.execute("SELECT COUNT(*) FROM noun_practice").fetchone()[0]
 acell = lambda: db.execute("SELECT cell, kind FROM noun_answers ORDER BY id DESC LIMIT 1").fetchone()

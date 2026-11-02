@@ -227,7 +227,8 @@ async function openWordSheet(token, line, back = false) {
   const lemma = (line.map && line.map[token]) || LESSON_FORMS[token.toLowerCase()] || token;
   $("wsheet").classList.remove("hidden");
   $("wsWord").textContent = token;
-  $("wsPlural").textContent = ""; $("wsMeaning").textContent = "查询中…"; $("wsLesson").textContent = "";
+  $("wsPlural").textContent = ""; $("wsMeaning").textContent = "查询中…";
+  $("wsLesson").textContent = (line.notes && line.notes[token]) || "";   // 冠词题的答案: 说明词形怎么来的
   $("wsExample").textContent = "";
   wsMoreReset();
   genderReason($("wsGender"), "", "");

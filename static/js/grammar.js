@@ -319,14 +319,20 @@ function fillBlanks(text, answer) {
   return text.replace(/___/g, () => f[k++] ?? "");
 }
 
-function promptInto(el, text, fill) {   // 把 ___ 显示成空格(答完后按顺序填上答案)
+// 把 ___ 显示成空格; answered 时按顺序填上答案, 答案和其他词一样能点
+// ein / kein / 物主冠词的答案按词形查不准(meinen 会查到动词), 用题目带的原形和说明
+function promptInto(el, q, answered) {
   el.textContent = "";
-  const parts = text.split("___"), f = fill ? fill.split(" … ") : [];
+  const fill = answered ? q.fill || q.answer : "";
+  const parts = q.prompt.split("___"), f = fill ? fill.split(" … ") : [];
+  const known = q.answer_lemma ? { map: { [q.answer]: q.answer_lemma }, notes: { [q.answer]: q.answer_note } } : {};
   parts.forEach((p, i) => {
     lessonTokens(el, { de: p });        // 题目里的德语词能点, 看释义
     if (i < parts.length - 1) {
       const s = document.createElement("span"); s.className = "blank" + (fill ? " filled" : "");
-      s.textContent = f[i] || "    "; el.appendChild(s);
+      if (f[i]) lessonTokens(s, { ...known, de: f[i] });
+      else s.textContent = "    ";
+      el.appendChild(s);
     }
   });
 }
@@ -346,7 +352,7 @@ function gRender() {
   $("gqProgress").textContent = `第 ${gi + 1} / ${gQs.length} 题` + (q.retry ? " · 错题再练一次" : "");
   $("gqHintRow").classList.toggle("hidden", !gTopic.bank);
   $("gqHintText").textContent = gTopic.hintLabel || "显示词性提示";
-  promptInto($("gqPrompt"), q.prompt);
+  promptInto($("gqPrompt"), q);
   $("gqSent").textContent = gTopic.bank ? q.zh || "" : "";   // 题库题做题时就显示翻译: 中文没有冠词, 不会泄露答案
   gHint();
   let opts = q.options;
@@ -412,7 +418,7 @@ function gShowAnswer(value) {
     if (b.dataset.value === q.answer) b.className = "good";
     else if (b.dataset.value === value) b.className = "bad";
   });
-  if (!q.wide) promptInto($("gqPrompt"), q.prompt, q.fill || q.answer);
+  if (!q.wide) promptInto($("gqPrompt"), q, true);
   gHint();
   const why = { gender: "词性错了，", case: q.article ? "词尾用错了，" : "格用错了，", stem: "词形错了，", person: "人称错了，",
                 aux: "助动词错了，", part: "过去分词错了，", prep: "介词错了，" }[gErrKind(q, value)] || "";
