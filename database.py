@@ -216,6 +216,23 @@ CREATE TABLE IF NOT EXISTS content_reports (
     created_at TEXT NOT NULL,
     PRIMARY KEY (kind, sent_key)
 );
+-- 邮箱验证码(email_codes.py): purpose = register / reset / bind, 每个邮箱每种只留最新一个, 只存哈希
+CREATE TABLE IF NOT EXISTS email_codes (
+    email TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    tries INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (email, purpose)
+);
+-- 发过的邮件, 用来限制发送频率
+CREATE TABLE IF NOT EXISTS mail_log (
+    id INTEGER PRIMARY KEY,
+    email TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    sent_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mail_log_email ON mail_log (email, sent_at);
 -- 意见反馈(「我的」页随便写的, 不针对某道题): page = 写反馈时在哪个页面; done_at 不为空 = 管理员处理过
 CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY,
@@ -511,7 +528,11 @@ def migrate(db):
     """老数据库升级(不删任何数据):
     1. progress 补 FSRS 字段, 并把 Leitner 进度换算过来
     2. words 加 owner_id, 唯一约束改成按「公共 / 每个人」分别唯一
-    3. words 加 status, 私有词转成“词库一行 + 用户标签”"""
+    3. words 加 status, 私有词转成“词库一行 + 用户标签”
+    4. users 加 email(小写; 老账号为空, 在「我的」页绑定)"""
+    if "email" not in {r[1] for r in db.execute("PRAGMA table_info(users)")}:
+        db.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email) WHERE email IS NOT NULL")
     if "owner_id" not in {r[1] for r in db.execute("PRAGMA table_info(words)")}:
         rebuild_words(db)
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_words_public ON words (german, gender) WHERE owner_id IS NULL")

@@ -13,12 +13,37 @@
 <div id="login" class="login hidden">
   <div class="logo"><b>通德</b><span>Sprachbrücke · 语言之桥</span></div>
   <div class="card">
-    <input id="u" placeholder="用户名" autocomplete="username">
-    <input id="p" type="password" placeholder="密码（至少 8 位）" autocomplete="current-password">
-    <input id="inv" placeholder="邀请码（只有注册时要填）" autocomplete="off" autocapitalize="characters" spellcheck="false">
-    <div class="row">
-      <button id="btnLogin">登录</button>
-      <button id="btnReg" class="secondary">注册</button>
+    <!-- 登录 -->
+    <div id="authLogin">
+      <input id="u" placeholder="用户名或邮箱" autocomplete="username">
+      <input id="p" type="password" placeholder="密码" autocomplete="current-password">
+      <button id="btnLogin" style="width:100%">登录</button>
+      <div class="authlinks"><button class="linkbtn" data-auth="reg">注册新账号</button>
+        <button class="linkbtn" data-auth="forgot">忘了密码</button></div>
+    </div>
+    <!-- 注册：邮箱验证码或邀请码，看后端的注册方式 -->
+    <div id="authReg" class="hidden">
+      <input id="ru" placeholder="用户名（3–32 个字）" autocomplete="username">
+      <input id="rp" type="password" placeholder="密码（至少 8 位）" autocomplete="new-password">
+      <div id="regEmail">
+        <input id="re" type="email" placeholder="邮箱" autocomplete="email">
+        <div class="row"><input id="rc" placeholder="邮箱验证码" inputmode="numeric" autocomplete="one-time-code">
+          <button id="btnRegCode" class="secondary" style="flex:none">发送验证码</button></div>
+        <p class="meta left" style="margin:0 0 8px;font-size:13px">收不到的话，看看垃圾邮件。</p>
+      </div>
+      <input id="inv" class="hidden" placeholder="邀请码" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button id="btnReg" style="width:100%">注册</button>
+      <div class="authlinks"><button class="linkbtn" data-auth="login">已有账号？登录</button></div>
+    </div>
+    <!-- 忘了密码 -->
+    <div id="authForgot" class="hidden">
+      <input id="fe" type="email" placeholder="注册或绑定的邮箱" autocomplete="email">
+      <div class="row"><input id="fc" placeholder="邮箱验证码" inputmode="numeric" autocomplete="one-time-code">
+        <button id="btnForgotCode" class="secondary" style="flex:none">发送验证码</button></div>
+      <input id="fp" type="password" placeholder="新密码（至少 8 位）" autocomplete="new-password">
+      <button id="btnForgot" style="width:100%">设置新密码并登录</button>
+      <p class="meta left" style="font-size:13px">没有绑定邮箱的账号，请联系管理员重置密码。</p>
+      <div class="authlinks"><button class="linkbtn" data-auth="login">返回登录</button></div>
     </div>
     <div id="authMsg" class="msg"></div>
   </div>
@@ -107,6 +132,17 @@
       </div>
       <h2>账号</h2>
       <div class="card">
+        <div id="emailBox" style="margin-bottom:10px">
+          <div class="meta left" id="emailNow"></div>
+          <button class="secondary" id="btnEmailToggle" style="width:100%;margin-top:6px">绑定邮箱</button>
+          <div id="emailEdit" class="hidden" style="margin-top:10px">
+            <input id="emNew" type="email" placeholder="邮箱" autocomplete="email">
+            <div class="row"><input id="emCode" placeholder="邮箱验证码" inputmode="numeric" autocomplete="one-time-code">
+              <button id="btnEmailCode" class="secondary" style="flex:none">发送验证码</button></div>
+            <button id="btnEmailSave" style="width:100%">确认</button>
+            <div id="emailMsg" class="msg"></div>
+          </div>
+        </div>
         <button class="secondary" id="btnPwToggle" style="width:100%">修改密码</button>
         <div id="pwBox" class="hidden" style="margin-top:10px">
           <input id="pwOld" type="password" placeholder="旧密码" autocomplete="current-password">

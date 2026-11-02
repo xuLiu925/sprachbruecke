@@ -249,6 +249,7 @@ document.querySelectorAll(".umlauts button").forEach(b => b.onclick = () => {
 function showLogin() {
   $("app").classList.add("hidden");
   $("login").classList.remove("hidden");
+  authView("login");
 }
 
 function showApp() {
@@ -257,25 +258,61 @@ function showApp() {
   route();
 }
 
+let registerMode = "invite";   // 后端的注册方式: email(邮箱验证码) / invite(邀请码) / open
+let userEmail = null;
+
 async function boot() {
   try {
     const me = await api("/api/me");
-    user = me.username; isAdmin = !!me.admin;
+    user = me.username; isAdmin = !!me.admin; userEmail = me.email || null;
+    if (me.register) registerMode = me.register;
   } catch (e) { user = null; }
   if (user) showApp(); else showLogin();
 }
 
-async function doAuth(kind) {
+// 登录页的三块: login / reg / forgot
+function authView(name) {
+  $("authLogin").classList.toggle("hidden", name !== "login");
+  $("authReg").classList.toggle("hidden", name !== "reg");
+  $("authForgot").classList.toggle("hidden", name !== "forgot");
+  $("regEmail").classList.toggle("hidden", registerMode !== "email");
+  $("inv").classList.toggle("hidden", registerMode !== "invite");
   $("authMsg").textContent = "";
-  try {
-    const body = { username: $("u").value, password: $("p").value };
-    if (kind === "register") body.invite = $("inv").value;
-    const r = await api("/api/" + kind, "POST", body);
-    $("p").value = ""; $("inv").value = "";
-    user = r.username; isAdmin = !!r.admin;
-    showApp();
-  } catch (e) { $("authMsg").textContent = e.message; }
 }
-$("btnLogin").onclick = () => doAuth("login");
-$("btnReg").onclick = () => doAuth("register");
-$("p").onkeydown = e => { if (e.key === "Enter") doAuth("login"); };
+document.querySelectorAll("#login [data-auth]").forEach(b => b.onclick = () => authView(b.dataset.auth));
+
+function loggedIn(r) {
+  ["p", "rp", "fp", "inv", "rc", "fc"].forEach(id => $(id).value = "");
+  user = r.username; isAdmin = !!r.admin;
+  boot();   // 重新取一次 me(带邮箱)
+}
+
+async function doAuth(path, body) {
+  $("authMsg").textContent = "";
+  try { loggedIn(await api(path, "POST", body)); } catch (e) { $("authMsg").textContent = e.message; }
+}
+
+// 发验证码的按钮: 发出后 60 秒内不能再点
+async function sendCode(btn, path, body, msgBox) {
+  msgBox.textContent = "";
+  btn.disabled = true;
+  try { await api(path, "POST", body); }
+  catch (e) { msgBox.textContent = e.message; btn.disabled = false; return; }
+  toast("验证码已发送，请查看邮箱");
+  const label = btn.textContent;
+  let left = 60;
+  const tick = () => {
+    if (left <= 0) { btn.disabled = false; btn.textContent = label; return; }
+    btn.textContent = `${left--} 秒`; setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+$("btnLogin").onclick = () => doAuth("/api/login", { username: $("u").value, password: $("p").value });
+$("p").onkeydown = e => { if (e.key === "Enter") $("btnLogin").click(); };
+$("btnRegCode").onclick = () => sendCode($("btnRegCode"), "/api/register/code",
+  { username: $("ru").value, email: $("re").value }, $("authMsg"));
+$("btnReg").onclick = () => doAuth("/api/register", { username: $("ru").value, password: $("rp").value,
+  email: $("re").value, code: $("rc").value, invite: $("inv").value });
+$("btnForgotCode").onclick = () => sendCode($("btnForgotCode"), "/api/password/forgot", { email: $("fe").value }, $("authMsg"));
+$("btnForgot").onclick = () => doAuth("/api/password/reset", { email: $("fe").value, code: $("fc").value, new: $("fp").value });

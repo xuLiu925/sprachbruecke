@@ -148,7 +148,7 @@ inv = J(c.post("/api/invites", json={}))["code"]
 ci = A.app.test_client()
 assert ci.post("/api/register", json={"username": "dave", "password": "12345678",
                                       "invite": inv.lower().replace("-", " ")}).status_code == 200
-assert J(ci.get("/api/me")) == {"username": "dave", "admin": False}
+assert J(ci.get("/api/me")) == {"username": "dave", "admin": False, "email": None}
 assert reg("erin", inv).status_code == 400                       # 用过了
 assert ci.post("/api/invites", json={}).status_code == 403       # 不是管理员
 assert ci.get("/api/admin/users").status_code == 403
@@ -210,6 +210,70 @@ assert J(c.post("/api/admin/feedback/done", json={"type": "report", "kind": "nou
 assert c.post("/api/admin/feedback/done", json={"type": "x"}).status_code == 400
 assert [x["kind_name"] for x in J(c.get("/api/admin/feedback"))["items"]] == ["句子讲解"]
 dbf.execute("DELETE FROM content_reports"); dbf.commit(); dbf.close()
+
+# 邮箱注册、邮箱登录、邮件找回密码、绑定邮箱(不真的发信, 把邮件收进 sent)
+import re
+import email_codes
+sent = []
+email_codes.sender = lambda to, subject, body: sent.append((to, body))
+last_code = lambda: re.search(r"\d{6}", sent[-1][1]).group()
+assert J(A.app.test_client().get("/api/me"))["register"] == "invite"     # 没配置发信: 默认邀请码
+os.environ["REGISTER_MODE"] = "email"
+ce = A.app.test_client()
+assert J(ce.get("/api/me")) == {"username": None, "register": "email"}
+code_req = lambda cl, name, mail: cl.post("/api/register/code", json={"username": name, "email": mail})
+assert code_req(ce, "fr@nk", "f@x.de").status_code == 400                # 用户名不能有 @
+assert code_req(ce, "frank", "not-an-email").status_code == 400
+assert code_req(ce, "dave", "f@x.de").status_code == 409                 # 用户名已存在
+assert code_req(ce, "frank", " Frank@X.de ").status_code == 200 and sent[-1][0] == "frank@x.de"
+code1 = last_code()
+assert code_req(ce, "frank", "frank@x.de").status_code == 429            # 60 秒内不能再发
+regf = lambda code: ce.post("/api/register", json={"username": "frank", "password": "12345678",
+                                                   "email": "frank@x.de", "code": code})
+assert regf("000000" if code1 != "000000" else "111111").status_code == 400
+assert ce.post("/api/register", json={"username": "frank", "password": "12345678", "invite": "X"}).status_code == 400
+assert regf(code1).status_code == 200
+assert J(ce.get("/api/me"))["email"] == "frank@x.de"
+assert regf(code1).status_code in (400, 409)                              # 验证码只能用一次
+assert code_req(A.app.test_client(), "frank2", "frank@x.de").status_code == 409   # 邮箱已注册
+assert login("FRANK@x.de", "12345678") == 200 and login("frank@x.de", "wrongwrong") == 401
+# 验证码输错 5 次作废
+dbe = sqlite3.connect(os.environ["DB_PATH"])
+dbe.execute("DELETE FROM mail_log"); dbe.commit()
+assert code_req(A.app.test_client(), "gina", "gina@x.de").status_code == 200
+good = last_code()
+cg = A.app.test_client()
+for _ in range(5):
+    cg.post("/api/register", json={"username": "gina", "password": "12345678", "email": "gina@x.de", "code": "bad"})
+assert cg.post("/api/register", json={"username": "gina", "password": "12345678", "email": "gina@x.de",
+                                      "code": good}).status_code == 400
+# 找回密码: 不存在的邮箱也返回成功但不发信; 设置后其他设备下线
+n = len(sent)
+assert A.app.test_client().post("/api/password/forgot", json={"email": "nobody@x.de"}).status_code == 200 and len(sent) == n
+dbe.execute("DELETE FROM mail_log"); dbe.commit()
+cr = A.app.test_client()
+assert cr.post("/api/password/forgot", json={"email": "frank@x.de"}).status_code == 200 and len(sent) == n + 1
+assert cr.post("/api/password/reset", json={"email": "frank@x.de", "code": last_code(), "new": "short"}).status_code == 400
+assert cr.post("/api/password/reset", json={"email": "frank@x.de", "code": last_code(), "new": "newpass99"}).status_code == 200
+assert J(cr.get("/api/me"))["username"] == "frank" and ce.get("/api/stats").status_code == 401
+assert login("frank", "newpass99") == 200 and login("frank", "12345678") == 401
+# 老账号绑定邮箱
+cd = A.app.test_client()
+assert cd.post("/api/login", json={"username": "dave", "password": tmp}).status_code == 200
+assert cd.post("/api/email/code", json={"email": "frank@x.de"}).status_code == 409   # 别人的邮箱
+assert cd.post("/api/email/code", json={"email": "dave@x.de"}).status_code == 200
+assert cd.post("/api/email", json={"email": "dave@x.de", "code": "000000x"}).status_code == 400
+assert J(cd.post("/api/email", json={"email": "dave@x.de", "code": last_code()}))["email"] == "dave@x.de"
+assert next(u for u in J(c.get("/api/admin/users"))["users"] if u["username"] == "dave")["email"] == "dave@x.de"
+# 全站每天的上限
+dbe.execute("DELETE FROM mail_log")
+dbe.executemany("INSERT INTO mail_log (email, purpose, sent_at) VALUES (?, 'register', ?)",
+                [(f"z{i}@x.de", database.now_str()) for i in range(email_codes.DAILY_MAX)])
+dbe.commit()
+assert code_req(A.app.test_client(), "hank", "hank@x.de").status_code == 429
+dbe.execute("DELETE FROM mail_log"); dbe.commit(); dbe.close()
+del os.environ["REGISTER_MODE"]
+email_codes.sender = None
 
 # 单词书: 还没有分级的词时默认「全部」; 有了以后默认 A1, 新词按 rank 出
 assert J(c.get("/api/books"))["current"] == "all"

@@ -29,3 +29,4 @@ tts_cache/
 .worker_url
 .tunnel_url
 tunnel_sync.log
+.mail_config

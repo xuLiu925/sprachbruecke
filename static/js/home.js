@@ -130,6 +130,7 @@ onShow.practice = async () => {
 onShow.me = async () => {
   $("meName").textContent = user;
   $("avatar").textContent = (user || "?").slice(0, 1).toUpperCase();
+  showEmail();
   const s = await loadStats();
   $("meStats").textContent = `已学 ${s.learned} · 已掌握 ${s.mastered}`;
   try { $("optGoal").value = String((await api("/api/today?" + tzQuery())).goal); } catch (e) {}
@@ -215,6 +216,23 @@ async function confirmMeaning(w, draft, ai) {
   loadPending();
 }
 
+// 绑定 / 更换邮箱: 绑定后能用邮箱登录和找回密码
+function showEmail() {
+  $("emailNow").textContent = userEmail ? `邮箱：${userEmail}` : "还没有绑定邮箱，忘了密码时没法自己找回。";
+  $("btnEmailToggle").textContent = userEmail ? "更换邮箱" : "绑定邮箱";
+}
+$("btnEmailToggle").onclick = () => { $("emailEdit").classList.toggle("hidden"); $("emailMsg").textContent = ""; };
+$("btnEmailCode").onclick = () => sendCode($("btnEmailCode"), "/api/email/code", { email: $("emNew").value }, $("emailMsg"));
+$("btnEmailSave").onclick = async () => {
+  try {
+    userEmail = (await api("/api/email", "POST", { email: $("emNew").value, code: $("emCode").value })).email;
+  } catch (e) { $("emailMsg").textContent = e.message; return; }
+  ["emNew", "emCode"].forEach(id => $(id).value = "");
+  $("emailEdit").classList.add("hidden");
+  showEmail();
+  toast("邮箱已绑定");
+};
+
 // 改密码
 $("btnPwToggle").onclick = () => { $("pwBox").classList.toggle("hidden"); $("pwMsg").textContent = ""; };
 $("btnPwSave").onclick = async () => {
@@ -270,7 +288,7 @@ async function loadAdmin() {
   }
   const ul = $("userList"); ul.textContent = "";
   for (const u of us.users) {
-    const row = adminRow(ul, `${u.username}${u.me ? "（我）" : ""} · 已学 ${u.learned}`);
+    const row = adminRow(ul, `${u.username}${u.me ? "（我）" : ""} · 已学 ${u.learned}${u.email ? " · " + u.email : ""}`);
     if (u.me) continue;
     miniBtn(row, "重置密码", async () => {
       if (!confirm(`把 ${u.username} 的密码重置成一个临时密码？他原来的密码会失效。`)) return;
