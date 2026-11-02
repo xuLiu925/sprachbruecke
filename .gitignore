@@ -23,3 +23,9 @@ __pycache__/
 sb.tar.gz
 tts_cache/
 .claude/
+
+# 固定入口（服务器上生成，别提交）
+.worker_token
+.worker_url
+.tunnel_url
+tunnel_sync.log
