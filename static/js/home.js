@@ -156,6 +156,34 @@ onShow.learn = async () => {
     st.appendChild(span);
   }
 };
+// ---------- 选择单词书(学习 → 换一本) ----------
+onShow.books = async () => {
+  const r = await api("/api/books");
+  const box = $("bookList"); box.textContent = "";
+  const all = { level: "all", total: null };
+  for (const b of [...r.books, ...r.themes, all]) {
+    const sub = b.level === "all" ? "整个词库，包括示例词和你自己加的词"
+      : b.total ? `${b.total} 个词 · 已学 ${b.learned} · 已掌握 ${b.mastered}` : "还没有导入";
+    const it = listItem({ text: BOOK_COVERS[b.level] || b.level }, BOOK_NAMES[b.level], sub, async () => {
+      if (b.total === 0) return toast("这本还没有导入");
+      await api("/api/books/current", "POST", { book: b.level });
+      toast("已切换到 " + BOOK_NAMES[b.level]);
+      $("btnBack").click();
+    }, b.total === 0);
+    if (b.total) {   // 进度条: 已学多少
+      const bar = document.createElement("div"); bar.className = "bar";
+      const fill = document.createElement("i"); fill.style.width = (b.learned / b.total * 100) + "%";
+      bar.appendChild(fill);
+      it.querySelector(".body").appendChild(bar);
+    }
+    if (b.level === r.current) {
+      it.classList.add("current");
+      it.querySelector(".chev").textContent = "✓";
+    }
+    box.appendChild(it);
+  }
+};
+
 $("lSearch").onclick = () => openSearch();
 $("lBookSwitch").onclick = () => go("books");
 $("lWords").onclick = () => go("words");

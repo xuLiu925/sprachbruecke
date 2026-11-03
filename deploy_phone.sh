@@ -36,10 +36,16 @@ fi
 # 5. 后台启动
 command -v termux-wake-lock >/dev/null && termux-wake-lock || true
 tmux new -s sprachbruecke -d "cd ~/sprachbruecke && python app.py 2>&1 | tee -a server.log"
-sleep 3
 
-# 6. 检查是否启动成功
-if python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/me', timeout=5)" 2>/dev/null; then
+# 6. 检查是否启动成功: 旧手机启动有时要好几秒, 每 2 秒试一次, 最多等 20 秒
+STARTED=0
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 2
+    if python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/me', timeout=5)" 2>/dev/null; then
+        STARTED=1; break
+    fi
+done
+if [ "$STARTED" = 1 ]; then
     echo "== 启动成功，端口 8000"
     echo "== 局域网访问：http://$(ip route get 1 2>/dev/null | grep -o 'src [0-9.]*' | cut -d' ' -f2):8000"
 else
