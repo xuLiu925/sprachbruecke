@@ -216,7 +216,7 @@
     <!-- ===== 练习 ===== -->
     <section class="page" data-page="practice">
       <h1 class="ptitle">练习</h1>
-      <div class="card wrongcard">
+      <div class="card wrongcard" id="pWrongCard">
         <div class="wronghead">
           <span class="tile36 warm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M4 19a2 2 0 0 1 2-2h12"/><path d="m10 8 4 4M14 8l-4 4"/></svg></span>
           <b class="grow">错题本</b>
@@ -499,6 +499,12 @@
       </div>
       <button class="big" id="gStart"></button>
       <button class="big secondary hidden" id="gBank" style="margin-top:8px">管理题库</button>
+    </section>
+
+    <!-- ===== 错题本(wrongbook.js) ===== -->
+    <section class="page" data-page="wrong">
+      <p class="meta left" id="wrongTotal" style="margin:0 2px 12px"></p>
+      <div id="wrongList"></div>
     </section>
 
     <section class="page" data-page="gnouns">
@@ -890,6 +896,7 @@
 <script src="static/js/gnouns.js"></script>
 <script src="static/js/sentence.js"></script>
 <script src="static/js/plural-rules.js"></script>
+<script src="static/js/wrongbook.js"></script>
 <script src="static/js/explain.js"></script>
 <script src="static/js/lessons.js"></script>
 <script src="static/js/roleplay.js"></script>

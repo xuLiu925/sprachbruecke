@@ -179,8 +179,8 @@ const PRACTICE_GROUPS = [
   ] },
   { title: "动词", sub: "变位 · 时态 · 搭配", items: [
     { tile: { text: "-st" }, name: "现在时变位", sub: "du kommst, er arbeitet", to: () => openTopic("verb-praes"), wrong: "verb" },
-    { tile: { text: "hat" }, name: "完成时", sub: "haben 还是 sein，过去分词", to: () => openTopic("perf-bank") },
-    { tile: { text: "auf" }, name: "动词搭配", sub: "warten auf + 第四格", to: () => openTopic("verb-usage") },
+    { tile: { text: "hat" }, name: "完成时", sub: "haben 还是 sein，过去分词", to: () => openTopic("perf-bank"), wrong: "perf" },
+    { tile: { text: "auf" }, name: "动词搭配", sub: "warten auf + 第四格", to: () => openTopic("verb-usage"), wrong: "usage" },
     { tile: { text: "ich" }, name: "变位表练习", sub: "不同人称的现在时", to: () => openForms("verbs", "动词变位") },
   ] },
   { title: "句子", sub: "用学过的词造句", items: [
@@ -212,23 +212,28 @@ const practiceItems = {};
 
 onShow.practice = async () => {
   const get = url => api(url).catch(() => null);
-  const [noun, plural, verb, rp] = await Promise.all([get("/api/grammar/nouns/books"), get("/api/plural/books"),
-                                                     get("/api/grammar/verbs/books"), get("/api/roleplay/due?count=1")]);
-  const n = { noun: noun ? noun.wrong : 0, plural: plural ? plural.wrong : 0, verb: verb ? verb.wrong : 0 };
+  const [noun, plural, verb, perf, usage, rp] = await Promise.all([
+    get("/api/grammar/nouns/books"), get("/api/plural/books"), get("/api/grammar/verbs/books"),
+    get("/api/grammar/perfekt/books"), get("/api/grammar/usage/books"), get("/api/roleplay/due?count=1")]);
+  const w = b => b ? b.wrong : 0;
+  const n = { noun: w(noun), plural: w(plural), verb: w(verb) };
   for (const k of ["noun", "plural", "verb"]) setBadge(practiceItems[k], n[k] ? "错题 " + n[k] : "");
+  setBadge(practiceItems.perf, w(perf) ? "错题 " + w(perf) : "");
+  setBadge(practiceItems.usage, w(usage) ? "错题 " + w(usage) : "");
   setBadge(practiceItems.rp, rp && rp.count ? "到期 " + rp.count : "");
-  $("pWrongSum").textContent = n.noun + n.plural + n.verb;
+  n.verbAll = n.verb + w(perf) + w(usage);   // 错题本卡片上的“动词” = 现在时 + 完成时 + 搭配
+  $("pWrongSum").textContent = n.noun + n.plural + n.verbAll;
   const box = $("pWrong"); box.textContent = "";
-  for (const [k, label, fn] of [["noun", "冠词", () => openTopic("art-def")], ["plural", "复数", () => go("plural")],
-                                 ["verb", "动词", () => openTopic("verb-praes")]]) {
+  for (const [k, label] of [["noun", "冠词"], ["plural", "复数"], ["verbAll", "动词"]]) {
     const b = document.createElement("button");
     const num = document.createElement("b"); num.textContent = n[k];
     const t = document.createElement("small"); t.textContent = label;
     b.append(num, t);
-    b.onclick = fn;
+    b.onclick = e => { e.stopPropagation(); go("wrong"); };
     box.appendChild(b);
   }
 };
+$("pWrongCard").onclick = () => go("wrong");
 
 // ---------- 我的 ----------
 onShow.me = async () => {

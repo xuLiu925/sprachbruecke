@@ -480,3 +480,15 @@ button.lmodel svg.ic { color:var(--accent); }
 .lde { font-family:var(--font-latin); }
 button.lmodel { display:flex; gap:6px; align-items:flex-start; font-family:var(--font-latin); }
 button.lmodel svg.ic { margin-top:4px; }
+
+/* ---------- 错题本页 ---------- */
+.wrongkind .wronghead small { display:block; font-size:13px; color:var(--muted); }
+.wrongkind .wronghead b { font-size:16px; }
+.wrongn { font:700 22px var(--font-latin); color:var(--warm-ink); }
+.wrongn.zero { color:var(--muted); font-weight:500; }
+.wrongkind > .meta { margin:10px 0 0; }
+.wrongwords { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:14px 0 12px; }
+button.wchip { padding:6px 10px; border-radius:999px; background:var(--bg); color:var(--text); border:1px solid var(--line);
+  font:500 14px var(--font-latin); }
+button.wchip .art { margin-right:4px; }
+.wrongcard { cursor:pointer; }
