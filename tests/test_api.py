@@ -1763,7 +1763,13 @@ guest = A.app.test_client()
 tc = guest.get("/api/trial/cards").get_json()["cards"]
 assert 0 < len(tc) <= 10 and all(   # 测试库词少, 真实单词书是 10 个
 x["mode"] == "recall" and x["is_new"] for x in tc)
-assert guest.get("/api/tts?q=" + "Hallo Welt xyz").status_code == 401
+import tts as TT   # 游客也能在线读, 新取的次数全站限流(不真的连谷歌)
+TT._fetch = lambda text: b"ID3fake"
+TT.CACHE_DIR = os.path.join(ad, "tts")   # 别写进项目里真的发音缓存
+TT.GUEST_FETCH_PER_HOUR, TT._guest_fetches[:] = 2, []
+assert [guest.get(f"/api/tts?q=Gastwort{i}").status_code for i in range(3)] == [200, 200, 429]
+assert guest.get("/api/tts?q=Gastwort0").status_code == 200   # 缓存里有的不算次数
+assert guest.get("/api/tts?q=" + tc[0]["german"]).status_code == 200   # 试学的词不受限
 assert guest.post("/api/trial/save", json={"answers": []}).status_code == 401
 assert guest.get("/api/review/today").status_code == 401
 os.environ["ALLOW_REGISTER"] = "1"   # 新用户 trialuser: 学过的词跳过要另外验证, 这里先让他学一个

@@ -5,7 +5,7 @@
                           只收试学的词; 已经学过的词跳过(不覆盖真实进度)
 
 试学的评分只存在浏览器里(localStorage), 服务器不记游客的任何东西。
-在线发音 /api/tts 对游客只读试学这几个词和例句(allowed_tts), 免得被当成免费朗读接口。
+在线发音 /api/tts 游客新取有全站次数限制, 试学这几个词和例句不算(allowed_tts)。
 """
 from datetime import datetime, timezone
 

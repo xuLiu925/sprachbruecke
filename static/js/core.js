@@ -41,7 +41,8 @@ function toast(msg) {
 function needArticle() {
   try { return localStorage.getItem("sb_needArticle") !== "0"; } catch (e) { return true; }
 }
-const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "", gHints: false, gScope: "", pHints: false, pScope: "", spellMode: "button", recentSearch: [] };
+// voice 默认在线语音(谷歌, 发音统一、国产手机常没有德语语音); 自己在「我的」页选过设备语音的不变
+const SETTING_DEFAULTS = { autoWord: true, autoExample: false, rate: 1, voice: "online", gHints: false, gScope: "", pHints: false, pScope: "", spellMode: "button", recentSearch: [] };
 function getSetting(k) {
   try { const v = localStorage.getItem("sb_" + k); return v === null ? SETTING_DEFAULTS[k] : JSON.parse(v); }
   catch (e) { return SETTING_DEFAULTS[k]; }

@@ -422,7 +422,7 @@ function fillVoices() {
   }
   const want = getSetting("voice");
   sel.value = want === ONLINE_VOICE || vs.some(v => v.name === want) ? want : vs[0].name;
-  $("voiceHint").textContent = `找到 ${vs.length} 个设备上的德语语音，也可以选在线语音，试听后选一个。`;
+  $("voiceHint").textContent = `默认用在线语音。设备上还有 ${vs.length} 个德语语音，不联网也能读，试听后选一个。`;
 }
 fillVoices();
 if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = fillVoices;   // 有的浏览器语音列表是后加载的
