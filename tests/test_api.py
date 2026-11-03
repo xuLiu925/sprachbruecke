@@ -1766,6 +1766,23 @@ for i in range(10):
 assert WD.prune_cache(cdir, max_size=2000) == 0 and WD.prune_cache(cdir, max_size=500) == 6
 assert sorted(os.listdir(cdir)) == ["6.mp3", "7.mp3", "8.mp3", "9.mp3"]
 
+# 情景课进度存在服务器: 最近打开的课、学完的课(不存在的编号跳过, 重复的不加)
+os.environ["ALLOW_REGISTER"] = "1"
+cl = A.app.test_client()
+assert cl.post("/api/register", json={"username": "lessonuser", "password": "12345678"}).status_code == 200
+os.environ["ALLOW_REGISTER"] = "0"
+tl = J(cl.get("/api/lessons"))
+assert tl["last"] is None and tl["done"] == [] and len(tl["lessons"]) >= 2
+l0, l1 = tl["lessons"][0]["id"], tl["lessons"][1]["id"]
+assert cl.post("/api/lessons/progress", json={"last": "nope"}).status_code == 404
+assert J(cl.post("/api/lessons/progress", json={"last": l1}))["last"] == l1
+assert J(cl.post("/api/lessons/progress", json={"done": [l0, "nope", l0]}))["done"] == [l0]
+assert J(cl.post("/api/lessons/progress", json={"done": [l1]}))["done"] == [l0, l1]
+tl = J(cl.get("/api/lessons"))
+assert tl["last"] == l1 and tl["done"] == [l0, l1]
+assert cl.post("/api/lessons/progress", json={"done": "x"}).status_code == 400
+assert A.app.test_client().post("/api/lessons/progress", json={"last": l0}).status_code == 401
+
 # 试学: 游客能拿到 10 张卡、只能读试学的词; 登录后导入, 已学过的词和不在试学里的词跳过, 重复导入不再记
 guest = A.app.test_client()
 tc = guest.get("/api/trial/cards").get_json()["cards"]

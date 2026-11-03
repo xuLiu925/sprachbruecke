@@ -4,14 +4,42 @@ let wsStack = [], wsNow = null, wsLoads = Promise.resolve();   // 单词卡看�
 let wsAsk = null;     // 单词卡要交给 AI 查的 {q, context}
 const LESSON_LEVELS = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶" };
 
+// 学习进度存在服务器(lessons.py 的 /api/lessons/progress): last = 最近打开的课, done = 学完的课
+let lessonState = { last: null, done: [] };
+
 async function loadLessons() {
   if (lessons) return lessons;
   const [r, mine] = await Promise.all([api("/api/lessons"), api("/api/custom_lessons")]);
   lessons = [...mine.lessons, ...r.lessons];
   lessonAi = mine.ai;
+  lessonState = { last: r.last, done: r.done || [] };
+  // 以前“学完了”存在本机浏览器里: 没上传过的搬到服务器, 然后清掉本机的
+  const local = Object.keys(getSetting("lessonDone") || {}).filter(id => !lessonState.done.includes(id));
+  if (local.length) {
+    try {
+      lessonState.done = (await api("/api/lessons/progress", "POST", { done: local })).done;
+      setSetting("lessonDone", {});
+    } catch (e) {}
+  }
   return lessons;
 }
-const lessonDone = () => getSetting("lessonDone") || {};
+const lessonDone = () => Object.fromEntries(lessonState.done.map(id => [id, true]));
+
+function lessonProgress(body) {   // 记进度, 失败不打扰(下次学完 / 打开会再记)
+  api("/api/lessons/progress", "POST", body).then(r => { lessonState = { last: r.last, done: r.done }; }).catch(() => {});
+}
+
+// 打开一节课: 自带课程这时才取全文(免费版每天能开的新课有限, billing.py), 并记为最近打开的课
+async function openLesson(l) {
+  let full = l;
+  if (!l.custom) {
+    try { full = (await api("/api/lessons/" + encodeURIComponent(l.id))).lesson; }
+    catch (e) { return e.status === 402 || toast(e.message); }
+  }
+  lessonState.last = l.id;
+  lessonProgress({ last: l.id });
+  lessonNow = full; go("lesson");
+}
 
 $("lDue").onclick = () => rpOpen(null);
 $("lRoleplay").onclick = () => { if (lessonNow) rpOpen(lessonNow.id); };
@@ -26,14 +54,7 @@ onShow.lessons = async () => {
     const h = document.createElement("h2"); h.textContent = name;
     const list = document.createElement("div"); list.className = "list";
     for (const l of items) {
-      list.appendChild(listItem(done[l.id] ? { text: "✓", cls: "das" } : { text: ico }, l.title, l.scene, async () => {
-        let full = l;
-        if (!l.custom) {   // 课文打开时才取; 免费版每天能开的新课有限(billing.py)
-          try { full = (await api("/api/lessons/" + encodeURIComponent(l.id))).lesson; }
-          catch (e) { return e.status === 402 || toast(e.message); }
-        }
-        lessonNow = full; go("lesson");
-      }));
+      list.appendChild(listItem(done[l.id] ? { text: "✓", cls: "das" } : { text: ico }, l.title, l.scene, () => openLesson(l)));
     }
     box.append(h, list);
   };
@@ -106,7 +127,10 @@ onShow.lesson = () => {
 $("lShowModel").onclick = () => {
   $("lModel").classList.remove("hidden");
   $("lShowModel").classList.add("hidden");
-  const d = lessonDone(); d[lessonNow.id] = true; setSetting("lessonDone", d);
+  if (!lessonState.done.includes(lessonNow.id)) {
+    lessonState.done.push(lessonNow.id);
+    lessonProgress({ done: [lessonNow.id] });
+  }
 };
 $("lDelete").onclick = async () => {
   const l = lessonNow;

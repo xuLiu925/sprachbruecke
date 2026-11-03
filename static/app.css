@@ -492,3 +492,12 @@ button.wchip { padding:6px 10px; border-radius:999px; background:var(--bg); colo
   font:500 14px var(--font-latin); }
 button.wchip .art { margin-right:4px; }
 .wrongcard { cursor:pointer; }
+
+/* ---------- 今天: 接着上次 ---------- */
+button.card.resume { display:flex; flex-direction:column; gap:10px; width:100%; text-align:left; color:var(--text); cursor:pointer; }
+.resumehead { display:flex; align-items:center; justify-content:space-between; }
+.rtag { font-size:12px; font-weight:700; color:var(--accent); background:var(--accent-soft); padding:4px 8px; border-radius:6px; }
+.resume .meta { font-size:13px; }
+.resume b { font-size:16px; font-weight:500; }
+.resume .bar { display:block; height:6px; margin:0; }
+.resume .bar i { background:var(--accent); }

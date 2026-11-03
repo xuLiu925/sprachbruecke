@@ -155,6 +155,16 @@
         <button class="hero-btn" id="hStart">开始今天的学习</button>
       </div>
 
+      <!-- 接着上次: 最近打开的情景课, 学完了就是同一级的下一课(home.js 的 showResume) -->
+      <div id="hResumeBox" class="hidden">
+        <h2>接着上次</h2>
+        <button class="card resume" id="hResume">
+          <span class="resumehead"><span class="rtag" id="hResumeTag"></span><span class="meta" id="hResumePos"></span></span>
+          <b id="hResumeTitle"></b>
+          <span class="bar"><i id="hResumeBar"></i></span>
+        </button>
+      </div>
+
       <div id="hRecBox" class="hidden">
         <h2>推荐练习</h2>
         <div class="list" id="hRec"></div>

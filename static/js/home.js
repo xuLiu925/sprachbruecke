@@ -76,7 +76,31 @@ onShow.home = async () => {
   };
   showWeek(t.week || []);
   showRecommend();
+  showResume();
 };
+
+// 接着上次: 最近打开的情景课; 那一课学完了就换成同一组里下一节没学的; 没打开过或整组学完了就不显示
+async function showResume() {
+  const box = $("hResumeBox");
+  let all;
+  try { all = await loadLessons(); } catch (e) { return box.classList.add("hidden"); }
+  const { last, done } = lessonState;
+  let l = all.find(x => x.id === last);
+  if (!l) return box.classList.add("hidden");
+  const group = all.filter(x => !!x.custom === !!l.custom && (l.custom || x.level === l.level));
+  if (done.includes(l.id)) {
+    const i = group.indexOf(l);
+    l = [...group.slice(i + 1), ...group.slice(0, i)].find(x => !done.includes(x.id));
+    if (!l) return box.classList.add("hidden");
+  }
+  const finished = group.filter(x => done.includes(x.id)).length;
+  $("hResumeTag").textContent = l.custom ? "我的工作对话" : "情景课 · " + l.level;
+  $("hResumePos").textContent = `第 ${group.indexOf(l) + 1} / ${group.length} 课`;
+  $("hResumeTitle").textContent = l.title;
+  $("hResumeBar").style.width = (finished / group.length * 100) + "%";
+  $("hResume").onclick = () => openLesson(l);
+  box.classList.remove("hidden");
+}
 
 // 这一周: 7 根柱子, 今天深色
 function showWeek(week) {

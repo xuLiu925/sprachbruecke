@@ -130,11 +130,67 @@ def my_items():
     return by_key, {**base["by_lesson"], **custom}
 
 
+MAX_DONE = 500   # 学完的课最多记多少个
+
+
+def lesson_state(uid):
+    """(最近打开的课, 学完的课的列表), 存在 user_settings 的 lesson_last / lesson_done(JSON)"""
+    rows = get_db().execute("SELECT key, value FROM user_settings WHERE user_id = ? AND key IN ('lesson_last', 'lesson_done')",
+                            (uid,)).fetchall()
+    s = {r["key"]: r["value"] for r in rows}
+    try:
+        done = json.loads(s.get("lesson_done") or "[]")
+    except ValueError:
+        done = []
+    return s.get("lesson_last"), done if isinstance(done, list) else []
+
+
+def valid_lesson_id(lid):
+    """自带课程的编号, 或者自己的自建课程(u数字)"""
+    if not isinstance(lid, str) or len(lid) > 40:
+        return False
+    if lid in load_items()["lessons"]:
+        return True
+    return lid[:1] == "u" and lid[1:].isdigit() and get_db().execute(
+        "SELECT 1 FROM custom_lessons WHERE id = ? AND user_id = ?", (int(lid[1:]), current_user_id())).fetchone() is not None
+
+
 @bp.route("/api/lessons")
 @login_required
 def lesson_list():
-    """自带课程的列表(没有课文)"""
-    return jsonify({"lessons": [{k: x[k] for k in LIST_FIELDS} for x in load_items()["lessons"].values()]})
+    """自带课程的列表(没有课文), 加上这个用户最近打开的课 last 和学完的课 done"""
+    last, done = lesson_state(current_user_id())
+    return jsonify({"lessons": [{k: x[k] for k in LIST_FIELDS} for x in load_items()["lessons"].values()],
+                    "last": last, "done": done})
+
+
+@bp.route("/api/lessons/progress", methods=["POST"])
+@login_required
+def lesson_progress():
+    """{last: 课程编号} 记下最近打开的课; {done: [课程编号, …]} 加进学完的课(以前存在浏览器里的也用这个搬过来)"""
+    data = json_body()
+    if data is None:
+        return err("请求格式错误")
+    uid, db = current_user_id(), get_db()
+    last, done = lesson_state(uid)
+    upsert = "INSERT INTO user_settings (user_id, key, value) VALUES (?,?,?) " \
+             "ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value"
+    if "last" in data:
+        if not valid_lesson_id(data["last"]):
+            return err("课程不存在", 404)
+        last = data["last"]
+        db.execute(upsert, (uid, "lesson_last", last))
+    if "done" in data:
+        new = data["done"]
+        if not isinstance(new, list) or len(new) > MAX_DONE:
+            return err("格式错误")
+        for lid in new:
+            if lid not in done and valid_lesson_id(lid):
+                done.append(lid)
+        done = done[-MAX_DONE:]
+        db.execute(upsert, (uid, "lesson_done", json.dumps(done)))
+    db.commit()
+    return jsonify({"last": last, "done": done})
 
 
 @bp.route("/api/lessons/<lesson_id>")
