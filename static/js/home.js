@@ -1,130 +1,223 @@
-// 首页、练习列表、我的
-const MODULES = [
-  { ico: "🔤", name: "词汇", sub: "复习 · 拼写", page: "practice" },
-  { ico: "📐", name: "语法", sub: `${GRAMMAR_TOPICS.length} 个知识点`, page: "grammar" },
-  { ico: "💬", name: "句子", sub: "填空 · 排序 · 中译德", page: "sentence" },
-  { ico: "📦", name: "情景课", sub: "海外仓 A1–B1", page: "lessons" },
-  { ico: "🎧", name: "听力" }, { ico: "📝", name: "考试" },
-];
-
-function buildModules() {
-  const box = $("modules");
-  for (const m of MODULES) {
-    const t = document.createElement("button");
-    t.className = "tile" + (m.page ? "" : " off");
-    const i = document.createElement("span"); i.className = "ico"; i.textContent = m.ico;
-    const s = document.createElement("small"); s.textContent = m.sub || "即将推出";
-    t.append(i, m.name, s);
-    t.onclick = () => !m.page ? toast(m.name + "模块即将推出") : PAGES[m.page].tab ? switchTab(m.page) : go(m.page);
-    box.appendChild(t);
-  }
-}
-buildModules();
-
+// 今天(首页)、学习、练习、我的
 const BOOK_NAMES = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶", B2: "B2 中高级", C1: "C1 高级", all: "全部单词",
                      dsh: "德福 DSH 核心词汇", common: "德语常用词汇", warehouse: "海外仓词汇" };
+const BOOK_COVERS = { dsh: "DSH", common: "常用", warehouse: "仓", all: "全部" };
+const CHEV_SVG = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
-onShow.home = async () => {
-  $("hello").textContent = "你好，" + user;
-  showMemberWarn();
-  const [s, t] = await Promise.all([loadStats(), api("/api/today?" + tzQuery())]);
-  $("hBookName").textContent = "单词书：" + BOOK_NAMES[s.book];
-  $("hBookProg").textContent = s.book_total && s.book_learned >= s.book_total
-    ? "这本学完了，换一本吧" : `共 ${s.book_total} 个词，进度见下方`;
-  $("hDue").textContent = t.due;
-  $("hNew").textContent = t.new;
-  $("hPlan").textContent = `今日学习量 ${t.target} · 已学 ${t.done}`;
-  $("hLearned").textContent = s.learned;
-  $("hMastered").textContent = s.mastered;
-  $("hTotal").textContent = s.total;
-  // 进度条显示当前单词书(整个词库太大, 条几乎是空的): 浅色 = 已学, 绿色 = 已掌握
-  const pct = n => s.book_total ? n / s.book_total * 100 : 0;
-  $("hBarTitle").textContent = BOOK_NAMES[s.book];
-  $("hBarLearned").style.width = pct(s.book_learned) + "%";
-  $("hBar").style.width = pct(s.book_mastered) + "%";
-  $("hBarText").textContent = `已学 ${s.book_learned}（${Math.round(pct(s.book_learned))}%）· 已掌握 ${s.book_mastered} · 共 ${s.book_total} 个`;
-  $("hStart").textContent = t.due + t.new === 0 ? "今天学完了 🎉 再学一点" : t.done ? "继续今日学习" : "开始今日学习";
-  showSentenceDue($("hSentences"));
-};
-$("hStart").onclick = () => go("review");
-$("hSentences").onclick = () => rpOpen(null);
-
-// 有到期的句子才显示这个按钮; 查询失败时不打扰, 保持隐藏
-async function showSentenceDue(btn) {
-  btn.classList.add("hidden");
-  try {
-    const { count } = await api("/api/roleplay/due?count=1");
-    btn.textContent = `🎭 整句复习（${count} 句）`;
-    btn.classList.toggle("hidden", !count);
-  } catch (e) {}
-}
-$("hBook").onclick = () => go("books");
-
-// ---------- 选择单词书 ----------
-onShow.books = async () => {
-  const r = await api("/api/books");
-  const box = $("bookList"); box.textContent = "";
-  const all = { level: "all", total: null };
-  for (const b of [...r.books, ...r.themes, all]) {
-    const sub = b.level === "all" ? "整个词库，包括示例词和你自己加的词"
-      : b.total ? `${b.total} 个词 · 已学 ${b.learned} · 已掌握 ${b.mastered}` : "还没有导入";
-    const it = listItem(b.level === "all" ? "🗃️" : "📘", BOOK_NAMES[b.level], sub, async () => {
-      if (b.total === 0) return toast("这本还没有导入");
-      await api("/api/books/current", "POST", { book: b.level });
-      toast("已切换到 " + BOOK_NAMES[b.level]);
-      $("btnBack").click();
-    }, b.total === 0);
-    if (b.total) {   // 进度条: 已学多少
-      const bar = document.createElement("div"); bar.className = "bar";
-      const fill = document.createElement("i"); fill.style.width = (b.learned / b.total * 100) + "%";
-      bar.appendChild(fill);
-      it.querySelector(".body").appendChild(bar);
-    }
-    if (b.level === r.current) {
-      it.classList.add("current");
-      it.querySelector(".chev").textContent = "✓";
-    }
-    box.appendChild(it);
-  }
-};
-
-// ---------- 练习列表 ----------
-function listItem(ico, title, sub, onclick, off) {
+// 列表的一行: 左边图标块(文字或 SVG), 标题和说明, 右边可选的橙色标记和箭头
+// tile = {text, cls} 或 {svg, cls}; 旧页面传字符串(emoji)也行
+function listItem(tile, title, sub, onclick, off) {
   const b = document.createElement("button");
   b.className = "item" + (off ? " off" : "");
-  const i = document.createElement("span"); i.className = "ico"; i.textContent = ico;
+  const i = document.createElement("span");
+  if (typeof tile === "string") { i.className = "ico"; i.textContent = tile; }
+  else {
+    i.className = "tile44 " + (tile.cls || "");
+    if (tile.svg) i.innerHTML = tile.svg;   // 只用代码里写死的图标, 不放用户内容
+    else i.textContent = tile.text;
+  }
   const body = document.createElement("span"); body.className = "body";
   const t = document.createElement("b"); t.textContent = title;
   const s = document.createElement("small"); s.textContent = sub;
   body.append(t, s);
   const badge = document.createElement("span"); badge.className = "badge hidden";
-  const chev = document.createElement("span"); chev.className = "chev"; chev.textContent = "›";
+  const chev = document.createElement("span"); chev.className = "chev"; chev.innerHTML = CHEV_SVG;
   b.append(i, body, badge, chev);
   b.onclick = onclick;
   return b;
 }
-
-const reviewItem = listItem("🗂️", "今日学习", "先复习再学新词，认词 + 拼写", () => go("review"));
-$("practiceList").append(reviewItem, listItem("🎨", "冠词练习", "der / die / das 选择题", () => go("drill")),
-                        listItem("✍️", "听写", "听发音写单词，优先出学过的词", () => go("dictation")),
-                        listItem("📐", "语法基础", "冠词、代词、介词、动词、语序的速查表和练习", () => go("grammar")),
-                        listItem("💬", "句子练习", "填空、连词成句、中译德，用学过的词练完整的句子", () => go("sentence")),
-                        listItem("📦", "情景课", "海外仓场景：读课文、做练习、用德语写出来", () => go("lessons")));
-$("practiceList").appendChild(listItem("🔢", "复数练习", "先看规律，再按单词书和错题本练", () => go("plural")));
-// 词形练习用句子填空的答题页, 题目来自词库
-for (const [ico, name, sub, kind] of [["🧩", "变格练习", "四个格的冠词和词尾", "cases"],
-                                      ["🔁", "动词变位", "不同人称的现在时", "verbs"]]) {
-  $("practiceList").appendChild(listItem(ico, name, sub, () => {
-    sPreset = { mode: "cloze", name, url: "/api/forms/" + kind, empty: "词库里还没有这类词的数据。" };
-    go("squiz");
-  }));
+function setBadge(item, text) {
+  const b = item.querySelector(".badge");
+  b.textContent = text || "";
+  b.classList.toggle("hidden", !text);
 }
 
-onShow.practice = async () => {
+// 打开语法知识点(语法基础里的专项练习也从这里进)
+function openTopic(id) {
+  gTopic = GRAMMAR_TOPICS.find(t => t.id === id);
+  go("gtopic");
+}
+function openForms(kind, name) {   // 变格 / 变位练习用句子填空的答题页, 题目来自词库
+  sPreset = { mode: "cloze", name, url: "/api/forms/" + kind, empty: "词库里还没有这类词的数据。" };
+  go("squiz");
+}
+
+// ---------- 今天 ----------
+onShow.home = async () => {
+  const now = new Date();
+  $("hDate").textContent = `${now.getMonth() + 1} 月 ${now.getDate()} 日 · 周${WEEKDAYS[now.getDay()]}`;
+  showMemberWarn();
+  const [s, t] = await Promise.all([loadStats(), api("/api/today?" + tzQuery())]);
+  $("hStreakN").textContent = t.streak;
+  $("hStreak").classList.toggle("off", !t.streak);
+  const pct = t.target ? Math.min(t.done / t.target, 1) : 0;
+  $("hRingFg").setAttribute("stroke-dasharray", `${(pct * 213.6).toFixed(1)} 214`);
+  $("hDone").textContent = t.done;
+  $("hTarget").textContent = "/ " + t.target;
+  $("hRing").setAttribute("aria-label", `今日进度 ${t.done} / ${t.target}`);
+  const left = t.due + t.new;
+  $("hPlan").textContent = left ? `还要复习 ${t.due} 个 · 新词 ${t.new} 个` : "今天的任务完成了";
+  $("hBook").textContent = "单词书：" + BOOK_NAMES[s.book];
+  $("hStart").textContent = !left ? "再学 10 个" : t.done ? "继续今天的学习" : "开始今天的学习";
+  $("hStart").onclick = async () => {
+    if (!left) { try { await api("/api/today/more?" + tzQuery(), "POST", {}); } catch (e) { return toast(e.message); } }
+    go("review");
+  };
+  showWeek(t.week || []);
+  showRecommend();
+};
+
+// 这一周: 7 根柱子, 今天深色
+function showWeek(week) {
+  const box = $("hWeek"), days = $("hWeekDays");
+  box.textContent = ""; days.textContent = "";
+  const max = Math.max(...week, 1);
+  const today = new Date().getDay();
+  week.forEach((n, i) => {
+    const bar = document.createElement("i");
+    bar.style.height = Math.max(n / max * 100, n ? 8 : 3) + "%";
+    if (i === 6) bar.className = "now";
+    bar.title = n + " 个词";
+    box.appendChild(bar);
+    const d = document.createElement("span");
+    d.textContent = i === 6 ? "今天" : WEEKDAYS[(today - 6 + i + 7) % 7];
+    if (i === 6) d.className = "now";
+    days.appendChild(d);
+  });
+  $("hWeekSum").textContent = week.reduce((a, b) => a + b, 0);
+}
+
+// 推荐练习: 有错题或到期的句子才出现; 查询失败就不显示那一项
+async function showRecommend() {
+  const box = $("hRec");
+  const get = url => api(url).catch(() => null);
+  const [noun, plural, verb, rp] = await Promise.all([get("/api/grammar/nouns/books"), get("/api/plural/books"),
+                                                     get("/api/grammar/verbs/books"), get("/api/roleplay/due?count=1")]);
+  box.textContent = "";
+  const add = (n, tile, title, sub, fn) => { if (n) box.appendChild(listItem(tile, title, sub, fn)); };
+  add(noun && noun.wrong, { text: "die", cls: "die" }, "冠词错题", `${noun && noun.wrong} 个词容易记错冠词，练一组巩固一下`, () => openTopic("art-def"));
+  add(plural && plural.wrong, { text: "-en", cls: "das" }, "复数错题", `${plural && plural.wrong} 个词的复数还没记住`, () => go("plural"));
+  add(verb && verb.wrong, { text: "-st" }, "动词变位错题", `${verb && verb.wrong} 个动词容易变错`, () => openTopic("verb-praes"));
+  add(rp && rp.count, { text: "说" }, "整句复习", `${rp && rp.count} 句情景对话到了复习时间`, () => rpOpen(null));
+  $("hRecBox").classList.toggle("hidden", !box.children.length);
+}
+
+// ---------- 学习 ----------
+onShow.learn = async () => {
+  buildGrammarGrid();
   const s = await loadStats();
-  const badge = reviewItem.querySelector(".badge");
-  badge.textContent = s.due;
-  badge.classList.toggle("hidden", !s.due);
+  $("lBookCover").textContent = BOOK_COVERS[s.book] || s.book;
+  $("lBookName").textContent = BOOK_NAMES[s.book];
+  $("lBookSub").textContent = s.book_total ? `共 ${s.book_total} 个词` : "";
+  const pct = n => s.book_total ? n / s.book_total * 100 : 0;
+  $("lBarM").style.width = pct(s.book_mastered) + "%";
+  $("lBarL").style.width = pct(Math.max(s.book_learned - s.book_mastered, 0)) + "%";
+  const st = $("lBookStats"); st.textContent = "";
+  for (const [n, label] of [[s.book_mastered, "已掌握"], [s.book_learned - s.book_mastered, "学习中"],
+                            [s.book_total - s.book_learned, "没学"]]) {
+    const span = document.createElement("span");
+    const b = document.createElement("b"); b.textContent = Math.max(n, 0);
+    span.append(b, " " + label);
+    st.appendChild(span);
+  }
+};
+$("lSearch").onclick = () => openSearch();
+$("lBookSwitch").onclick = () => go("books");
+$("lWords").onclick = () => go("words");
+$("lAdd").onclick = () => go("add");
+$("lLessons").onclick = () => go("lessons");
+$("lNewLesson").onclick = () => go("lnew");
+
+// 语法知识点按大类显示, 点了进语法基础并跳到那一类
+let gJumpGroup = null;
+function buildGrammarGrid() {
+  const box = $("lGrammar");
+  if (box.children.length) return;
+  const groups = [];
+  for (const t of GRAMMAR_TOPICS) {
+    let g = groups.find(x => x.name === t.group);
+    if (!g) groups.push(g = { name: t.group, topics: [] });
+    g.topics.push(t);
+  }
+  for (const g of groups) {
+    const b = document.createElement("button"); b.className = "gcell";
+    const ex = document.createElement("span"); ex.className = "gex"; ex.textContent = GROUP_EXAMPLES[g.name] || "";
+    const n = document.createElement("b"); n.textContent = g.name;
+    const c = document.createElement("small"); c.textContent = g.topics.length + " 个知识点";
+    b.append(ex, n, c);
+    b.onclick = () => { gJumpGroup = g.name; go("grammar"); };
+    box.appendChild(b);
+  }
+}
+// 每类语法的德语小例子, 当作图标
+const GROUP_EXAMPLES = { "冠词": "der die das", "代词": "ich · mich · mir", "介词": "mit · für · in", "动词": "sein · haben",
+  "语序": "weil … ist", "问句": "wer · wo · wann", "形容词词尾": "ein guter Tag", "比较级": "gut · besser", "完成时": "hat gemacht",
+  "可分动词": "an|rufen", "否定": "nicht · kein", "数字和时间": "halb drei" };
+
+// ---------- 练习 ----------
+// 按能力分组; to = 点了做什么, due = 返回错题数的接口(有错题时显示橙色标记)
+const PRACTICE_GROUPS = [
+  { title: "名词", sub: "冠词 · 复数 · 变格", items: [
+    { tile: { text: "die", cls: "die" }, name: "定冠词", sub: "der / die / das 和四个格", to: () => openTopic("art-def"), wrong: "noun" },
+    { tile: { text: "ein", cls: "der" }, name: "不定冠词 ein", sub: "ein / eine 的四个格", to: () => openTopic("art-indef") },
+    { tile: { text: "kein", cls: "der" }, name: "否定冠词 kein", sub: "kein / keine 的四个格", to: () => openTopic("art-kein") },
+    { tile: { text: "mein", cls: "der" }, name: "物主冠词", sub: "mein / dein / sein …", to: () => openTopic("art-poss") },
+    { tile: { text: "-en", cls: "das" }, name: "复数", sub: "看规律写复数", to: () => go("plural"), wrong: "plural" },
+    { tile: { text: "Akk" }, name: "变格", sub: "四个格的冠词和词尾", to: () => openForms("cases", "变格练习") },
+    { tile: { text: "?" }, name: "冠词快速选择", sub: "der / die / das 三选一", to: () => go("drill") },
+  ] },
+  { title: "动词", sub: "变位 · 时态 · 搭配", items: [
+    { tile: { text: "-st" }, name: "现在时变位", sub: "du kommst, er arbeitet", to: () => openTopic("verb-praes"), wrong: "verb" },
+    { tile: { text: "hat" }, name: "完成时", sub: "haben 还是 sein，过去分词", to: () => openTopic("perf-bank") },
+    { tile: { text: "auf" }, name: "动词搭配", sub: "warten auf + 第四格", to: () => openTopic("verb-usage") },
+    { tile: { text: "ich" }, name: "变位表练习", sub: "不同人称的现在时", to: () => openForms("verbs", "动词变位") },
+  ] },
+  { title: "句子", sub: "用学过的词造句", items: [
+    { tile: { text: "__" }, name: "句子练习", sub: "填空、连词成句、中译德", to: () => go("sentence") },
+  ] },
+  { title: "听说", sub: "耳朵和嘴巴", items: [
+    { tile: { text: "听" }, name: "听写", sub: "听发音写单词", to: () => go("dictation") },
+    { tile: { text: "说" }, name: "整句复习", sub: "情景对话里的句子，限时开口说", to: () => rpOpen(null), due: "rp" },
+  ] },
+];
+const practiceItems = {};
+(function buildPractice() {
+  const box = $("pGroups");
+  for (const g of PRACTICE_GROUPS) {
+    const head = document.createElement("div"); head.className = "shead";
+    const h = document.createElement("h2"); h.textContent = g.title;
+    const sub = document.createElement("span"); sub.className = "meta"; sub.textContent = g.sub;
+    head.append(h, sub);
+    const list = document.createElement("div"); list.className = "list";
+    for (const it of g.items) {
+      const row = listItem(it.tile, it.name, it.sub, it.to);
+      if (it.wrong) practiceItems[it.wrong] = row;
+      if (it.due) practiceItems[it.due] = row;
+      list.appendChild(row);
+    }
+    box.append(head, list);
+  }
+})();
+
+onShow.practice = async () => {
+  const get = url => api(url).catch(() => null);
+  const [noun, plural, verb, rp] = await Promise.all([get("/api/grammar/nouns/books"), get("/api/plural/books"),
+                                                     get("/api/grammar/verbs/books"), get("/api/roleplay/due?count=1")]);
+  const n = { noun: noun ? noun.wrong : 0, plural: plural ? plural.wrong : 0, verb: verb ? verb.wrong : 0 };
+  for (const k of ["noun", "plural", "verb"]) setBadge(practiceItems[k], n[k] ? "错题 " + n[k] : "");
+  setBadge(practiceItems.rp, rp && rp.count ? "到期 " + rp.count : "");
+  $("pWrongSum").textContent = n.noun + n.plural + n.verb;
+  const box = $("pWrong"); box.textContent = "";
+  for (const [k, label, fn] of [["noun", "冠词", () => openTopic("art-def")], ["plural", "复数", () => go("plural")],
+                                 ["verb", "动词", () => openTopic("verb-praes")]]) {
+    const b = document.createElement("button");
+    const num = document.createElement("b"); num.textContent = n[k];
+    const t = document.createElement("small"); t.textContent = label;
+    b.append(num, t);
+    b.onclick = fn;
+    box.appendChild(b);
+  }
 };
 
 // ---------- 我的 ----------

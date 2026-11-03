@@ -195,6 +195,11 @@ onShow.grammar = () => {
     it.querySelector(".badge").replaceWith(scoreChip(bestScore(t.id)));
     list.appendChild(it);
   }
+  if (gJumpGroup) {   // 从「学习」页点了某一类(home.js)
+    const h = [...box.querySelectorAll("h2")].find(x => x.textContent === gJumpGroup);
+    gJumpGroup = null;
+    if (h) h.scrollIntoView();
+  }
 };
 
 // ---------- 知识点页 ----------

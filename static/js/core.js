@@ -163,30 +163,31 @@ const exampleDe = ex => (ex || "").split("\n")[0];                  // 例句第
 // ---------- 页面切换 ----------
 // 网址里的 #名字 决定显示哪一页; 标签页之间切换不留历史, 进入二级页面才留, 这样「返回」和手机返回键都能用
 const PAGES = {
-  home:     { title: "通德", tab: true },
+  home:     { title: "今天", tab: true },
+  learn:    { title: "学习", tab: true },
   practice: { title: "练习", tab: true },
-  words:    { title: "词库", tab: true },
   me:       { title: "我的", tab: true },
+  words:    { title: "全部单词", parent: "learn" },
   review:   { title: "今日学习", parent: "home" },
   drill:    { title: "冠词练习", parent: "practice" },
   dictation: { title: "听写", parent: "practice" },
-  grammar:  { title: "语法基础", parent: "home" },
+  grammar:  { title: "语法基础", parent: "learn" },
   gtopic:   { title: "语法", parent: "grammar" },      // 标题在页面里换成知识点名字
   gquiz:    { title: "语法练习", parent: "gtopic" },
   gbank:    { title: "题库", parent: "gtopic" },           // 标题在页面里换成知识点名字
   gnouns:   { title: "单词列表", parent: "gtopic" },       // 标题在页面里换成单词书名字
-  lessons:  { title: "情景课", parent: "home" },
+  lessons:  { title: "情景课", parent: "learn" },
   lesson:   { title: "情景课", parent: "lessons" },       // 标题在页面里换成课名
   lnew:     { title: "新建工作对话", parent: "lessons" },
   roleplay: { title: "角色扮演", parent: "lessons" },     // 标题在页面里换(整句复习用同一页)
-  sentence: { title: "句子练习", parent: "home" },
+  sentence: { title: "句子练习", parent: "practice" },
   squiz:    { title: "句子练习", parent: "sentence" },     // 标题在页面里换成题型名字
   plural:   { title: "复数练习", parent: "practice" },
   add:      { title: "添加单词", parent: "words" },
   view:     { title: "单词详情", parent: "words" },
   edit:     { title: "编辑单词", parent: "words", section: "add" },   // 和添加单词共用一个界面
   import:   { title: "批量导入", parent: "words" },
-  books:    { title: "选择单词书", parent: "home" },
+  books:    { title: "选择单词书", parent: "learn" },
   welcome:  { title: "通德" },                             // 游客首页
 };
 // 没登录也能看的页面(游客的 home 换成 welcome); 其他页面要先登录。试学在 review.js
@@ -212,6 +213,7 @@ function route() {
   $("btnBack").classList.toggle("hidden", !!p.tab || name === "welcome");
   $("tabbar").classList.toggle("hidden", !tabs);
   document.body.classList.toggle("no-tabs", !tabs);
+  document.body.classList.toggle("tabpage", !!p.tab || name === "welcome");   // 标签页: 页面里有大标题, 顶栏不显示标题
   searchRefresh();   // 游客不显示搜索(search.js)
   document.querySelectorAll("#tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   window.scrollTo(0, 0);

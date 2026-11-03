@@ -122,8 +122,14 @@
       </div>
     </section>
 
+    <!-- ===== 今天(首页) ===== -->
     <section class="page" data-page="home">
-      <div class="hello" id="hello"></div>
+      <div class="phead">
+        <div><span class="pdate" id="hDate"></span><h1 class="ptitle">今天</h1></div>
+        <span class="streak" id="hStreak" title="连续学习天数">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s5 4.5 5 9a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-5.5 1-7.5z"/></svg>
+          <b id="hStreakN">0</b>天</span>
+      </div>
       <!-- 会员快到期 / 刚到期的提醒(home.js 的 showMemberWarn) -->
       <div class="card hidden" id="hMember">
         <div class="meta left" id="hMemberText" style="margin:0"></div>
@@ -132,44 +138,93 @@
           <button class="secondary" id="hMemberClose">知道了</button>
         </div>
       </div>
-      <div class="card">
-        <div class="today">
-          <div><b id="hDue">-</b><span>今日复习</span></div>
-          <div><b id="hNew">-</b><span>今日新词</span></div>
+      <div class="hero">
+        <div class="hero-top">
+          <svg class="ring" viewBox="0 0 80 80" role="img" id="hRing" aria-label="今日进度">
+            <circle cx="40" cy="40" r="34" class="ring-bg"/>
+            <circle cx="40" cy="40" r="34" class="ring-fg" id="hRingFg" stroke-dasharray="0 214" transform="rotate(-90 40 40)"/>
+            <text x="40" y="38" text-anchor="middle" class="ring-n" id="hDone">0</text>
+            <text x="40" y="54" text-anchor="middle" class="ring-d" id="hTarget">/ 0</text>
+          </svg>
+          <div class="hero-text">
+            <b>今日学习</b>
+            <span id="hPlan"></span>
+            <small id="hBook"></small>
+          </div>
         </div>
-        <p class="meta" id="hPlan" style="text-align:center"></p>
-        <button class="big" id="hStart">开始今日学习</button>
-        <button class="big secondary hidden" id="hSentences" style="margin-top:8px"></button>
+        <button class="hero-btn" id="hStart">开始今天的学习</button>
       </div>
+
+      <div id="hRecBox" class="hidden">
+        <h2>推荐练习</h2>
+        <div class="list" id="hRec"></div>
+      </div>
+
+      <div class="card">
+        <div class="weekhead"><h2>这一周</h2><span class="meta">共学了 <b id="hWeekSum">0</b> 个词</span></div>
+        <div class="week" id="hWeek"></div>
+        <div class="weekdays" id="hWeekDays"></div>
+      </div>
+    </section>
+
+    <!-- ===== 学习 ===== -->
+    <section class="page" data-page="learn">
+      <h1 class="ptitle">学习</h1>
+      <button class="searchbox" id="lSearch">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4.5 4.5"/></svg>
+        查德语或中文，比如 abholen、仓库
+      </button>
+
+      <div class="shead"><h2>单词书</h2><button class="linkbtn" id="lBookSwitch">换一本</button></div>
+      <div class="card bookcard">
+        <div class="bookrow">
+          <span class="bookcover" id="lBookCover">A1</span>
+          <div class="grow"><b id="lBookName"></b><small id="lBookSub"></small></div>
+        </div>
+        <div class="bar bar3"><i class="mastered" id="lBarM"></i><i class="learning" id="lBarL"></i></div>
+        <div class="bookstats" id="lBookStats"></div>
+        <div class="row" style="margin-top:12px">
+          <button class="secondary" id="lWords">全部单词</button>
+          <button class="secondary" id="lAdd">添加单词</button>
+        </div>
+      </div>
+
+      <h2>语法知识点</h2>
+      <div class="ggrid" id="lGrammar"></div>
+
+      <h2>情景课</h2>
       <div class="list">
-        <button class="item" id="hBook">
-          <span class="ico">📚</span>
-          <span class="body"><b id="hBookName"></b><small id="hBookProg"></small></span>
-          <span class="chev">换一本 ›</span>
+        <button class="item" id="lLessons">
+          <span class="tile44"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M17 9h3a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3"/></svg></span>
+          <span class="body"><b>海外仓工作对话</b><small>A1–B1 · 读课文、做练习、角色扮演</small></span>
+          <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+        </button>
+        <button class="item" id="lNewLesson">
+          <span class="tile44 gray"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span class="body"><b>新建我的工作对话</b><small>描述一个场景，AI 帮你写成课文</small></span>
+          <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
         </button>
       </div>
-
-      <h2>学习进度</h2>
-      <div class="card">
-        <div class="stat3">
-          <div><b id="hLearned">-</b><span>已学</span></div>
-          <div><b id="hMastered">-</b><span>已掌握</span></div>
-          <div><b id="hTotal">-</b><span>词库</span></div>
+      <div class="list off">
+        <div class="item">
+          <span class="tile44 gray"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></span>
+          <span class="body"><b>发音规律</b><small>看到生词就能读出来 · 即将推出</small></span>
         </div>
-        <!-- 当前单词书的进度: 浅色 = 已学, 绿色 = 已掌握 -->
-        <div class="meta left" style="font-size:13px;margin-top:14px" id="hBarTitle"></div>
-        <div class="bar bar2"><i class="learned" id="hBarLearned" style="width:0"></i><i id="hBar" style="width:0"></i></div>
-        <div class="meta left" style="font-size:12px" id="hBarText"></div>
       </div>
-
-      <h2>学习模块</h2>
-      <div class="grid" id="modules"></div>
     </section>
 
     <!-- ===== 练习 ===== -->
     <section class="page" data-page="practice">
-      <h2>词汇</h2>
-      <div class="list" id="practiceList"></div>
+      <h1 class="ptitle">练习</h1>
+      <div class="card wrongcard">
+        <div class="wronghead">
+          <span class="tile36 warm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M4 19a2 2 0 0 1 2-2h12"/><path d="m10 8 4 4M14 8l-4 4"/></svg></span>
+          <b class="grow">错题本</b>
+          <span class="meta">共 <b id="pWrongSum">-</b> 个</span>
+        </div>
+        <div class="wrong3" id="pWrong"></div>
+      </div>
+      <div id="pGroups"></div>
     </section>
 
     <!-- ===== 词库 ===== -->
@@ -801,13 +856,13 @@
 
   <nav class="tabbar" id="tabbar">
     <button data-tab="home">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>首页</button>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="m9 15 2 2 4-4"/></svg>今天</button>
+    <button data-tab="learn">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 5h6a4 4 0 0 1 4 4v11a3 3 0 0 0-3-3H2z"/><path d="M22 5h-6a4 4 0 0 0-4 4v11a3 3 0 0 1 3-3h7z"/></svg>学习</button>
     <button data-tab="practice">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>练习</button>
-    <button data-tab="words">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/></svg>词库</button>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>练习</button>
     <button data-tab="me">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg>我的</button>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>我的</button>
   </nav>
 </div>
 

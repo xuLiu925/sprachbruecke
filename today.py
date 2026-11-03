@@ -103,6 +103,31 @@ def review_today():
     return jsonify({"cards": [card(r) for r in p["due"] + p["new"]], "due": len(p["due"]), "new": len(p["new"])})
 
 
+HISTORY_DAYS = 60   # 连续天数最多往回算多少天
+
+
+def history(tz):
+    """(连续学习天数, 最近 7 天每天学了几个词[最早 → 今天])。按本地日期, 凌晨 4 点换日。
+    今天还没学时, 连续天数算到昨天(今天学了就接上)。review_log 2026-10-27 才开始记"""
+    day, start, _ = local_day(tz)
+    since = fmt_time(datetime.strptime(start, "%Y-%m-%d %H:%M:%S") - timedelta(days=HISTORY_DAYS))
+    rows = get_db().execute(
+        "SELECT word_id, reviewed_at FROM review_log WHERE user_id = ? AND reviewed_at >= ?",
+        (current_user_id(), since)).fetchall()
+    per_day = {}
+    for r in rows:
+        t = datetime.strptime(r["reviewed_at"], "%Y-%m-%d %H:%M:%S") - timedelta(minutes=tz, hours=DAY_HOUR)
+        per_day.setdefault(t.date(), set()).add(r["word_id"])
+    today_d = datetime.strptime(day, "%Y-%m-%d").date()
+    week = [len(per_day.get(today_d - timedelta(days=i), ())) for i in range(6, -1, -1)]
+    d = today_d if today_d in per_day else today_d - timedelta(days=1)
+    streak = 0
+    while d in per_day:
+        streak += 1
+        d -= timedelta(days=1)
+    return streak, week
+
+
 def summary(tz):
     p = plan(tz)
     return {"goal": p["goal"], "extra": p["extra"], "target": p["target"], "done": p["done"],
@@ -112,8 +137,11 @@ def summary(tz):
 @bp.route("/api/today")
 @login_required
 def today():
-    """首页的数字: target = 今日学习量, done = 今天已学的词, due = 待复习, new = 还能学的新词"""
-    return jsonify(summary(read_tz()))
+    """首页的数字: target = 今日学习量, done = 今天已学的词, due = 待复习, new = 还能学的新词;
+    streak = 连续学习天数, week = 最近 7 天每天学的词数(最早 → 今天)"""
+    tz = read_tz()
+    streak, week = history(tz)
+    return jsonify({**summary(tz), "streak": streak, "week": week})
 
 
 @bp.route("/api/today/goal", methods=["POST"])

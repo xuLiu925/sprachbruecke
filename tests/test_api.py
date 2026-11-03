@@ -1488,6 +1488,14 @@ assert ct.post("/api/today/goal", json={"goal": 20}).status_code == 200 and tt()
 ct.post("/api/books/current", json={"book": "all"})
 assert tt()["new"] == 20 and tt()["due"] == 0 and tt()["target"] == 20
 assert J(c.get("/api/today"))["goal"] == 500                                      # 各管各的
+# 连续天数和最近 7 天: 今天 2 个词、昨天 1 个、3 天前 1 个(中间断了) → 连续 2 天
+assert tt()["streak"] == 0 and tt()["week"] == [0] * 7
+for wid, ago in [(1, 0), (2, 0), (2, 0), (3, 1), (4, 3)]:
+    tdb.execute("INSERT INTO review_log (user_id, word_id, rating, mode, reviewed_at) "
+                "VALUES (?,?,3,'recall',datetime('now', ?))", (carol, wid, f"-{ago} days"))
+tdb.commit()
+assert tt()["streak"] == 2 and tt()["week"] == [0, 0, 0, 1, 0, 1, 2], tt()
+tdb.execute("DELETE FROM review_log WHERE user_id = ?", (carol,)); tdb.commit()
 # 8 个到期词: 新词变少
 some = [x[0] for x in tdb.execute("SELECT id FROM words WHERE status = 'public' ORDER BY id LIMIT 30").fetchall()]
 for w in some[:8]:
