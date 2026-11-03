@@ -66,6 +66,14 @@
     <!-- ===== 首页 ===== -->
     <section class="page" data-page="home">
       <div class="hello" id="hello"></div>
+      <!-- 会员快到期 / 刚到期的提醒(home.js 的 showMemberWarn) -->
+      <div class="card hidden" id="hMember">
+        <div class="meta left" id="hMemberText" style="margin:0"></div>
+        <div class="row" style="margin-top:10px">
+          <button id="hMemberGo">去续费</button>
+          <button class="secondary" id="hMemberClose">知道了</button>
+        </div>
+      </div>
       <div class="card">
         <div class="today">
           <div><b id="hDue">-</b><span>今日复习</span></div>

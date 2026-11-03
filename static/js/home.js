@@ -26,6 +26,7 @@ const BOOK_NAMES = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶", B2: "B2 
 
 onShow.home = async () => {
   $("hello").textContent = "你好，" + user;
+  showMemberWarn();
   const [s, t] = await Promise.all([loadStats(), api("/api/today?" + tzQuery())]);
   $("hBookName").textContent = "单词书：" + BOOK_NAMES[s.book];
   $("hBookProg").textContent = s.book_total && s.book_learned >= s.book_total
@@ -140,15 +141,43 @@ onShow.me = async () => {
   if (isAdmin) { loadAdmin(); loadPending(); loadReports(); }
 };
 
+const MEMBER_SOON = 7;   // 「我的」页: 还剩几天起显示倒数
+const MEMBER_WARN = 3;   // 首页: 还剩几天起显示续费提醒(到期后 billing.py 的 EXPIRED_SHOW 天内也显示)
+const daysLeft = until => Math.max(1, Math.ceil((localDate(until).d - Date.now()) / 86400000));
+
+// 首页的会员提醒: 快到期 / 刚到期时显示, 点“知道了”当天不再显示
+async function showMemberWarn() {
+  const box = $("hMember");
+  let b;
+  try { b = await api("/api/billing"); } catch (e) { return; }
+  const key = (b.until || b.expired || "") + "@" + new Date().toDateString();
+  let closed = false;
+  try { closed = localStorage.getItem("sb_memberWarn") === key; } catch (e) {}
+  const left = b.until ? daysLeft(b.until) : null;
+  const show = !b.admin && !closed && (b.until ? left <= MEMBER_WARN : !!b.expired);
+  box.classList.toggle("hidden", !show);
+  if (!show) return;
+  $("hMemberText").textContent = b.until
+    ? `会员还剩 ${left} 天（${localDate(b.until).text}到期）。现在续费会接着往后加。`
+    : `会员已在 ${localDate(b.expired).text}到期，现在是免费版，练习每天有次数。`;
+  $("hMemberClose").onclick = () => {
+    box.classList.add("hidden");
+    try { localStorage.setItem("sb_memberWarn", key); } catch (e) {}
+  };
+}
+$("hMemberGo").onclick = () => switchTab("me");
+
 // 会员: 免费版今天用了多少、买月卡 / 年卡(跳到 Stripe 付款页, 付完回来 ?paid=编号)
 async function showMember() {
   let b;
   try { b = await api("/api/billing"); } catch (e) { return; }
   const now = $("memberNow"), usage = $("memberUsage"), plans = $("memberPlans");
   usage.textContent = ""; plans.textContent = "";
+  const left = b.until ? daysLeft(b.until) : null;
   now.textContent = b.admin ? "管理员：所有功能不限次数。"
+    : b.until && left <= MEMBER_SOON ? `会员还剩 ${left} 天（${localDate(b.until).text}到期），到期后回到免费版。现在续费会接着往后加，不会浪费剩下的天数。`
     : b.until ? `会员有效期到 ${localDate(b.until).text}，所有练习不限次数。`
-    : "免费版：今日学习、词库、查词、语法基础不限；其他练习每天有次数（冠词练习、听写每天 3 组，句子练习每种题型 2 组，语法专项每种 2 组，情景课每天 1 节新课，整句复习每天 1 轮）。";
+    : (b.expired ? `会员已在 ${localDate(b.expired).text}到期，现在是免费版。` : "") + "免费版：今日学习、词库、查词、语法基础不限；其他练习每天有次数（冠词练习、听写每天 3 组，句子练习每种题型 2 组，语法专项每种 2 组，情景课每天 1 节新课，整句复习每天 1 轮）。";
   for (const u of b.usage) {
     const li = document.createElement("li");
     li.textContent = u.split ? `${u.name}：今天做了 ${u.used} 组（每种题型 ${u.limit} 组）` : `${u.name}：今天 ${u.used} / ${u.limit} 组`;

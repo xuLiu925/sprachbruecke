@@ -51,7 +51,8 @@ LIMITS = {
     "/api/forms/verbs": ("变位练习", 2, None),
     "/api/roleplay/due": ("整句复习", 1, None),
 }
-LESSONS_PER_DAY = 1   # 每天能开几节新的情景课; 开过的课以后随时能再看, 自建的课不算
+EXPIRED_SHOW = 7     # 到期后几天内页面上还提示“会员已到期”(首页提醒的天数在 home.js 的 MEMBER_WARN)
+LESSONS_PER_DAY = 1  # 每天能开几节新的情景课; 开过的课以后随时能再看, 自建的课不算
 LESSON_RE = re.compile(r"^/api/(?:lessons|roleplay/lesson)/([\w-]+)$")
 SESSION_RE = re.compile(r"^cs_(test|live)_[A-Za-z0-9]+$")
 TOLERANCE = 300       # webhook 签名的时间最多差 5 分钟
@@ -268,9 +269,15 @@ def status():
             n = sum(c for f, c in counts.items() if f == path or f.startswith(path + ":"))
             if n:
                 usage.append({"name": name, "used": n, "limit": limit, "split": bool(arg)})
+    row = get_db().execute("SELECT until FROM memberships WHERE user_id = ?", (uid,)).fetchone()
+    until = member_until(uid)
+    # 最近 EXPIRED_SHOW 天内到期的, 页面上提示“会员已到期”
+    expired = (row["until"] if row and not until
+               and row["until"] > fmt_time(datetime.now(timezone.utc) - timedelta(days=EXPIRED_SHOW)) else None)
     return jsonify({
         "admin": is_admin(uid),
-        "until": member_until(uid),
+        "until": until,
+        "expired": expired,
         "enabled": bool(config()["secret_key"]),
         "plans": [{"id": k, "name": p["name"], "days": p["days"], "price": p["amount"] / 100} for k, p in PLANS.items()],
         "usage": usage,

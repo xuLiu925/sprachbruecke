@@ -374,6 +374,27 @@ assert cd.get("/api/drill/articles").status_code == 200 and cd.get("/api/drill/a
 assert cd.get("/api/drill/articles").status_code == 402
 assert J(c.post(f"/api/admin/users/{dave_id}/membership", json={"days": 30}))["until"]
 assert next(u for u in J(c.get("/api/admin/users"))["users"] if u["id"] == dave_id)["member_until"]
+# 到期提醒: 刚到期的页面上有 expired; 快到期的发一封邮件, 同一个到期时间只发一次, 续费后再到期再发
+import member_mail
+from datetime import datetime, timedelta, timezone
+past = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
+dbb.execute("UPDATE memberships SET until = ? WHERE user_id = ?", (past, dave_id)); dbb.commit()
+bs = J(cd.get("/api/billing"))
+assert bs["until"] is None and bs["expired"] == past
+dbb.execute("UPDATE memberships SET until = '2001-01-01 00:00:00' WHERE user_id = ?", (dave_id,)); dbb.commit()
+assert J(cd.get("/api/billing"))["expired"] is None    # 很久以前到期的不再提示
+soon = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
+dbb.execute("UPDATE memberships SET until = ? WHERE user_id = ?", (soon, dave_id))
+dbb.execute("UPDATE users SET email = 'dave@example.com' WHERE id = ?", (dave_id,)); dbb.commit()
+mm = []
+email_codes.sender = lambda to, subject, body: mm.append((to, subject, body))
+assert member_mail.run() == 1 and mm[0][0] == "dave@example.com" and "还剩 2 天" in mm[0][2]
+assert member_mail.run() == 0
+dbb.execute("UPDATE memberships SET until = ? WHERE user_id = ?",
+            ((datetime.now(timezone.utc) + timedelta(days=20)).strftime("%Y-%m-%d %H:%M:%S"), dave_id)); dbb.commit()
+assert member_mail.run() == 0    # 还早
+assert member_mail.run(datetime.now(timezone.utc) + timedelta(days=18)) == 1 and len(mm) == 2
+email_codes.sender = None
 dbb.close()
 billing.ENFORCE = False
 

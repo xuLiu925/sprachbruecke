@@ -3,7 +3,8 @@
 - 本机 http://127.0.0.1:8000/api/me 连续 3 次打不开 → 重启 tmux 会话 sprachbruecke, 发邮件
 - 固定网址(.worker_url)每 5 分钟查一次, 连续 3 次打不开而本机正常 → 杀掉 cloudflared
   (tunnel.sh 会重启它, 新链接自动同步给 Worker), 发邮件
-- 每小时清理: 日志超过 LOG_MAX 只留最后 LOG_KEEP; tts_cache 超过 CACHE_MAX 删最久没用的
+- 每小时清理: 日志超过 LOG_MAX 只留最后 LOG_KEEP; tts_cache 超过 CACHE_MAX 删最久没用的;
+  顺便发会员到期提醒邮件(member_mail.py)
 
 手机整个关机、断网时它也停了, 发不出提醒。用法: python tools/watchdog.py
 """
@@ -16,6 +17,7 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import alerts  # noqa: E402
+import member_mail  # noqa: E402
 
 LOCAL_URL = "http://127.0.0.1:8000/api/me"
 LOGS = ("server.log", "boot.log", "tunnel_sync.log", "watchdog.log")
@@ -123,6 +125,12 @@ def clean():
     n = prune_cache()
     if n:
         log(f"发音缓存删了 {n} 个最久没用的文件")
+    try:
+        n = member_mail.run()
+        if n:
+            log(f"发了 {n} 封会员到期提醒")
+    except Exception as e:   # 数据库忙之类, 下个小时再试
+        log(f"会员到期提醒出错: {e}")
 
 
 def main():
