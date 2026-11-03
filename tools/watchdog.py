@@ -35,8 +35,10 @@ def log(msg):
 
 
 def reachable(url, timeout=15):
+    # Cloudflare 会把 Python 默认的 User-Agent(Python-urllib)当成机器人, 返回 403
+    req = urllib.request.Request(url, headers={"User-Agent": "sprachbruecke-watchdog/1.0"})
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status == 200
     except Exception:
         return False
