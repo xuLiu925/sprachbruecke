@@ -1,7 +1,8 @@
 """账号: 注册 / 登录 / 退出 / 当前用户 / 改密码 / 邮件找回密码 / 绑定邮箱; 管理员: 邀请码、成员列表、重置密码
 
 管理员 = 第一个注册的用户(编号最小), 他注册时什么都不要。之后的注册方式见 register_mode():
-    email   先验证邮箱(验证码)再注册, 配置了发信(email_codes.py)时的默认方式
+    email   先验证邮箱(验证码)再注册, 配置了发信(email_codes.py)时的默认方式;
+            带了邀请码(管理员发的邀请链接 ?invite=)就不用邮箱, 注册页平时不显示邀请码
     invite  要管理员发的邀请码, 没配置发信时的默认方式
     open    什么都不要
 环境变量 REGISTER_MODE 可以指定; 旧的 ALLOW_REGISTER=1 等于 open。
@@ -177,8 +178,8 @@ def register():
     db = get_db()
     count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     mode = register_mode() if count > 0 else "open"
-    need_invite = mode == "invite"
     code = norm_code(data.get("invite"))
+    need_invite = mode == "invite" or (mode == "email" and bool(code))   # 邀请链接注册不用邮箱
     email = None
     if need_invite:
         if not code:

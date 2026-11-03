@@ -275,6 +275,14 @@ dbe.executemany("INSERT INTO mail_log (email, purpose, sent_at) VALUES (?, 'regi
 dbe.commit()
 assert code_req(A.app.test_client(), "hank", "hank@x.de").status_code == 429
 dbe.execute("DELETE FROM mail_log"); dbe.commit(); dbe.close()
+# 邀请链接: 邮箱模式下带有效邀请码就不用邮箱; 码只能用一次
+lcode = J(c.post("/api/invites", json={}))["code"]
+lreg = lambda: A.app.test_client().post("/api/register", json={"username": "linkuser", "password": "12345678",
+                                                                "invite": lcode.lower()})
+assert lreg().status_code == 200
+assert J(c.get("/api/invites"))["invites"][0]["used_by"] == "linkuser"
+assert lreg().status_code == 400
+assert A.app.test_client().post("/api/register", json={"username": "linkuser2", "password": "12345678"}).status_code == 400
 del os.environ["REGISTER_MODE"]
 email_codes.sender = None
 

@@ -262,6 +262,9 @@ function showApp() {
 
 let registerMode = "invite";   // 后端的注册方式: email(邮箱验证码) / invite(邀请码) / open
 let userEmail = null;
+// 管理员发的邀请链接 ?invite=码: 注册页显示填好的邀请码, 不用邮箱。平时注册页看不到邀请码
+let inviteLink = new URLSearchParams(location.search).get("invite") || "";
+if (inviteLink) history.replaceState(null, "", location.pathname + location.hash);
 
 async function boot() {
   try {
@@ -270,6 +273,10 @@ async function boot() {
     if (me.register) registerMode = me.register;
   } catch (e) { user = null; }
   if (user) { showApp(); checkPaid(); } else showLogin();
+  if (inviteLink) {
+    if (user) toast("你已经登录了；要用邀请链接注册新账号，先退出");
+    else authView("reg");
+  }
 }
 
 // 登录页的三块: login / reg / forgot
@@ -277,14 +284,17 @@ function authView(name) {
   $("authLogin").classList.toggle("hidden", name !== "login");
   $("authReg").classList.toggle("hidden", name !== "reg");
   $("authForgot").classList.toggle("hidden", name !== "forgot");
-  $("regEmail").classList.toggle("hidden", registerMode !== "email");
-  $("inv").classList.toggle("hidden", registerMode !== "invite");
+  const byInvite = registerMode === "invite" || (registerMode === "email" && !!inviteLink);
+  $("regEmail").classList.toggle("hidden", registerMode !== "email" || byInvite);
+  $("inv").classList.toggle("hidden", !byInvite);
+  if (inviteLink && !$("inv").value) $("inv").value = inviteLink;
   $("authMsg").textContent = "";
 }
 document.querySelectorAll("#login [data-auth]").forEach(b => b.onclick = () => authView(b.dataset.auth));
 
 function loggedIn(r) {
   ["p", "rp", "fp", "inv", "rc", "fc"].forEach(id => $(id).value = "");
+  inviteLink = "";
   user = r.username; isAdmin = !!r.admin;
   boot();   // 重新取一次 me(带邮箱)
 }

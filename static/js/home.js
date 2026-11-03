@@ -306,6 +306,9 @@ async function copyText(s) {
   catch (e) { toast("没能自动复制，请长按选中后复制"); }   // http 网址下浏览器可能不让写剪贴板
 }
 
+// 邀请链接: 打开后注册页填好邀请码, 不用邮箱(core.js 的 inviteLink)
+const inviteUrl = code => location.origin + location.pathname + "?invite=" + encodeURIComponent(code);
+
 async function loadAdmin() {
   let inv, us;
   try { [inv, us] = await Promise.all([api("/api/invites"), api("/api/admin/users")]); }
@@ -321,7 +324,7 @@ async function loadAdmin() {
                    : i.status === "expired" ? "已过期" : `${localDate(i.expires_at).text}前有效`;
     t.append(code, st);
     if (i.status === "unused") {
-      miniBtn(row, "复制", () => copyText(i.code));
+      miniBtn(row, "复制链接", () => copyText(inviteUrl(i.code)));
       miniBtn(row, "作废", async () => {
         if (!confirm(`作废邀请码 ${i.code}？`)) return;
         try { await api("/api/invites/" + i.code, "DELETE"); } catch (e) { return toast(e.message); }
@@ -354,7 +357,7 @@ $("btnInvite").onclick = async () => {
   let r;
   try { r = await api("/api/invites", "POST", {}); } catch (e) { return toast(e.message); }
   await loadAdmin();
-  copyText(r.code);
+  copyText(inviteUrl(r.code));
 };
 $("optArticle").checked = needArticle();
 $("optArticle").onchange = () => {
