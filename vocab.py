@@ -123,6 +123,11 @@ PROGRESS_COLS = ["next_review", "level", "stability", "difficulty", "last_review
 def card(row):
     d = dict(row)
     d["forms"] = json.loads(d["forms"]) if d["forms"] else None
+    # 按 1-4 评分各自几天后复习(答题卡的评分按钮下面显示); 新词没有 stability
+    s, df, last = d.pop("stability", None), d.pop("difficulty", None), d.pop("last_review", None)
+    now = datetime.now(timezone.utc)
+    last = parse_time(last) if s is not None and last else None
+    d["intervals"] = [round(fsrs_review(s if last else None, df if last else None, last, r, now)[2], 2) for r in (1, 2, 3, 4)]
     # 题型: 新词先「认词」; 之后拼写和认词轮流, 拼写没答对过的一律考拼写
     if d["is_new"]:
         d["mode"] = "recall"

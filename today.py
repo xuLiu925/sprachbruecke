@@ -75,7 +75,7 @@ def plan(tz):
     due_join = "FROM progress p JOIN my_words w ON w.id = p.word_id WHERE p.user_id = :uid AND p.next_review < :end"
     due_total = query(f"SELECT COUNT(*) {due_join}", **args).fetchone()[0]
     due_left = query(f"SELECT COUNT(*) {due_join} AND w.id NOT IN ({LEARNED_TODAY})", **args).fetchone()[0]
-    due = query(f"SELECT {WORD_COLS}, p.reps, p.spell_ok, 0 AS is_new {due_join} ORDER BY p.next_review LIMIT :lim",
+    due = query(f"SELECT {WORD_COLS}, p.reps, p.spell_ok, p.stability, p.difficulty, p.last_review, 0 AS is_new {due_join} ORDER BY p.next_review LIMIT :lim",
                 lim=REVIEW_LIMIT, **args).fetchall()
     bonus_join = "FROM study_queue q JOIN my_words w ON w.id = q.word_id WHERE q.user_id = :uid"
     bonus_all = query(f"SELECT COUNT(*) {bonus_join} AND {BONUS_TODAY}", **args).fetchone()[0]

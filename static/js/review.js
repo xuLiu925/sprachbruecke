@@ -31,7 +31,10 @@ function render() {
   const done = idx >= cards.length;
   $("cardBox").classList.toggle("hidden", done);
   $("done").classList.toggle("hidden", !done);
-  $("rProgress").textContent = done ? "" : `第 ${idx + 1} / ${cards.length} 张`;
+  $("rProgress").textContent = done ? "" : `${idx + 1} / ${cards.length}`;
+  $("rBar").style.width = (cards.length ? Math.min(idx / cards.length, 1) * 100 : 0) + "%";
+  $("rAct").classList.toggle("hidden", done);
+  $("rRate").classList.add("hidden");
   $("btnUndo").classList.toggle("hidden", !hist.length);
   if (done) return showDone();
   const c = cards[idx];
@@ -109,13 +112,15 @@ function reveal() {
     $("aResult").textContent = r.msg;
     $("aResult").className = r.ok ? "ok" : "msg";
     show = r.ok ? [2, 3, 4] : [1];   // 拼错了只能记为“忘了”
-    $("btnR1").textContent = r.ok ? "忘了" : "继续（记为忘了）";
-  } else {
-    $("btnR1").textContent = "忘了";
   }
+  const wrong = c.mode === "spell" && !show.includes(2);
+  $("btnR1").querySelector("b").textContent = wrong ? "继续" : "忘了";
+  $("rI1").textContent = wrong ? "记为忘了，稍后再练" : "再练一次";
+  [2, 3, 4].forEach(n => $("rI" + n).textContent = c.intervals ? intervalText(c.intervals[n - 1]) : "");
   [1, 2, 3, 4].forEach(n => $("btnR" + n).classList.toggle("hidden", !show.includes(n)));
   $("answer").classList.remove("hidden");
   $("btnShow").classList.add("hidden");
+  $("rRate").classList.remove("hidden");
   $("spellIn").blur();   // 让后面的 1-4 / 空格 当快捷键, 而不是打进输入框
   $("btnSpeak").classList.remove("hidden");
   $("btnCard").classList.remove("hidden");   // 试学的词游客也能看单词卡(trial.py)
@@ -124,6 +129,14 @@ function reveal() {
 }
 
 $("btnShow").onclick = reveal;
+
+// 评分按钮下面的间隔: 0 天 = 今天再复习
+function intervalText(d) {
+  if (d < 1) return "今天";
+  if (d < 30) return Math.round(d) + " 天";
+  if (d < 365) return Math.round(d / 30) + " 个月";
+  return (d / 365).toFixed(1).replace(/\.0$/, "") + " 年";
+}
 $("spellIn").onkeydown = e => { if (e.key === "Enter") reveal(); };
 
 $("btnSpeak").onclick = () => { if (idx < cards.length) speakDe(wordText(cards[idx])); };

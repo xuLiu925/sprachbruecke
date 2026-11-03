@@ -251,10 +251,10 @@
 
     <!-- ===== 我的 ===== -->
     <section class="page" data-page="me">
-      <div class="card" style="display:flex;align-items:center;gap:14px">
-        <div id="avatar" style="width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;
-             display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700"></div>
-        <div><b id="meName" style="font-size:18px"></b><div class="meta left" id="meStats"></div></div>
+      <h1 class="ptitle">我的</h1>
+      <div class="mehead">
+        <div id="avatar" class="avatar"></div>
+        <div class="grow"><b id="meName"></b><div class="meta left" id="meStats"></div></div>
       </div>
       <!-- 装到桌面(PWA): 已经从桌面打开时不显示, 内容由 core.js 的 showInstall() 填 -->
       <div class="card hidden" id="installBox">
@@ -262,14 +262,44 @@
         <p class="meta left" id="installTip" style="margin:6px 0 0"></p>
         <button id="btnInstall" class="hidden" style="width:100%;margin-top:10px">安装到桌面</button>
       </div>
-      <h2>会员</h2>
-      <div class="card" id="memberBox">
-        <div class="meta left" id="memberNow" style="margin-top:0"></div>
+      <div class="card membercard" id="memberBox">
+        <b class="mtitle">会员</b>
+        <div class="meta left" id="memberNow" style="margin-top:4px"></div>
         <ul class="meta left" id="memberUsage" style="margin:6px 0;padding-left:20px"></ul>
         <div id="memberPlans" class="row" style="margin-top:8px"></div>
-        <p class="meta left" id="memberNote" style="margin-bottom:0">一次性付款，不会自动续费。支持银行卡、支付宝、微信支付。会员期间所有练习不限次数；没到期再买会接着往后加。</p>
+        <p class="meta left" id="memberNote" style="margin-bottom:0;font-size:12px">一次性付款，不会自动续费。支持银行卡、支付宝、微信支付。会员期间所有练习不限次数；没到期再买会接着往后加。</p>
       </div>
-      <h2>账号</h2>
+
+      <h2 class="glabel">学习设置</h2>
+      <div class="list slist">
+        <label class="srow"><span class="grow">每日学习量</span>
+          <select id="optGoal">
+            <option>20</option><option>30</option><option>40</option><option>50</option><option>60</option>
+            <option>80</option><option>100</option><option>150</option><option>200</option>
+          </select></label>
+        <label class="srow"><span class="grow">拼写名词时必须带冠词<small>推荐打开</small></span><input type="checkbox" class="switch" id="optArticle"></label>
+      </div>
+      <p class="meta left snote">每日学习量包括复习和新词。复习多的日子新词少，复习少的日子新词多。</p>
+
+      <h2 class="glabel">声音</h2>
+      <div class="list slist">
+        <label class="srow"><span class="grow">自动朗读单词<small>出新卡片、打开单词时</small></span><input type="checkbox" class="switch" id="optAutoWord"></label>
+        <label class="srow"><span class="grow">显示答案后自动读例句</span><input type="checkbox" class="switch" id="optAutoExample"></label>
+        <label class="srow"><span class="grow">德语语音</span><select id="optVoice"></select></label>
+        <label class="srow"><span class="grow">语速</span>
+          <select id="optRate">
+            <option value="0.7">慢</option><option value="0.85">稍慢</option>
+            <option value="1">正常</option><option value="1.15">快</option>
+          </select></label>
+        <label class="srow"><span class="grow">拼读方式</span>
+          <select id="optSpellMode">
+            <option value="button">按钮连读</option><option value="tap">点字母</option>
+          </select></label>
+        <div class="srow"><span class="grow meta left" id="voiceHint" style="font-size:13px"></span>
+          <button class="secondary" id="btnTestVoice">试听</button></div>
+      </div>
+
+      <h2 class="glabel">账号</h2>
       <div class="card">
         <div id="emailBox" style="margin-bottom:10px">
           <div class="meta left" id="emailNow"></div>
@@ -291,84 +321,62 @@
           <div id="pwMsg" class="msg"></div>
         </div>
       </div>
-      <h2>意见反馈</h2>
+
+      <h2 class="glabel">意见反馈</h2>
       <div class="card">
-        <p class="meta left" style="margin-top:0">页面打不开、按钮没反应、想要什么功能，都可以写在这里。题目或讲解有错，用那里的“⚠️ 报错”更方便。</p>
+        <p class="meta left" style="margin-top:0">页面打不开、按钮没反应、想要什么功能，都可以写在这里。题目或讲解有错，用那里的“报错”更方便。</p>
         <textarea id="fbText" style="min-height:90px" maxlength="1000" placeholder="遇到了什么问题？在哪个页面？"></textarea>
         <button id="btnFeedback" style="width:100%">提交</button>
       </div>
+
       <div id="adminBox" class="hidden">
-        <h2>反馈和报错（只有管理员能看到）</h2>
+        <h2 class="glabel">反馈和报错（只有管理员能看到）</h2>
         <div class="card" id="reportList"></div>
-        <h2>待审核单词（只有管理员能看到）</h2>
+        <h2 class="glabel">待审核单词（只有管理员能看到）</h2>
         <div class="card" id="pendingList"></div>
-        <h2>邀请朋友（只有管理员能看到）</h2>
+        <h2 class="glabel">邀请朋友（只有管理员能看到）</h2>
         <div class="card">
           <p class="meta left" style="margin-top:0">生成后自动复制邀请链接，发给对方（或自己用来建测试账号）。打开链接注册不用邮箱；普通注册页看不到邀请码。每个链接只能用一次，<span id="inviteDays">7</span> 天后过期。用邀请链接注册的账号没有邮箱，忘了密码要你来重置。</p>
           <button id="btnInvite" style="width:100%">生成邀请链接</button>
           <div id="inviteList"></div>
         </div>
-        <h2>成员</h2>
+        <h2 class="glabel">成员</h2>
         <div class="card">
           <p class="meta left" style="margin-top:0">朋友忘了密码：点“重置密码”，把临时密码告诉他，他登录后自己再改。</p>
           <div id="userList"></div>
         </div>
       </div>
-      <h2>设置</h2>
-      <div class="card">
-        <div class="row" style="align-items:center;margin-bottom:8px">
-          <span class="meta left" style="flex:0 0 96px">每日学习量</span>
-          <select id="optGoal">
-            <option>20</option><option>30</option><option>40</option><option>50</option><option>60</option>
-            <option>80</option><option>100</option><option>150</option><option>200</option>
-          </select>
+
+      <details class="card howto">
+        <summary>复习是怎么安排的</summary>
+        <div class="meta left" style="line-height:1.7;margin-top:10px">
+          复习用 FSRS 算法：按你的评分推算每个词的记忆稳定性，在“预计还有 90% 把握记得”时安排复习。<br>
+          忘了：今天再练一次（拼写）；困难 / 良好 / 简单：间隔依次变长，评分按钮下面写着下次复习的时间。<br>
+          拼写题由系统判断对错，答错记为“忘了”。<br>
+          <b>已掌握</b> = 记忆稳定性 ≥ 21 天，并且拼写答对过。
         </div>
-        <p class="meta left" style="margin-top:0">包括复习和新词。复习多的日子新词少，复习少的日子新词多。</p>
-        <label class="check"><input type="checkbox" id="optArticle"> 拼写名词时必须带冠词（推荐）</label>
-      </div>
-      <h2>声音</h2>
-      <div class="card">
-        <label class="check"><input type="checkbox" id="optAutoWord"> 自动朗读单词（出新卡片、打开单词时）</label>
-        <label class="check"><input type="checkbox" id="optAutoExample"> 显示答案后自动朗读例句</label>
-        <div class="row" style="margin-top:8px;align-items:center">
-          <span class="meta left" style="flex:0 0 64px">拼读方式</span>
-          <select id="optSpellMode">
-            <option value="button">按钮连读</option><option value="tap">点字母</option>
-          </select>
-        </div>
-        <div class="row" style="margin-top:8px;align-items:center">
-          <span class="meta left" style="flex:0 0 64px">语速</span>
-          <select id="optRate">
-            <option value="0.7">慢</option><option value="0.85">稍慢</option>
-            <option value="1">正常</option><option value="1.15">快</option>
-          </select>
-        </div>
-        <div class="row" style="align-items:center">
-          <span class="meta left" style="flex:0 0 64px">德语语音</span>
-          <select id="optVoice"></select>
-        </div>
-        <p class="meta left" id="voiceHint" style="font-size:13px;margin:0 0 8px"></p>
-        <button class="secondary" id="btnTestVoice" style="width:100%">▶ 试听</button>
-      </div>
-      <h2>复习是怎么安排的</h2>
-      <div class="card meta left" style="line-height:1.7">
-        复习用 FSRS 算法：按你的评分推算每个词的记忆稳定性，在“预计还有 90% 把握记得”时安排复习。<br>
-        忘了：今天再练一次（拼写）；困难 / 良好 / 简单：间隔依次变长。<br>
-        拼写题由系统判断对错，答错记为“忘了”。<br>
-        <b>已掌握</b> = 记忆稳定性 ≥ 21 天，并且拼写答对过。
-      </div>
-      <button class="danger" id="btnLogout" style="width:100%;margin-top:6px">退出登录</button>
-      <p class="meta" style="font-size:12px;margin-top:20px">通德 Sprachbrücke v0.2 · by Liuxu</p>
+      </details>
+      <button class="danger big" id="btnLogout">退出登录</button>
+      <p class="meta" style="font-size:12px;margin-top:20px">通德 Sprachbrücke v0.3 · by Liuxu</p>
     </section>
 
     <!-- ===== 今日学习 ===== -->
     <section class="page" data-page="review">
-      <div class="progress"><span id="rProgress"></span><span id="rStats"></span></div>
+      <div class="rtop">
+        <div class="rbar"><i id="rBar"></i></div>
+        <span class="rcount" id="rProgress"></span>
+      </div>
+      <div class="rsub"><span id="rStats"></span></div>
       <div class="flashrow"><div id="flash" class="flash"></div><button class="mini hidden" id="btnUndo">‹ 上一个</button></div>
-      <div class="card" id="cardBox">
+      <div class="card qcard" id="cardBox">
         <div class="tag" id="modeTag"></div>
         <div class="word" id="wWord"></div>
         <div class="meta" id="wPos"></div>
+        <div class="saybox">
+          <button id="btnSpeak" class="roundbtn" aria-label="朗读单词" title="朗读（P）">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+          </button>
+        </div>
         <div id="spellBox" class="hidden" style="margin-top:12px">
           <input id="spellIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="输入德语">
           <div class="row umlauts" data-for="spellIn">
@@ -376,26 +384,28 @@
             <button class="secondary" data-ch="ü">ü</button><button class="secondary" data-ch="ß">ß</button>
           </div>
         </div>
-        <div class="row" style="margin-top:12px">
-          <button id="btnSpeak" class="secondary">🔊 发音</button>
-          <button id="btnCard" class="secondary hidden">📖 单词卡</button>
-          <button id="btnShow">显示答案</button>
-        </div>
         <div class="answer hidden" id="answer">
           <p id="aResult" style="font-weight:600"></p>
           <div class="word" id="aWord"></div>
-          <p id="aMeaning" style="font-size:20px"></p>
-          <p id="aPlural" class="meta"></p>
-          <div class="exrow"><button class="mini" id="btnSpeakEx" title="朗读例句">🔊</button><p id="aExample" class="meta"></p></div>
+          <p id="aMeaning" class="ameaning"></p>
+          <p id="aPlural" class="meta left"></p>
+          <div class="whybox" id="aGender"></div>
+          <div class="exbox"><div class="exrow"><button class="mini" id="btnSpeakEx" title="朗读例句（E）" aria-label="朗读例句">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button><p id="aExample"></p></div></div>
           <div id="aForms"></div>
-          <div class="row" style="margin-top:12px">
-            <button class="bad" id="btnR1">忘了</button>
-            <button class="hard" id="btnR2">困难</button>
-            <button class="good" id="btnR3">良好</button>
-            <button id="btnR4">简单</button>
-          </div>
+          <button id="btnCard" class="linkbtn hidden">完整单词卡 · 构词、讲解、更多例句（D）</button>
         </div>
         <p class="kbd-hint"><kbd>空格</kbd> 显示答案 / 良好 · <kbd>1</kbd>–<kbd>4</kbd> 评分 · <kbd>P</kbd> 读单词 · <kbd>E</kbd> 读例句 · <kbd>D</kbd> 单词卡 · <kbd>Backspace</kbd> 上一个（撤销评分） · <kbd>Esc</kbd> 返回</p>
+      </div>
+      <!-- 底部操作区: 没翻面时是“显示答案”, 翻面后是四个评分(review.js) -->
+      <div class="actbar" id="rAct">
+        <button class="big" id="btnShow">显示答案</button>
+        <div class="rate hidden" id="rRate">
+          <button class="r1" id="btnR1"><b>忘了</b><small id="rI1">再练一次</small></button>
+          <button class="r2" id="btnR2"><b>困难</b><small id="rI2"></small></button>
+          <button class="r3" id="btnR3"><b>良好</b><small id="rI3"></small></button>
+          <button class="r4" id="btnR4"><b>简单</b><small id="rI4"></small></button>
+        </div>
       </div>
       <div id="done" class="card hidden" style="text-align:center">
         <p style="font-size:20px" id="doneMsg"></p>
@@ -827,24 +837,25 @@
   <!-- 情景课点词时弹出的单词卡 -->
   <div class="sheet hidden" id="wsheet">
     <div class="sheetbox">
+      <span class="grab" aria-hidden="true"></span>
       <button class="mini hidden" id="wsBack"></button>
-      <button class="mini" id="wsClose">✕</button>
+      <button class="iconbtn" id="wsClose" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       <div class="word" id="wsWord"></div>
       <div class="meta" id="wsPlural"></div>
-      <div style="text-align:center"><button class="mini hidden" id="wsSpellBtn">🔤 拼读</button></div>
+      <div style="text-align:center"><button class="mini hidden" id="wsSpellBtn">拼读</button></div>
       <div class="spell" id="wsSpell"></div>
       <p id="wsMeaning"></p>
-      <div class="meta" id="wsGender"></div>
+      <div class="whybox" id="wsGender"></div>
       <div class="meta" id="wsParts"></div>
       <div class="meta" id="wsExample" style="white-space:pre-line"></div>
       <div class="meta" id="wsLesson"></div>
       <div class="row">
-        <button class="secondary hidden" id="wsSay">🔊 发音</button>
+        <button class="secondary hidden" id="wsSay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>发音</button>
         <button class="secondary hidden" id="wsView">详情</button>
         <button class="hidden" id="wsAdd">加入学习</button>
         <button class="hidden" id="wsAi">✨ 用 AI 查询</button>
       </div>
-      <button class="secondary hidden" id="wsNoun" style="width:100%;margin-top:8px">📕 加入错题本</button>
+      <button class="secondary hidden" id="wsNoun" style="width:100%;margin-top:8px">加入冠词错题本</button>
       <div class="hidden" id="wsMore">
         <p id="wsMoreEx" class="meta left"></p>
         <div id="wsForms"></div>

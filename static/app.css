@@ -364,3 +364,78 @@ button.lmodel { display:block; width:100%; padding:0; background:none; color:var
 /* 单词详情: 用法、词根、更多例句等 */
 .detail-title { margin: 14px 0 4px; font-size: 14px; }
 .detail-line { margin: 0 0 6px; font-size: 14px; line-height: 1.6; white-space: pre-line; }
+
+/* ---------- 答题卡(今日学习) ---------- */
+.rtop { display:flex; align-items:center; gap:12px; margin:0 2px 4px; }
+.rbar { flex:1; height:8px; border-radius:4px; background:var(--line); overflow:hidden; }
+.rbar i { display:block; height:100%; width:0; background:var(--accent); border-radius:4px; transition:width .3s ease; }
+.rcount { font:600 14px var(--font-latin); color:var(--muted); min-width:48px; text-align:right; }
+.rsub { font-size:12px; color:var(--muted); margin:0 2px 8px; }
+.qcard { border-radius:24px; padding:26px 20px 20px; text-align:center; }
+.qcard .tag { font-size:13px; }
+.qcard .word { font-family:var(--font-latin); font-size:40px; letter-spacing:-.3px; margin:14px 0 4px; }
+.qcard .word.prompt { font-family:var(--font); font-size:24px; letter-spacing:0; }
+.qcard .word .art { font-size:.55em; font-weight:600; vertical-align:middle; }
+.saybox { display:flex; justify-content:center; margin:8px 0 2px; }
+button.roundbtn { width:48px; height:48px; padding:0; border-radius:999px; background:var(--accent-soft); color:var(--accent);
+  display:flex; align-items:center; justify-content:center; }
+button.roundbtn svg, button.mini svg, button.secondary svg, button.iconbtn svg { width:22px; height:22px; fill:none;
+  stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+button.mini svg { width:18px; height:18px; vertical-align:-3px; }
+button.secondary svg { width:18px; height:18px; vertical-align:-3px; margin-right:6px; }
+.qcard .answer { text-align:left; border-top:1px solid var(--line2); margin-top:18px; padding-top:16px; }
+.qcard .answer .word { text-align:center; }
+.ameaning { font-size:22px; font-weight:700; margin:4px 0 2px; }
+.whybox { margin:12px 0; padding:12px 14px; border-radius:14px; background:var(--accent-soft); font-size:14px; line-height:1.6;
+  text-align:left; color:var(--text); }
+.whybox:empty { display:none; }
+.exbox { margin:12px 0; padding:12px 14px; border-radius:14px; background:var(--bg); }
+.exbox .exrow { justify-content:flex-start; margin:0; }
+.exbox #aExample { font-family:var(--font-latin); font-size:15px; line-height:1.6; color:var(--text); }
+.qcard .answer table.forms { font-family:var(--font-latin); }
+.qcard button.linkbtn { display:block; margin:14px auto 0; font-weight:500; }
+.actbar { position:sticky; bottom:0; z-index:5; padding:12px 0 calc(env(safe-area-inset-bottom) + 8px); background:var(--bg); }
+.rate { display:flex; gap:8px; }
+.rate button { flex:1; min-height:64px; padding:8px 4px; border-radius:14px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:2px; background:var(--card); border:1px solid var(--line); }
+.rate button b { font-size:15px; }
+.rate button small { font-size:11px; color:var(--muted); }
+.rate .r1 { color:var(--die-ink); border-color:color-mix(in srgb, var(--die) 30%, var(--card)); }
+.rate .r2 { color:var(--warm-ink); border-color:color-mix(in srgb, var(--warm) 30%, var(--card)); }
+.rate .r3 { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+.rate .r3 small { color:var(--on-accent); opacity:.8; }
+.rate .r4 { color:var(--das-ink); border-color:color-mix(in srgb, var(--das) 30%, var(--card)); }
+
+/* ---------- 底部单词卡 ---------- */
+.sheetbox { border-radius:24px 24px 0 0; padding-top:22px; }
+.grab { position:absolute; top:8px; left:50%; width:40px; height:4px; margin-left:-20px; border-radius:2px; background:var(--line); }
+button.iconbtn { width:40px; height:40px; padding:0; border-radius:999px; background:var(--line2); color:var(--muted);
+  display:flex; align-items:center; justify-content:center; }
+.sheetbox .word { font-family:var(--font-latin); font-size:30px; }
+.sheetbox .word .art { font-size:.6em; font-weight:600; }
+#wsMeaning { font-size:19px; font-weight:700; }
+
+/* ---------- 我的 ---------- */
+.mehead { display:flex; align-items:center; gap:14px; margin:0 2px 18px; }
+.mehead b { font-size:18px; }
+.avatar { width:56px; height:56px; flex:none; border-radius:999px; background:var(--accent); color:var(--on-accent);
+  display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; }
+.membercard { background:color-mix(in srgb, var(--warm) 7%, var(--card)); border-color:color-mix(in srgb, var(--warm) 25%, var(--card)); }
+.membercard .mtitle { font-size:16px; color:var(--warm-ink); }
+h2.glabel { font-size:14px; font-weight:500; color:var(--muted); margin:22px 6px 8px; }
+.slist .srow { display:flex; align-items:center; gap:12px; min-height:56px; padding:8px 16px; border-bottom:1px solid var(--line2); cursor:pointer; }
+.slist .srow:last-child { border-bottom:0; }
+.srow .grow { font-size:16px; }
+.srow .grow small { display:block; font-size:12px; color:var(--muted); }
+.srow select { width:auto; max-width:55%; margin:0; padding:8px 10px; background:var(--bg); }
+.srow button { flex:none; }
+.snote { font-size:12px; margin:-6px 6px 0; }
+input.switch { appearance:none; -webkit-appearance:none; flex:none; width:48px; height:28px; margin:0; padding:0; border:0;
+  border-radius:999px; background:var(--line); position:relative; cursor:pointer; transition:background .2s; }
+input.switch::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:999px;
+  background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); transition:left .2s; }
+input.switch:checked { background:var(--accent); }
+input.switch:checked::after { left:23px; }
+input.switch:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+details.howto summary { cursor:pointer; font-weight:500; }
+button.danger.big { margin-top:8px; background:var(--card); }
