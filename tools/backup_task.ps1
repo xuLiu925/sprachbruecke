@@ -1,4 +1,4 @@
-# 在电脑上登记 Windows 计划任务: 每天 21:00 跑 backup.bat, 把服务器的每日备份拉到 backups\server\
+﻿# 在电脑上登记 Windows 计划任务: 每天 21:00 跑 backup.bat, 把服务器的每日备份拉到 backups\server\
 # 电脑那时关着就在下次开机后补跑; 日志在 backups\server\backup.log。
 # 用法(PowerShell): powershell -ExecutionPolicy Bypass -File tools\backup_task.ps1
 # 删除任务: Unregister-ScheduledTask -TaskName "Sprachbruecke Backup" -Confirm:$false
