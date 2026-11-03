@@ -31,3 +31,4 @@ tts_cache/
 tunnel_sync.log
 .mail_config
 .stripe_config
+.alert_state

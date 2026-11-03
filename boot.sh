@@ -27,3 +27,5 @@ start sprachbruecke "cd ~/sprachbruecke && python app.py 2>&1 | tee -a server.lo
 start sb-tunnel "bash ~/sprachbruecke/tunnel.sh"
 # 每小时检查一次，今天还没备份就备份一份
 start sb-backup "cd ~/sprachbruecke && while true; do python tools/backup_db.py daily >> boot.log 2>&1; sleep 3600; done"
+# 守护：服务挂了自动重启、外网打不开重启隧道（都会发邮件），每小时清理日志和发音缓存
+start sb-watch "cd ~/sprachbruecke && python tools/watchdog.py >> watchdog.log 2>&1"

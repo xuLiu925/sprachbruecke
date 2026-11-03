@@ -9,7 +9,8 @@
   ALLOW_REGISTER=1     旧写法, 等于 REGISTER_MODE=open
 
 代码分布:
-  app.py         入口: 创建应用、注册各模块
+  app.py         入口: 创建应用、注册各模块; 用 waitress 运行(没装时退回 Flask 开发服务器)
+  alerts.py      给管理员发提醒邮件(接口报错、服务挂了)
   database.py    数据库连接、时间工具、建表和迁移
   helpers.py     公共小工具(错误返回、登录检查、读 JSON)
   auth.py        账号
@@ -40,8 +41,9 @@ import os
 import secrets
 from datetime import timedelta
 
-from flask import Flask, send_from_directory
+from flask import Flask, got_request_exception, request, send_from_directory
 
+import alerts
 import auth
 import billing
 import custom_lessons
@@ -121,11 +123,24 @@ app.register_blueprint(word_parts.bp)
 app.register_blueprint(tts.bp)
 app.register_blueprint(feedback.bp)
 
+def _on_error(sender, exception, **extra):
+    """接口报错(500)时给管理员发邮件; 按路由模板分类, /api/words/1 和 /2 算同一种"""
+    rule = request.url_rule.rule if request.url_rule else request.path
+    alerts.report_error(request.method, rule, exception)
+
+
+got_request_exception.connect(_on_error, app)
+
 init_db()
 
 if __name__ == "__main__":
-    app.run(
-        host=os.environ.get("HOST", "0.0.0.0"),
-        port=int(os.environ.get("PORT", "8000")),
-        debug=False,
-    )
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8000"))
+    try:
+        from waitress import serve
+    except ImportError:
+        print("没装 waitress, 用 Flask 自带的开发服务器", flush=True)
+        app.run(host=host, port=port, debug=False)
+    else:
+        print(f"waitress 启动, 端口 {port}", flush=True)
+        serve(app, host=host, port=port, threads=8)

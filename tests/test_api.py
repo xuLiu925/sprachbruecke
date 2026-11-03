@@ -1693,4 +1693,40 @@ assert o.execute("PRAGMA foreign_key_check").fetchall() == []
 assert {"idx_words_public", "idx_words_private"} <= {r[1] for r in o.execute("PRAGMA index_list(words)")}
 assert os.path.exists(old + ".bak-before-private-words")
 o.close()
+
+# 提醒邮件: 接口报错时给管理员发信, 同一种一小时只发一封
+import alerts, email_codes, time as _t
+ad = os.path.dirname(os.environ["DB_PATH"])
+alerts.STATE_FILE = os.path.join(ad, "alert_state")
+alerts.recipient = lambda: "admin@x.de"
+mails = []
+email_codes.sender = lambda to, subject, body: mails.append((to, subject, body))
+ep = next(r.endpoint for r in A.app.url_map.iter_rules() if r.rule == "/api/stats")
+orig_view = A.app.view_functions[ep]
+def boom():
+    raise RuntimeError("故意出错")
+A.app.view_functions[ep] = boom
+for _ in range(2):
+    assert c.get("/api/stats").status_code == 500
+for _ in range(50):
+    if mails:
+        break
+    _t.sleep(0.05)
+_t.sleep(0.2)
+A.app.view_functions[ep] = orig_view
+assert len(mails) == 1 and mails[0][0] == "admin@x.de" and "/api/stats" in mails[0][1] and "故意出错" in mails[0][2]
+assert alerts.notify("down:local", "测试", "x") and not alerts.notify("down:local", "测试", "x")
+email_codes.sender = None
+# 守护: 日志太大只留最后一部分(从整行开始), 发音缓存太大删最旧的
+import watchdog as WD
+lp = os.path.join(ad, "big.log")
+open(lp, "w").write("".join(f"line {i}\n" for i in range(1000)))
+assert not WD.trim_log(lp, max_size=10 ** 6) and WD.trim_log(lp, max_size=1000, keep=100)
+tl = open(lp).read()
+assert tl.startswith("line ") and tl.endswith("line 999\n") and len(tl) <= 100
+cdir = os.path.join(ad, "cache"); os.makedirs(cdir)
+for i in range(10):
+    fp = os.path.join(cdir, f"{i}.mp3"); open(fp, "wb").write(b"x" * 100); os.utime(fp, (1000 + i, 1000 + i))
+assert WD.prune_cache(cdir, max_size=2000) == 0 and WD.prune_cache(cdir, max_size=500) == 6
+assert sorted(os.listdir(cdir)) == ["6.mp3", "7.mp3", "8.mp3", "9.mp3"]
 print("ALL OK")

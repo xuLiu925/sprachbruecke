@@ -12,7 +12,7 @@ python tools/backup_db.py deploy
 
 command -v tmux >/dev/null || pkg install -y tmux
 command -v cloudflared >/dev/null || pkg install -y cloudflared
-python -c "import flask" 2>/dev/null || pip install -r requirements.txt
+python -c "import flask, waitress" 2>/dev/null || pip install -r requirements.txt
 
 # 情景课课文已挪到 content/（走接口查免费次数），删掉旧位置的静态文件，免得能直接下载
 rm -f static/lessons.json
@@ -95,3 +95,8 @@ if ! tmux has-session -t sb-backup 2>/dev/null; then
     tmux new -s sb-backup -d "cd ~/sprachbruecke && while true; do python tools/backup_db.py daily >> boot.log 2>&1; sleep 3600; done"
 fi
 echo "== 开机自启已安装；每日备份在 backups/daily/（保留 7 份）"
+
+# 9. 守护（每次部署都重启，用上新代码）：服务挂了自动重启、外网打不开重启隧道，发邮件；清理日志和发音缓存
+tmux kill-session -t sb-watch 2>/dev/null || true
+tmux new -s sb-watch -d "cd ~/sprachbruecke && python tools/watchdog.py >> watchdog.log 2>&1"
+echo "== 守护已启动，记录在 watchdog.log"
