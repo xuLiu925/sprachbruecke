@@ -78,7 +78,7 @@ async function searchRun() {
   $("seMsg").textContent = r.words.length ? "" : `没有找到“${q}”`;
   r.words.forEach(w => list.appendChild(wordRow(w, () => searchOpenWord(w))));
   if (!r.words.length && r.can && r.ai) {    // 查不到: 用户点了才调用 AI
-    ai.dataset.q = q; ai.disabled = false; ai.textContent = `✨ 用 AI 查询“${q}”`;
+    ai.dataset.q = q; ai.disabled = false; ai.textContent = `用 AI 查询“${q}”`;
     ai.classList.remove("hidden");
   }
 }
@@ -88,7 +88,7 @@ $("seAi").onclick = async () => {
   btn.disabled = true; btn.textContent = "AI 正在查询…";
   let r;
   try { r = await api("/api/dict/ai", "POST", { q }); }
-  catch (e) { toast(e.message); btn.disabled = false; btn.textContent = `✨ 用 AI 查询“${q}”`; return; }
+  catch (e) { toast(e.message); btn.disabled = false; btn.textContent = `用 AI 查询“${q}”`; return; }
   if ($("seInput").value.trim() !== q) return;   // 查询期间已经换了别的词
   if (!r.word) { btn.classList.add("hidden"); $("seMsg").textContent = `AI 也没有查到“${q}”`; return; }
   await searchRun();

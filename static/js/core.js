@@ -1,5 +1,13 @@
 // 公共部分: 请求、页面切换、登录、设置
 const $ = id => document.getElementById(id);
+// 线条图标(代码里写死, 用 innerHTML 放进按钮); 发音按钮都用这个喇叭
+const ICON_SPEAK = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+function iconButton(cls, label, text = "") {   // 图标按钮: text 为空时只有图标, label 给读屏软件
+  const b = document.createElement("button"); b.className = cls;
+  b.innerHTML = ICON_SPEAK; if (text) b.append(text);
+  b.setAttribute("aria-label", label); b.title = label;
+  return b;
+}
 let user = null;      // 当前用户名
 let isAdmin = false;  // 管理员(第一个注册的用户): “我的”页多出邀请码和成员管理
 let stats = null;     // 最近一次 /api/stats 的结果
@@ -122,7 +130,7 @@ async function genderReason(el, german, gender, meaning = "") {
   try { r = await api(`/api/gender_reason?german=${encodeURIComponent(german)}&gender=${gender}`); }
   catch (e) { return; }
   if (el.dataset.word !== german) return;
-  const line = document.createElement("div"); line.textContent = "💡 " + r.reason;
+  const line = document.createElement("div"); line.textContent = r.reason;
   el.appendChild(line);
   if (r.examples.length) {
     const row = document.createElement("div"); row.append("同类词：");
@@ -142,13 +150,13 @@ function genderMemo(el, german, gender, meaning, r) {
   const show = memo => {
     box.textContent = "";
     if (memo) {
-      const m = document.createElement("div"); m.textContent = "🧠 " + memo;
+      const m = document.createElement("div"); m.textContent = "记忆法：" + memo;
       const tip = document.createElement("div"); tip.className = "lzh"; tip.textContent = "这是记忆法，不是语法原因";
       box.append(m, tip);
     }
     if (!r.can || !r.ai) return;
     const b = document.createElement("button"); b.className = "mini";
-    b.textContent = memo ? "换一个" : "✨ 帮我记住这个词性";
+    b.textContent = memo ? "换一个" : "AI 帮我记住这个词性";
     b.onclick = async () => {
       b.disabled = true; b.textContent = "AI 正在想…";
       try { show((await api("/api/gender_memo", "POST", { german, gender, meaning, again: !!memo })).memo); }

@@ -72,7 +72,7 @@ function renderDetails(d, box) {
   box.textContent = "";
   if (!d) return;
   if (d.machine) {
-    const p = document.createElement("p"); p.className = "meta"; p.textContent = "⚠️ 这个释义是机器翻译，可能不准";
+    const p = document.createElement("p"); p.className = "meta"; p.textContent = "提示：这个释义是机器翻译，可能不准";
     box.appendChild(p);
   }
   if (d.ipa) {

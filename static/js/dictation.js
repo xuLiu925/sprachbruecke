@@ -28,7 +28,7 @@ function dictRender() {
         line.textContent = `${wordText(w)} — ${w.meaning}`;
         box.appendChild(line);
       }
-    } else if (dict.length) box.textContent = "全部写对了 🎉";
+    } else if (dict.length) box.textContent = "全部写对了";
     return;
   }
   const w = dict[dj], a = dAnswers[dj];

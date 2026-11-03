@@ -51,7 +51,7 @@ function rpRender() {
   rpRevealed = false;
   $("rpProgress").textContent = `第 ${rpI + 1} / ${rpItems.length} 句 · ${it.level} ${it.title}`;
   $("rpWho").textContent = it.drill ? "原句：" + it.prompt : it.who + " 对你说：";
-  $("rpAskTitle").textContent = it.drill ? "新情况：" + it.prompt_zh : "🎧 听完，开口回答";
+  $("rpAskTitle").textContent = it.drill ? "新情况：" + it.prompt_zh : "听完，开口回答";
   $("rpHint").classList.add("hidden");
   $("rpHint").textContent = it.drill ? (it.hint ? "提示：" + it.hint : "这题没有更多提示。") : "你要表达：" + it.answer_zh;
   $("rpShowHint").textContent = it.drill ? "提示" : "中文提示";
@@ -106,14 +106,14 @@ document.querySelectorAll("#rpRate button").forEach(b => b.onclick = () => rpRat
 function rpFinish() {
   stopSpeak();
   if (!rpItems.length) {
-    $("rpScore").textContent = rpSource ? "这一课没有对话练习" : "现在没有要复习的句子 🎉";
+    $("rpScore").textContent = rpSource ? "这一课没有对话练习" : "现在没有要复习的句子";
     $("rpNote").textContent = rpSource ? "" : "在情景课里做过角色扮演的句子，到期后会出现在这里。";
     return;
   }
   $("rpScore").textContent = `练完了 ${rpDone} 句`;
   $("rpNote").textContent = rpAgain.size
     ? `其中 ${rpAgain.size} 句第一次没说出来，已经多练了一遍，之后会更早复习。`
-    : "全部说出来了 🎉 这些句子之后会按计划复习。";
+    : "全部说出来了，这些句子之后会按计划复习。";
 }
 
 // 空格 / 回车 看答案; 1 2 3 评分; R 重听, S 慢速

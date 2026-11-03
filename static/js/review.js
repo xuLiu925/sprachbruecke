@@ -68,13 +68,13 @@ async function showDone() {
   if (trial) {
     trialStore();
     const n = new Set(trialAnswers.map(a => a.word_id)).size;
-    $("doneMsg").textContent = `试学完成，学了 ${n} 个词 🎉`;
+    $("doneMsg").textContent = `试学完成，学了 ${n} 个词`;
     $("doneSub").textContent = "注册后保存这些词的进度，明天按记忆曲线提醒你复习，还能从 A1 单词书接着学。";
     $("btnReload").textContent = "免费注册，保存进度";
     $("btnHome").textContent = "回首页";
     return;
   }
-  $("doneMsg").textContent = "今天的学习完成了 🎉";
+  $("doneMsg").textContent = "今天的学习完成了";
   $("btnReload").textContent = "再学 10 个";
   leftToday = 0;
   let t;
@@ -92,15 +92,15 @@ const ascii = s => fold(s).replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü
 function checkSpell(c, input) {
   const art = c.gender && needArticle();
   const want = art ? c.gender + " " + c.german : c.german;
-  if (!fold(input)) return { ok: false, msg: "✘ 没有作答" };
-  if (fold(input) === fold(want)) return { ok: true, msg: "✔ 正确" };
-  if (ascii(input) === ascii(want)) return { ok: true, msg: "✔ 正确（注意写法：" + want + "）" };
+  if (!fold(input)) return { ok: false, msg: "✗ 没有作答" };
+  if (fold(input) === fold(want)) return { ok: true, msg: "✓ 正确" };
+  if (ascii(input) === ascii(want)) return { ok: true, msg: "✓ 正确（注意写法：" + want + "）" };
   if (art) {
     const m = fold(input).match(/^(der|die|das) (.+)$/);
     const body = m ? m[2] : fold(input);
-    if (ascii(body) === ascii(c.german)) return { ok: false, msg: m ? "✘ 冠词错了" : "✘ 名词要带冠词" };
+    if (ascii(body) === ascii(c.german)) return { ok: false, msg: m ? "✗ 冠词错了" : "✗ 名词要带冠词" };
   }
-  return { ok: false, msg: "✘ 答错了" };
+  return { ok: false, msg: "✗ 答错了" };
 }
 
 function reveal() {
@@ -157,7 +157,7 @@ async function answer(rating) {
   if (repeat) cards.push(repeat);
   hist.push({ idx, logId: r.log_id, repeat });
   $("flash").textContent = c.german + (rating === 1 ? "：稍后再练一次"
-    : `：${r.interval_days} 天后复习` + (r.mastered ? " · 已掌握 ✔" : ""));
+    : `：${r.interval_days} 天后复习` + (r.mastered ? " · 已掌握" : ""));
   idx++; render();
 }
 [1, 2, 3, 4].forEach(n => $("btnR" + n).onclick = () => answer(n));

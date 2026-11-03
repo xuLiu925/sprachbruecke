@@ -26,7 +26,7 @@ onShow.lessons = async () => {
     const h = document.createElement("h2"); h.textContent = name;
     const list = document.createElement("div"); list.className = "list";
     for (const l of items) {
-      list.appendChild(listItem(done[l.id] ? "✅" : ico, l.title, l.scene, async () => {
+      list.appendChild(listItem(done[l.id] ? { text: "✓", cls: "das" } : { text: ico }, l.title, l.scene, async () => {
         let full = l;
         if (!l.custom) {   // 课文打开时才取; 免费版每天能开的新课有限(billing.py)
           try { full = (await api("/api/lessons/" + encodeURIComponent(l.id))).lesson; }
@@ -37,9 +37,9 @@ onShow.lessons = async () => {
     }
     box.append(h, list);
   };
-  section("我的工作对话", all.filter(x => x.custom), "📝");
+  section("我的工作对话", all.filter(x => x.custom), "我的");
   for (const [lv, name] of Object.entries(LESSON_LEVELS)) {
-    section(name, all.filter(x => x.level === lv && !x.custom), "📦");
+    section(name, all.filter(x => x.level === lv && !x.custom), lv);
   }
 };
 $("lNew").onclick = () => go("lnew");
@@ -64,12 +64,12 @@ function lessonLine(line) {
   const de = document.createElement("div"); de.className = "lde"; lessonTokens(de, line);
   const zh = document.createElement("div"); zh.className = "lzh hidden"; zh.textContent = line.zh;
   const acts = document.createElement("div"); acts.className = "lacts";
-  const say = document.createElement("button"); say.className = "mini"; say.textContent = "🔊 听";
+  const say = iconButton("mini", "朗读这一句", "听");
   say.onclick = () => speakDe(line.de);
   const tr = document.createElement("button"); tr.className = "mini"; tr.textContent = "中文";
   tr.onclick = () => zh.classList.toggle("hidden");
   const note = document.createElement("div"); note.className = "lnote hidden";
-  const ex = document.createElement("button"); ex.className = "mini"; ex.textContent = "📖 讲解";
+  const ex = document.createElement("button"); ex.className = "mini"; ex.textContent = "讲解";
   ex.onclick = () => openExplain(note, line, lessonNow.level);
   acts.append(say, tr, ex);
   row.append(who, de, zh, acts, note);
@@ -96,7 +96,7 @@ onShow.lesson = () => {
   const model = $("lModel"); model.textContent = "";
   for (const m of l.task.model) {
     const row = document.createElement("div"); row.className = "lline";
-    const de = document.createElement("button"); de.className = "lmodel"; de.textContent = "🔊 " + m.de;
+    const de = document.createElement("button"); de.className = "lmodel"; de.innerHTML = ICON_SPEAK; de.append(m.de);
     de.onclick = () => speakDe(m.de);
     const zh = document.createElement("div"); zh.className = "lzh"; zh.textContent = m.zh;
     row.append(de, zh); model.appendChild(row);
@@ -218,7 +218,7 @@ function exampleExplain(el, text, level = "B1") {
   const [de, ...rest] = (text || "").split("\n");
   if (!de.trim()) return;
   const note = document.createElement("div"); note.className = "lnote hidden";
-  const btn = document.createElement("button"); btn.className = "mini"; btn.textContent = "📖 讲解";
+  const btn = document.createElement("button"); btn.className = "mini"; btn.textContent = "讲解";
   btn.onclick = () => openExplain(note, { de: de.trim(), zh: rest.join(" ").trim() }, level);
   box.append(btn, note);
 }
@@ -264,7 +264,7 @@ async function openWordSheet(token, line, back = false) {
     $("wsMeaning").textContent = "词库里没有这个词";
     if (r.can && r.ai) {                                   // 点了才调用 AI, 人名这类词不用查
       wsAsk = { q: lemma, context: line.de };
-      $("wsAi").disabled = false; $("wsAi").textContent = "✨ 用 AI 查询";
+      $("wsAi").disabled = false; $("wsAi").textContent = "用 AI 查询";
       $("wsAi").classList.remove("hidden");
     }
     return;
@@ -318,7 +318,7 @@ $("wsAi").onclick = async () => {
   let r;
   try { r = await api("/api/dict/ai", "POST", wsAsk); }
   catch (e) {
-    if (seq === wsSeq) { toast(e.message); btn.disabled = false; btn.textContent = "✨ 用 AI 查询"; }
+    if (seq === wsSeq) { toast(e.message); btn.disabled = false; btn.textContent = "用 AI 查询"; }
     return;
   }
   if (seq !== wsSeq) return;                 // 查询期间关掉了单词卡或点了别的词

@@ -26,7 +26,7 @@ function renderNote(box, note, body, meta = {}) {
     const row = document.createElement("div"); row.className = "nword";
     const head = document.createElement("div"); head.className = "nwordhead";
     const word = document.createElement("b"); word.textContent = w.word;
-    const say = document.createElement("button"); say.className = "mini"; say.textContent = "🔊";
+    const say = iconButton("mini", "朗读");
     say.onclick = () => speakDe(w.word);
     head.append(word, say);
     const form = document.createElement("div"); form.className = "lzh";
@@ -45,28 +45,28 @@ function renderNote(box, note, body, meta = {}) {
   }
   noteBlock(box, "类似用法");
   for (const s of note.similar) {
-    const b = document.createElement("button"); b.className = "lmodel"; b.textContent = "🔊 " + s.de;
+    const b = document.createElement("button"); b.className = "lmodel"; b.innerHTML = ICON_SPEAK; b.append(s.de);
     b.onclick = () => speakDe(s.de);
     const zh = document.createElement("div"); zh.className = "lzh"; zh.textContent = s.zh;
     box.append(b, zh);
   }
   const tip = document.createElement("div"); tip.className = "lzh nfoot"; tip.textContent = "AI 生成，未核对，语法以教材或老师为准。";
-  const drill = document.createElement("button"); drill.textContent = "🔁 替换练习：换个情况再说一遍";
+  const drill = document.createElement("button"); drill.textContent = "替换练习：换个情况再说一遍";
   drill.style.cssText = "width:100%;margin-top:10px";
   const drillBox = document.createElement("div");
   drill.onclick = () => openDrills(drillBox, drill, body);
 
   const issue = document.createElement("div"); issue.className = "lzh";
-  const showIssue = t => { issue.textContent = t ? "⚠️ 已记录的问题：" + t : ""; };
+  const showIssue = t => { issue.textContent = t ? "已记录的问题：" + t : ""; };
   showIssue(meta.report);
   const row = document.createElement("div"); row.className = "row"; row.style.marginTop = "8px";
   const fixBox = document.createElement("div");
-  row.appendChild(miniAction("⚠️ 报错", async () => {
+  row.appendChild(miniAction("报错", async () => {
     const reason = await reportContent("note", body.de);
     if (reason) showIssue(reason);
   }));
   if (meta.can) {
-    const regen = miniAction("🔄 重新生成", async () => {
+    const regen = miniAction("重新生成", async () => {
       if (!confirm("重新生成这句的讲解？成功后会替换现有内容。")) return;
       regen.disabled = true; regen.textContent = "AI 正在重写…";
       fixBox.textContent = "";
@@ -74,7 +74,7 @@ function renderNote(box, note, body, meta = {}) {
         const r = await api("/api/explain/regenerate", "POST", body);
         renderNote(box, r.note, body, { ...meta, report: null });
       } catch (e) {
-        regen.disabled = false; regen.textContent = "🔄 重新生成";
+        regen.disabled = false; regen.textContent = "重新生成";
         renderFallback(fixBox, body, e.message, "/api/explain", r => renderNote(box, r.note, body, { ...meta, report: null }));
       }
     });
@@ -84,12 +84,12 @@ function renderNote(box, note, body, meta = {}) {
   if (!wsCanLeave()) return;              // 复习和练习页: 跳去替换练习再回来会重新出题
   box.append(drill, drillBox);
   if (meta.can) {
-    const redo = miniAction("🔄 重新出替换题", async () => {
+    const redo = miniAction("重新出替换题", async () => {
       if (!confirm("重新出这句的替换练习？成功后会替换现有题目。")) return;
       redo.disabled = true; redo.textContent = "AI 正在出题…"; drillBox.textContent = "";
       try { rpOpenItems((await api("/api/drills/regenerate", "POST", body)).items); }
       catch (e) { renderFallback(drillBox, body, e.message, "/api/drills", g => rpOpenItems(g.items)); }
-      finally { redo.disabled = false; redo.textContent = "🔄 重新出替换题"; }
+      finally { redo.disabled = false; redo.textContent = "重新出替换题"; }
     });
     redo.style.cssText = "width:100%;margin-top:8px";
     drill.after(redo);

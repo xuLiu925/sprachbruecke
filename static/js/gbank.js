@@ -17,7 +17,7 @@ async function gbLoad() {
   catch (e) { return toast(e.message); }
   gbOptions = r.options; gbAi = st.ai;
   $("gbGen").disabled = !gbAi;
-  $("gbGen").textContent = gbAi ? "✨ 生成题目" : "还没有配置 API Key";
+  $("gbGen").textContent = gbAi ? "AI 生成题目" : "还没有配置 API Key";
   $("gbManual").open = !gbAi;
   const on = r.questions.filter(q => q.status === "active").length;
   $("gbCount").textContent = `共 ${r.questions.length} 题，启用 ${on} 题`;
@@ -34,7 +34,7 @@ async function gbNounReports() {
   box.classList.toggle("hidden", !r.reports.length);
   for (const x of r.reports) {
     const row = document.createElement("div"); row.className = "lline";
-    const t = document.createElement("div"); t.textContent = `⚠️ ${x.german}：${x.reason}`;
+    const t = document.createElement("div"); t.textContent = `报错 · ${x.german}：${x.reason}`;
     const b = document.createElement("button"); b.className = "mini"; b.textContent = "处理好了，清除";
     b.onclick = async () => {
       try { await api("/api/grammar/nouns/reports/" + x.id, "DELETE"); } catch (e) { return toast(e.message); }
@@ -52,7 +52,7 @@ function gbRow(q) {
   info.textContent = [GB_SOURCE[q.source], q.status === "hidden" ? "已停用" : "", q.zh].filter(Boolean).join(" · ");
   row.append(de, info);
   if (q.report) {
-    const rp = document.createElement("div"); rp.className = "msg"; rp.textContent = "⚠️ 报错：" + q.report;
+    const rp = document.createElement("div"); rp.className = "msg"; rp.textContent = "报错：" + q.report;
     row.appendChild(rp);
   }
   const acts = document.createElement("div"); acts.className = "lacts";
@@ -82,7 +82,7 @@ $("gbGen").onclick = async () => {
   const btn = $("gbGen"); gbMsg(""); btn.disabled = true; btn.textContent = "AI 正在出题…";
   try { gbDrafts.push(...(await api(gbUrl("generate"), "POST", body)).questions); gbRender(); }
   catch (e) { gbMsg(e.message); if (e.status === 429 || e.status === 503) $("gbManual").open = true; }
-  btn.disabled = !gbAi; btn.textContent = "✨ 生成题目";
+  btn.disabled = !gbAi; btn.textContent = "AI 生成题目";
 };
 $("gbCopy").onclick = async () => {
   const body = gbBody();

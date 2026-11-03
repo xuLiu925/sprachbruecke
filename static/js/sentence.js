@@ -1,8 +1,8 @@
 // 句子练习: 填空 / 排序 / 中译德(不影响复习计划)
 const S_MODES = {
-  cloze:     { ico: "🕳️", name: "句子填空", sub: "看中文，填出句子里缺的词（要写对变位和变格）" },
-  order:     { ico: "🧩", name: "连词成句", sub: "把打乱的词排成正确的句子，练语序" },
-  translate: { ico: "🇩🇪", name: "中译德", sub: "看中文写出整句德语，再和例句对照" },
+  cloze:     { ico: { text: "__" }, name: "句子填空", sub: "看中文，填出句子里缺的词（要写对变位和变格）" },
+  order:     { ico: { text: "1·2" }, name: "连词成句", sub: "把打乱的词排成正确的句子，练语序" },
+  translate: { ico: { text: "中→德" }, name: "中译德", sub: "看中文写出整句德语，再和例句对照" },
 };
 let sMode = "cloze", sq = [], si = 0;
 let sAnswers = [];    // sAnswers[i] = { ok, input, picked, msg }; ok 为 null = 等用户自己判断
@@ -117,7 +117,7 @@ function sCheck() {
   if (sMode === "order") {
     if (sPicked.length < q.tokens.length) return toast("还有词没有排");
     const same = sPicked.map(n => q.tokens[n]).join(" ") === q.tokens.join(" ");
-    a = { ok: same ? true : null, picked: sPicked.slice(), msg: same ? "✔ 正确" : "和例句的语序不同，请对照：" };
+    a = { ok: same ? true : null, picked: sPicked.slice(), msg: same ? "✓ 正确" : "和例句的语序不同，请对照：" };
   } else {
     const input = $("sqIn").value;
     if (!input.trim()) return $("sqIn").focus();
@@ -127,7 +127,7 @@ function sCheck() {
       a = { ok: r.ok, input, msg: r.msg };
     } else {
       const same = sPlain(input) === sPlain(q.de);
-      a = { ok: same ? true : null, input, msg: same ? "✔ 和例句一样" : "请和例句对照：" };
+      a = { ok: same ? true : null, input, msg: same ? "✓ 和例句一样" : "请和例句对照：" };
     }
   }
   sSubmit(q, a);
@@ -195,7 +195,7 @@ function sFinish() {
       line.textContent = q.recap || `${q.de} — ${q.zh}`;
       box.appendChild(line);
     }
-  } else if (sq.length) box.textContent = "全部答对了 🎉";
+  } else if (sq.length) box.textContent = "全部答对了";
   else box.textContent = sPreset ? (sPreset.empty || "这一课没有这种题。") : "这种题需要带中文翻译的例句，换一本单词书试试。";
 }
 

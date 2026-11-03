@@ -439,3 +439,44 @@ input.switch:checked::after { left:23px; }
 input.switch:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 details.howto summary { cursor:pointer; font-weight:500; }
 button.danger.big { margin-top:8px; background:var(--card); }
+
+/* ---------- 第三阶段: 各答题页统一 ---------- */
+svg.ic { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;
+  vertical-align:-3px; margin-right:6px; flex:none; }
+button.mini svg.ic:only-child, button.mini > svg.ic:last-child:first-child { margin-right:0; }
+button.big svg.ic { width:20px; height:20px; vertical-align:-4px; }
+button.lmodel svg.ic { color:var(--accent); }
+/* 题目卡片: 和今日学习的答题卡一样 */
+#gqBox, #sqBox, #dictBox, #rpBox, section[data-page="drill"] > .card { border-radius:24px; padding:24px 20px 20px; }
+.gprompt, .scloze { font-family:var(--font-latin); }
+#drillWord, #dictWord, #dWord { font-family:var(--font-latin); }
+.blank { border-bottom-width:3px; border-radius:2px; }
+/* 选项: 白底卡片, 答完后对的绿、错的红(浅底 + 深色字) */
+.opts { gap:10px; }
+.opts button { min-height:54px; border-radius:14px; font-family:var(--font-latin); font-size:17px; font-weight:600; }
+.opts button.secondary { background:var(--card); color:var(--text); border:1px solid var(--line); }
+.opts button.good { background:var(--das-soft); color:var(--das-ink); border:1px solid color-mix(in srgb, var(--das) 40%, var(--card)); }
+.opts button.bad { background:var(--die-soft); color:var(--die-ink); border:1px solid color-mix(in srgb, var(--die) 40%, var(--card)); }
+.schips button { border-radius:12px; font-family:var(--font-latin); }
+/* der / die / das 三个按钮: 浅底 + 冠词颜色 */
+#drillBtns button { min-height:56px; border-radius:14px; font:700 18px var(--font-latin); }
+#drillBtns .bder { background:var(--der-soft); color:var(--der-ink); }
+#drillBtns .bdie { background:var(--die-soft); color:var(--die-ink); }
+#drillBtns .bdas { background:var(--das-soft); color:var(--das-ink); }
+#drillBtns button:disabled { opacity:.45; }
+/* 对错结果: 一条浅色横幅 */
+#gqResult, #sqResult, #dictResult, #drillMsg, #aResult { border-radius:12px; }
+#gqResult.ok, #sqResult.ok, #dictResult.ok, #drillMsg.ok, #aResult.ok { background:var(--das-soft); color:var(--das-ink); padding:10px 14px; font-weight:700; }
+#gqResult.msg, #sqResult.msg, #dictResult.msg, #drillMsg.msg, #aResult.msg { background:var(--die-soft); color:var(--die-ink); padding:10px 14px; font-weight:700; min-height:0; }
+/* 答完的说明区 */
+#gqFeedback, #sqAnswer, #dictAnswer, #drillInfo { text-align:left; border-top:1px solid var(--line2); }
+#gqFeedback .row, #drillInfo .row { margin-top:14px; }
+#dictAnswer .word, #drillInfo .word { text-align:center; }
+.tag { font-size:13px; }
+/* 列表里的“错”图标块 */
+.tile44.warm { background:var(--warm-soft); color:var(--warm-ink); }
+/* 情景课课文 */
+.lline { padding:12px 0; }
+.lde { font-family:var(--font-latin); }
+button.lmodel { display:flex; gap:6px; align-items:flex-start; font-family:var(--font-latin); }
+button.lmodel svg.ic { margin-top:4px; }

@@ -42,8 +42,8 @@ function drillRender() {
 // 答完不自动跳: 显示带冠词的词、复数、例句, 读一遍(答题前不读, 免得听出冠词)
 function drillShowAnswer(speak) {
   const w = drill[di], ok = drillPicks[di] === w.gender;
-  $("drillMsg").textContent = ok ? "✔ 正确"
-    : drillPicks[di] === "?" ? `应该是 ${w.gender}` : `✘ 你选了 ${drillPicks[di]}，应该是 ${w.gender}`;
+  $("drillMsg").textContent = ok ? "✓ 正确"
+    : drillPicks[di] === "?" ? `应该是 ${w.gender}` : `✗ 你选了 ${drillPicks[di]}，应该是 ${w.gender}`;
   $("drillMsg").className = ok ? "ok" : "msg";
   drillBtns.forEach(x => x.disabled = true);
   wordInto($("dWord"), w);

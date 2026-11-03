@@ -15,7 +15,7 @@ onShow.lnew = async () => {
   lnMsg("");
   try { await loadLessons(); } catch (e) { return toast(e.message); }
   $("lnGen").disabled = !lessonAi;
-  $("lnGen").textContent = lessonAi ? "✨ 生成对话" : "还没有配置 API Key";
+  $("lnGen").textContent = lessonAi ? "AI 生成对话" : "还没有配置 API Key";
   $("lnManual").open = !lessonAi;
 };
 

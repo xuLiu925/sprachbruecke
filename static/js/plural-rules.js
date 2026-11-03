@@ -69,7 +69,7 @@ let pScopeNow = "", pScopes = [];
 function pStart(scope) {
   sPreset = {
     mode: "cloze", name: "复数练习", url: "/api/plural?scope=" + scope, rules: true,
-    empty: scope === "wrong" ? "错题本是空的 🎉 换个范围继续练。" : "这个范围没有带复数的名词，换个范围试试。",
+    empty: scope === "wrong" ? "错题本是空的，换个范围继续练。" : "这个范围没有带复数的名词，换个范围试试。",
     onAnswer(q, ok) {
       if (!ok) sq.push({ ...q, retry: true });          // 错题排到本组最后再练一次
       api("/api/plural/result?" + tzQuery(), "POST", { word_id: q.word_id, ok }).catch(() => {});

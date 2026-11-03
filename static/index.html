@@ -116,7 +116,7 @@
       </div>
       <!-- 装到桌面: 从桌面图标打开时不显示(core.js 的 showInstall) -->
       <div class="card hidden" id="wInstallBox">
-        <b>📲 装到手机桌面</b>
+        <b>装到手机桌面</b>
         <p class="meta left" style="margin:6px 0 12px">桌面上出现“通德”图标，点开全屏使用，和普通 App 一样。免费，不用应用商店。</p>
         <button id="wInstall" class="secondary" style="width:100%">看看怎么装</button>
       </div>
@@ -423,15 +423,15 @@
         <div class="tag" id="vLevel"></div>
         <div class="word" id="vWord"></div>
         <div class="meta" id="vPos"></div>
-        <button class="secondary" id="vSpeak" style="margin-top:8px">🔊 发音</button>
-        <button class="secondary" id="vSpellBtn" style="margin-top:8px">🔤 拼读</button>
+        <button class="secondary" id="vSpeak" style="margin-top:8px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>发音</button>
+        <button class="secondary" id="vSpellBtn" style="margin-top:8px">拼读</button>
         <div class="spell" id="vSpell"></div>
         <div class="answer">
           <p id="vMeaning" style="font-size:20px"></p>
           <p id="vPlural" class="meta"></p>
           <p id="vGender" class="meta"></p>
           <div id="vParts" class="meta"></div>
-          <div class="exrow"><button class="mini" id="vSpeakEx" title="朗读例句">🔊</button><p id="vExample" class="meta"></p></div>
+          <div class="exrow"><button class="mini" id="vSpeakEx" title="朗读例句" aria-label="朗读例句"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button><p id="vExample" class="meta"></p></div>
           <div id="vForms"></div>
           <div id="vDetails" class="left"></div>
         </div>
@@ -443,8 +443,8 @@
       <h2>我的学习情况</h2>
       <div class="card meta left" id="vStatus" style="line-height:1.7"></div>
       <button class="secondary hidden" id="vQueue" style="width:100%;margin-bottom:8px">加入学习</button>
-      <button class="secondary hidden" id="vNoun" style="width:100%;margin-bottom:8px">📕 加入错题本</button>
-      <button id="vEdit" style="width:100%">✏️ 编辑这个词</button>
+      <button class="secondary hidden" id="vNoun" style="width:100%;margin-bottom:8px">加入冠词错题本</button>
+      <button id="vEdit" style="width:100%">编辑这个词</button>
     </section>
 
     <!-- ===== 听写 ===== -->
@@ -453,8 +453,8 @@
       <div class="card" id="dictBox">
         <div class="tag" id="dictProgress"></div>
         <div class="row" style="margin:12px 0">
-          <button id="dictPlay" class="big">🔊 再听一遍</button>
-          <button id="dictSlow" class="secondary" style="flex:0 0 96px">🐢 慢速</button>
+          <button id="dictPlay" class="big"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>再听一遍</button>
+          <button id="dictSlow" class="secondary" style="flex:0 0 96px">慢速</button>
         </div>
         <div class="meta" id="dictPos"></div>
         <input id="dictIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="写出你听到的词">
@@ -498,7 +498,7 @@
         <div id="gScope" style="margin-top:6px"></div>
       </div>
       <button class="big" id="gStart"></button>
-      <button class="big secondary hidden" id="gBank" style="margin-top:8px">📚 管理题库</button>
+      <button class="big secondary hidden" id="gBank" style="margin-top:8px">管理题库</button>
     </section>
 
     <section class="page" data-page="gnouns">
@@ -523,7 +523,7 @@
         <p class="meta left" style="margin-top:0">写下想出什么题。AI 的题要检查后再保存，也不要写真实的客户和订单信息。</p>
         <textarea id="gbWant" maxlength="300" placeholder="例如：第三格 · 司机提货" style="min-height:70px"></textarea>
         <select id="gbN" style="margin-top:8px"><option value="5">5 题</option><option value="10">10 题</option></select>
-        <button class="big" id="gbGen" style="margin-top:8px">✨ 生成题目</button>
+        <button class="big" id="gbGen" style="margin-top:8px">AI 生成题目</button>
         <button class="secondary" id="gbAdd" style="width:100%;margin-top:8px">＋ 手动加一题</button>
         <p id="gbMsg" class="msg"></p>
         <details id="gbManual">
@@ -557,10 +557,10 @@
           <p id="gqZh"></p>
           <p id="gqExplain" class="meta"></p>
           <p id="gqGender" class="meta"></p>
-          <button class="mini hidden" id="gqCard">📖 单词卡</button>
-          <button class="mini hidden" id="gqReport">⚠️ 这题有问题</button>
+          <button class="mini hidden" id="gqCard">单词卡</button>
+          <button class="mini hidden" id="gqReport">报错</button>
           <div class="row" style="margin-top:10px">
-            <button class="secondary" id="gqSay" style="flex:0 0 110px">🔊 听整句</button>
+            <button class="secondary" id="gqSay" style="flex:0 0 110px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>听整句</button>
             <button id="gqNext">下一题</button>
           </div>
         </div>
@@ -592,7 +592,7 @@
       <h2>① 读</h2>
       <div class="card">
         <div id="lLines"></div>
-        <button class="secondary" id="lPlayAll" style="width:100%;margin-top:10px">🔊 听全文</button>
+        <button class="secondary" id="lPlayAll" style="width:100%;margin-top:10px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>听全文</button>
       </div>
       <h2>② 练</h2>
       <div class="row">
@@ -600,7 +600,7 @@
         <button id="lOrder">连词成句</button>
       </div>
       <h2>③ 说</h2>
-      <button class="big" id="lRoleplay">🎭 角色扮演：听对方说，你开口回答</button>
+      <button class="big" id="lRoleplay">角色扮演：听对方说，你开口回答</button>
       <h2>④ 用</h2>
       <div class="card">
         <p id="lTask" style="margin-top:0;line-height:1.6"></p>
@@ -621,7 +621,7 @@
         <p class="meta left" style="margin-top:0">用中文写下你想练的工作情况。不要写真实的客户、地址和订单号。</p>
         <select id="lnLevel"><option value="A1">A1 入门</option><option value="A2" selected>A2 基础</option><option value="B1">B1 进阶</option></select>
         <textarea id="lnWant" maxlength="500" placeholder="例如：司机来提货，发现少了一托，我要核对提货单并联系主管" style="min-height:100px;margin-top:8px"></textarea>
-        <button class="big" id="lnGen" style="margin-top:8px">✨ 生成对话</button>
+        <button class="big" id="lnGen" style="margin-top:8px">AI 生成对话</button>
         <p id="lnMsg" class="msg"></p>
         <details id="lnManual">
           <summary class="meta left">不用 API：复制到免费 AI</summary>
@@ -652,8 +652,8 @@
           <p class="meta" id="rpWho"></p>
           <p class="gprompt" id="rpAskTitle"></p>
           <div class="row">
-            <button class="secondary" id="rpReplay">🔊 重听</button>
-            <button class="secondary" id="rpSlow">🐢 慢速</button>
+            <button class="secondary" id="rpReplay"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>重听</button>
+            <button class="secondary" id="rpSlow">慢速</button>
             <button class="secondary" id="rpShowHint">中文提示</button>
           </div>
           <p class="meta hidden" id="rpHint"></p>
@@ -662,12 +662,12 @@
         <div class="hidden" id="rpReveal">
           <div class="lline">
             <div class="lwho" id="rpPromptLabel"></div>
-            <button class="lmodel" id="rpSayPrompt">🔊 <span id="rpPromptDe"></span></button>
+            <button class="lmodel" id="rpSayPrompt"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg><span id="rpPromptDe"></span></button>
             <div class="lzh" id="rpPromptZh"></div>
           </div>
           <div class="lline">
             <div class="lwho" id="rpAnswerLabel"></div>
-            <button class="lmodel" id="rpSayAnswer">🔊 <span id="rpAnswerDe"></span></button>
+            <button class="lmodel" id="rpSayAnswer"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg><span id="rpAnswerDe"></span></button>
             <div class="lzh" id="rpAnswerZh"></div>
           </div>
           <p class="meta">再跟读一遍，然后选一项。意思说对了就算，不用和参考回答一模一样。</p>
@@ -676,7 +676,7 @@
             <button class="hard" data-r="2">说得磕绊</button>
             <button class="good" data-r="3">说出来了</button>
           </div>
-          <button class="mini hidden" id="rpReport" style="margin-top:8px">⚠️ 这题有问题</button>
+          <button class="mini hidden" id="rpReport" style="margin-top:8px">报错</button>
         </div>
         <p class="kbd-hint"><kbd>R</kbd> 重听 · <kbd>S</kbd> 慢速 · <kbd>空格</kbd> 看答案 · <kbd>1</kbd>–<kbd>3</kbd> 评分 · <kbd>Esc</kbd> 返回</p>
       </div>
@@ -735,9 +735,9 @@
           </div>
           <div class="meta" id="sqGloss" style="margin-top:10px"><span id="sqWord"></span> — <span id="sqMeaning"></span></div>
           <p class="meta hidden" id="sqRule"></p>
-          <button class="mini hidden" id="sqReport">⚠️ 这题有问题</button>
+          <button class="mini hidden" id="sqReport">报错</button>
           <div class="row" style="margin-top:10px">
-            <button class="secondary" id="sqSay" style="flex:0 0 110px">🔊 听整句</button>
+            <button class="secondary" id="sqSay" style="flex:0 0 110px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>听整句</button>
             <button id="sqNext">下一题</button>
           </div>
         </div>
@@ -769,9 +769,9 @@
           <div class="word" id="dWord"></div>
           <p id="dPlural" class="meta"></p>
           <p id="dGender" class="meta"></p>
-          <div class="exrow"><button class="mini" id="btnDrillEx" title="朗读例句">🔊</button><p id="dExample" class="meta"></p></div>
+          <div class="exrow"><button class="mini" id="btnDrillEx" title="朗读例句" aria-label="朗读例句"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button><p id="dExample" class="meta"></p></div>
           <div class="row" style="margin-top:12px">
-            <button id="btnDrillSpeak" class="secondary">🔊 发音</button>
+            <button id="btnDrillSpeak" class="secondary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>发音</button>
             <button id="btnDrillView" class="secondary">详情</button>
             <button id="btnDrillNext">下一个</button>
           </div>
@@ -853,7 +853,7 @@
         <button class="secondary hidden" id="wsSay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>发音</button>
         <button class="secondary hidden" id="wsView">详情</button>
         <button class="hidden" id="wsAdd">加入学习</button>
-        <button class="hidden" id="wsAi">✨ 用 AI 查询</button>
+        <button class="hidden" id="wsAi">用 AI 查询</button>
       </div>
       <button class="secondary hidden" id="wsNoun" style="width:100%;margin-top:8px">加入冠词错题本</button>
       <div class="hidden" id="wsMore">

@@ -168,8 +168,8 @@ function bestScore(id) {
 }
 
 const GROUP_ICONS = {
-  "冠词": "📝", "代词": "👤", "介词": "📍", "动词": "🔁", "语序": "🧩", "形容词词尾": "🎨",
-  "比较级": "📈", "完成时": "⏪", "可分动词": "✂️", "否定": "🚫", "数字和时间": "🔢", "问句": "❓",
+  "冠词": "der", "代词": "ich", "介词": "mit", "动词": "sein", "语序": "V2", "形容词词尾": "-er",
+  "比较级": "gut+", "完成时": "hat", "可分动词": "an|", "否定": "nicht", "数字和时间": "12", "问句": "wer",
 };
 
 // 练习成绩标签: 全对绿色, 六成以上蓝色, 不到六成橙色, 没练过灰色
@@ -191,7 +191,7 @@ onShow.grammar = () => {
       const h = document.createElement("h2"); h.textContent = group; box.appendChild(h);
       list = document.createElement("div"); list.className = "list"; box.appendChild(list);
     }
-    const it = listItem(GROUP_ICONS[t.group] || "📐", t.title, t.level, () => { gTopic = t; go("gtopic"); });
+    const it = listItem({ text: GROUP_ICONS[t.group] || "?" }, t.title, t.level, () => { gTopic = t; go("gtopic"); });
     it.querySelector(".badge").replaceWith(scoreChip(bestScore(t.id)));
     list.appendChild(it);
   }
@@ -257,7 +257,7 @@ onShow.gtopic = () => {
   const ex = $("gExamples"); ex.textContent = "";
   for (const s of t.examples) {
     const row = document.createElement("div"); row.className = "exrow left";
-    const b = document.createElement("button"); b.className = "mini"; b.textContent = "🔊"; b.onclick = () => speakDe(s);
+    const b = document.createElement("button"); b.className = "mini"; b.innerHTML = ICON_SPEAK; b.setAttribute("aria-label", "朗读"); b.onclick = () => speakDe(s);
     const p = document.createElement("p"); p.textContent = s;
     row.append(b, p); ex.appendChild(row);
   }
@@ -273,7 +273,7 @@ $("gBank").onclick = () => go("gbank");
 
 // 练习范围: 单词书和错题本, 放在开始按钮前, 一眼能看到现在练的是什么。选这里不改变首页的当前单词书
 let gScopeNow = "", gScopeList = [];
-const G_SCOPE_ICONS = { wrong: "📕", warehouse: "📦", all: "🗃️" };
+const G_SCOPE_ICONS = { wrong: { text: "错", cls: "warm" }, warehouse: { text: "仓" }, all: { text: "全部" } };
 const gList = () => ({ perfekt: PERFEKT_LIST, usage: USAGE_LIST }[gTopic.verb] || (gTopic.verb ? VERB_LIST : NOUN_LIST));
 async function gScopeLoad() {
   let r;
@@ -295,7 +295,7 @@ function scopeItems(r) {
 function scopeInto(box, list, now, pick, open) {
   box.textContent = "";
   for (const s of list) {
-    const it = listItem(G_SCOPE_ICONS[s.id] || "📘", s.name, s.sub, () => pick(s.id));
+    const it = listItem(G_SCOPE_ICONS[s.id] || { text: s.id.length <= 3 ? s.id : "书" }, s.name, s.sub, () => pick(s.id));
     it.classList.toggle("current", s.id === now);
     const see = document.createElement("span"); see.className = "scopesee"; see.textContent = "查看";
     see.onclick = e => { e.stopPropagation(); open(s.id); };
@@ -431,7 +431,7 @@ function gShowAnswer(value) {
   gHint();
   const why = { gender: "词性错了，", case: q.article ? "词尾用错了，" : "格用错了，", stem: "词形错了，", person: "人称错了，",
                 aux: "助动词错了，", part: "过去分词错了，", prep: "介词错了，" }[gErrKind(q, value)] || "";
-  $("gqResult").textContent = ok ? "✔ 正确" : (value === null ? "不会，正确答案：" : `✘ ${why}正确答案：`) + q.answer;
+  $("gqResult").textContent = ok ? "✓ 正确" : (value === null ? "不会，正确答案：" : `✗ ${why}正确答案：`) + q.answer;
   $("gqResult").className = ok ? "ok" : "msg";
   $("gqZh").textContent = gTopic.bank ? "" : q.zh || "";
   $("gqExplain").textContent = q.explain || "";
@@ -483,7 +483,7 @@ function gDone() {
   const total = gQs.filter(q => !q.retry).length;      // 错题重练不计入总分
   if (!total) {
     $("gqScore").textContent = "这个范围还没有词";
-    $("gqDoneMsg").textContent = gScopeNow === "wrong" ? "错题本是空的 🎉 换个范围继续练。" : "换个练习范围试试。";
+    $("gqDoneMsg").textContent = gScopeNow === "wrong" ? "错题本是空的，换个范围继续练。" : "换个练习范围试试。";
     return;
   }
   $("gqScore").textContent = `得分 ${gScore} / ${total}`;
@@ -491,7 +491,7 @@ function gDone() {
   if (!best || gScore / total > best[0] / best[1]) {
     try { localStorage.setItem("sb_gbest_" + gTopic.id, JSON.stringify([gScore, total])); } catch (e) {}
   }
-  $("gqDoneMsg").textContent = gScore === total ? "全对了 🎉" : gWeakCell() + "错的地方回到速查表再看一眼，再练一次。";
+  $("gqDoneMsg").textContent = gScore === total ? "全对了" : gWeakCell() + "错的地方回到速查表再看一眼，再练一次。";
 }
 $("gqAgain").onclick = () => onShow.gquiz();
 $("gqBack").onclick = () => $("btnBack").click();

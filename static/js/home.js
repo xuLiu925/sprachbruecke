@@ -43,6 +43,16 @@ function openForms(kind, name) {   // 变格 / 变位练习用句子填空的答
   go("squiz");
 }
 
+// 情景课页的“整句复习”按钮: 有到期的句子才显示; 查询失败时不打扰, 保持隐藏(lessons.js 用)
+async function showSentenceDue(btn) {
+  btn.classList.add("hidden");
+  try {
+    const { count } = await api("/api/roleplay/due?count=1");
+    btn.textContent = `整句复习（${count} 句）`;
+    btn.classList.toggle("hidden", !count);
+  } catch (e) {}
+}
+
 // ---------- 今天 ----------
 onShow.home = async () => {
   const now = new Date();

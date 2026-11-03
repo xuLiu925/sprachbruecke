@@ -57,7 +57,7 @@ async function loadWords() {
   box.classList.toggle("hidden", !r.words.length);
   if (dict && !r.words.length && r.can && r.ai) {     // 查不到: 用户点了才调用 AI
     $("wAi").dataset.q = q; $("wAi").disabled = false;
-    $("wAi").textContent = `✨ 用 AI 查询“${q}”`;
+    $("wAi").textContent = `用 AI 查询“${q}”`;
     $("wAi").classList.remove("hidden");
   }
   for (const w of r.words) {
@@ -73,8 +73,8 @@ function wordRow(w, open) {
   const body = document.createElement("span"); body.className = "body";
   const t = document.createElement("b"); wordInto(t, w);
   const s = document.createElement("small");
-  s.textContent = [w.form ? `${w.form} 的原形` : "", w.glossary ? "📦 仓储词" : "", w.ai_word ? "✨ AI" : "",
-                   w.private ? "🔒 待审核" : "", w.edited ? "✏️ 已改" : "",
+  s.textContent = [w.form ? `${w.form} 的原形` : "", w.glossary ? "仓储词" : "", w.ai_word ? "AI" : "",
+                   w.private ? "待审核" : "", w.edited ? "已改" : "",
                    w.level, w.pos, w.meaning].filter(Boolean).join(" · ");
   body.append(t, s);
   if (w.hidden) {
@@ -88,7 +88,7 @@ $("wAi").onclick = async () => {
   btn.disabled = true; btn.textContent = "AI 正在查询…";
   let r;
   try { r = await api("/api/dict/ai", "POST", { q }); }
-  catch (e) { toast(e.message); btn.disabled = false; btn.textContent = `✨ 用 AI 查询“${q}”`; return; }
+  catch (e) { toast(e.message); btn.disabled = false; btn.textContent = `用 AI 查询“${q}”`; return; }
   if ($("wSearch").value.trim() !== q) return;        // 查询期间已经换了别的词
   if (!r.word) { btn.classList.add("hidden"); $("wCount").textContent = `AI 也没有查到“${q}”`; return; }
   await loadWords();
@@ -101,7 +101,7 @@ function studyText(w) {
   if (w.status === "new") return "还没学过。选它所在的单词书，复习时就会出现。";
   const due = localDate(w.next_review);
   const parts = [
-    w.status === "mastered" ? "✔ 已掌握" : "学习中",
+    w.status === "mastered" ? "已掌握" : "学习中",
     due.d <= new Date() ? "现在就该复习了" : "下次复习：" + due.text,
     `复习过 ${w.reps} 次`, `忘过 ${w.lapses} 次`,
   ];
@@ -115,7 +115,7 @@ onShow.view = async () => {
   try { w = await api("/api/words/" + viewingId); } catch (e) { return switchTab("words"); }
   viewWord = w;
   const bookTags = w.books.map(b => BOOK_NAMES[b] || b);
-  $("vLevel").textContent = w.private ? "🔒 词典里没有这个词，审核前只有加过的人能看到"
+  $("vLevel").textContent = w.private ? "词典里没有这个词，审核前只有加过的人能看到"
     : [w.level && w.level + " 单词书", ...bookTags].filter(Boolean).join(" · ") || "示例词";
   fillWordCard("v", w);   // 和单词卡共用(wordcard.js)
   $("vSpeakEx").classList.toggle("hidden", !w.example);
@@ -151,12 +151,12 @@ function showNotice(w) {
   $("vEdit").classList.toggle("hidden", w.hidden);
   text.textContent = "";
   if (w.hidden) {
-    text.textContent = "🗑️ 这个词你删掉了（只对你自己隐藏，复习进度还在）。";
+    text.textContent = "这个词你删掉了（只对你自己隐藏，复习进度还在）。";
     $("vRestore").textContent = "↩️ 恢复这个词";
     $("vRestore").onclick = () => restore("unhide", "已恢复");
   } else if (w.edited) {
     const o = w.original;
-    text.append("✏️ 你改过这个词，改动只对你自己生效。");
+    text.append("你改过这个词，改动只对你自己生效。");
     const orig = document.createElement("div"); orig.className = "orig";
     orig.textContent = "原来的内容：" + wordText(o) + " — " + o.meaning;
     text.appendChild(orig);

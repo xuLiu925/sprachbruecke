@@ -36,13 +36,13 @@ async function wordParts(el, german, meaning = "") {
   const show = (parts, report) => {
     el.textContent = "";
     if (parts && parts.split) {
-      const title = document.createElement("div"); title.textContent = "🧩 构词";
+      const title = document.createElement("div"); title.textContent = "构词";
       const literal = document.createElement("div"); literal.textContent = "字面：" + parts.literal;
       const tip = document.createElement("div"); tip.className = "lzh";
       tip.textContent = `${PARTS_CLARITY[parts.clarity]} · AI 生成，未核对`;
       el.append(title, ...parts.steps.map(renderPartStep), literal, tip);
     } else if (parts) {
-      const none = document.createElement("div"); none.textContent = "🧩 这个词不用拆";
+      const none = document.createElement("div"); none.textContent = "构词：这个词不用拆";
       el.appendChild(none);
     }
     if (report) {
@@ -51,7 +51,7 @@ async function wordParts(el, german, meaning = "") {
     }
     if (canMake) {
       const b = document.createElement("button"); b.className = "mini";
-      b.textContent = parts ? "重新解释" : "🧩 构词解释";
+      b.textContent = parts ? "重新解释" : "AI 构词解释";
       b.onclick = async () => {
         b.disabled = true; b.textContent = "AI 正在拆词…";
         try {
@@ -62,7 +62,7 @@ async function wordParts(el, german, meaning = "") {
       el.appendChild(b);
     }
     if (parts) {
-      const b = document.createElement("button"); b.className = "mini"; b.textContent = "⚠️ 有问题";
+      const b = document.createElement("button"); b.className = "mini"; b.textContent = "报错";
       b.onclick = async () => {
         const reason = (prompt("哪里有问题？比如：这个前缀的意思不对") || "").trim();
         if (!reason) return;
