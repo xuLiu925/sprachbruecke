@@ -117,18 +117,8 @@ onShow.view = async () => {
   const bookTags = w.books.map(b => BOOK_NAMES[b] || b);
   $("vLevel").textContent = w.private ? "🔒 词典里没有这个词，审核前只有加过的人能看到"
     : [w.level && w.level + " 单词书", ...bookTags].filter(Boolean).join(" · ") || "示例词";
-  wordInto($("vWord"), w);
-  $("vPos").textContent = w.pos || "";
-  $("vMeaning").textContent = w.meaning;
-  $("vPlural").textContent = w.plural && !(w.forms && w.forms.cases) ? "复数：" + w.plural : "";
-  genderReason($("vGender"), w.german, w.gender, w.meaning);
-  wordParts($("vParts"), w.german, w.meaning);
-  spellReset($("vSpell"));
-  spellTitle($("vWord"), $("vSpellBtn"));
-  exampleInto($("vExample"), w.example, w.level || "B1");
+  fillWordCard("v", w);   // 和单词卡共用(wordcard.js)
   $("vSpeakEx").classList.toggle("hidden", !w.example);
-  renderForms(w.forms, $("vForms"));
-  renderDetails(w.details, $("vDetails"));
   $("vStatus").textContent = studyText(w);
   $("vNoun").classList.toggle("hidden", !w.gender || w.hidden);
   $("vQueue").classList.toggle("hidden", w.status !== "new" || w.hidden);
@@ -153,30 +143,6 @@ $("vNoun").onclick = async () => {
 };
 $("vEdit").onclick = () => openEdit(viewingId);
 
-// 单词书的详细内容: 音标、词根、用法、更多例句、词组、近反义词、相关词、提示
-const DETAIL_SECTIONS = [["root", "词根"], ["usage", "用法"], ["examples", "更多例句"], ["phrases", "常用词组"],
-                         ["synonyms", "近义词"], ["antonyms", "反义词"], ["related", "相关词"], ["notes", "提示"]];
-function renderDetails(d, box) {
-  box.textContent = "";
-  if (!d) return;
-  if (d.machine) {
-    const p = document.createElement("p"); p.className = "meta"; p.textContent = "⚠️ 这个释义是机器翻译，可能不准";
-    box.appendChild(p);
-  }
-  if (d.ipa) {
-    const p = document.createElement("p"); p.className = "meta"; p.textContent = `[${d.ipa}]`;
-    box.appendChild(p);
-  }
-  for (const [key, title] of DETAIL_SECTIONS) {
-    if (!d[key] || !d[key].length) continue;
-    const h = document.createElement("h4"); h.className = "detail-title"; h.textContent = title;
-    box.appendChild(h);
-    for (const line of [].concat(d[key])) {
-      const p = document.createElement("p"); p.className = "detail-line"; p.textContent = line;
-      box.appendChild(p);
-    }
-  }
-}
 
 // 改过 / 删掉的词: 提示 + 恢复按钮
 function showNotice(w) {

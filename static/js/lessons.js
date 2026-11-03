@@ -265,14 +265,9 @@ async function openWordSheet(token, line, back = false) {
     return;
   }
   wsWord = found ? { ...w } : { ...gl, learned: false, queued: false };
-  wordInto($("wsWord"), w);
-  $("wsPlural").textContent = [w.pos, w.plural ? "复数 " + w.plural : "", token !== w.german ? "文中是 " + token : ""]
-    .filter(Boolean).join(" · ");
-  $("wsMeaning").textContent = w.meaning;
-  wsLoads = Promise.all([genderReason($("wsGender"), w.german, w.gender, w.meaning),
-                         wordParts($("wsParts"), w.german, w.meaning)]);
+  wsLoads = fillWordCard("ws", w, { forms: false, example: false, note: token !== w.german ? "文中是 " + token : "" });
   if (gl && found && gl.meaning !== found.meaning) $("wsLesson").textContent = "在仓库里：" + gl.meaning;
-  $("wsSay").classList.remove("hidden"); spellTitle($("wsWord"), $("wsSpellBtn"));
+  $("wsSay").classList.remove("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
   $("wsNoun").classList.toggle("hidden", !w.gender);
   $("wsView").classList.toggle("hidden", !found);
@@ -287,15 +282,10 @@ function openGlossaryWord(g, keep = false, back = false) {
   wsMoreReset();
   $("wsAi").classList.add("hidden");
   $("wsheet").classList.remove("hidden");
-  wordInto($("wsWord"), g);
-  $("wsPlural").textContent = [g.pos, g.plural ? "复数 " + g.plural : ""].filter(Boolean).join(" · ");
-  $("wsMeaning").textContent = g.meaning;
-  wsLoads = Promise.all([genderReason($("wsGender"), g.german, g.gender, g.meaning),
-                         wordParts($("wsParts"), g.german, g.meaning)]);
+  wsLoads = fillWordCard("ws", g, { forms: false, example: false });
   $("wsExample").textContent = g.example || "";
   $("wsLesson").textContent = g.ai_word ? "AI 生成，未核对" : "";
-  spellReset($("wsSpell"));
-  $("wsSay").classList.remove("hidden"); spellTitle($("wsWord"), $("wsSpellBtn"));
+  $("wsSay").classList.remove("hidden");
   $("wsView").classList.add("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);
   $("wsNoun").classList.toggle("hidden", !g.gender);
@@ -349,8 +339,7 @@ function wsMoreReset() {
   $("wsView").textContent = "详情";
 }
 function wsMoreFill(w) {
-  renderForms(w.forms, $("wsForms"));
-  renderDetails(w.details, $("wsDetails"));
+  fillWordMore("ws", w);
   exampleInto($("wsMoreEx"), w.example, null);
   $("wsFull").classList.toggle("hidden", !wsCanLeave());
   $("wsMore").classList.remove("hidden");

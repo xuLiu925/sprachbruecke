@@ -16,40 +16,6 @@ async function loadReview() {
 }
 onShow.review = loadReview;
 
-function wordInto(el, c) {
-  el.textContent = "";
-  if (c.gender) {
-    const a = document.createElement("span");
-    a.className = "art " + c.gender; a.textContent = c.gender;
-    el.appendChild(a);
-  }
-  el.appendChild(document.createTextNode(c.german));
-}
-
-function table(head, rows) {
-  const t = document.createElement("table"); t.className = "forms";
-  const tr = t.insertRow();
-  for (const h of head) { const th = document.createElement("th"); th.textContent = h; tr.appendChild(th); }
-  for (const r of rows) { const row = t.insertRow(); for (const x of r) row.insertCell().textContent = x; }
-  return scrollBox(t);   // 名词很长时(如 Geschwindigkeitsbegrenzungen)在卡片里左右滑
-}
-
-function renderForms(f, box = $("aForms")) {
-  box.textContent = "";
-  if (!f) return;
-  if (f.cases) {
-    const hasPl = f.cases.pl.some(x => x);
-    box.appendChild(table(hasPl ? ["", "单数", "复数"] : ["", "单数（无复数）"],
-      CASES.map((n, i) => hasPl ? [n, f.cases.sg[i], f.cases.pl[i]] : [n, f.cases.sg[i]])));
-  }
-  if (f.praesens) box.appendChild(table(["人称", "现在时"], PERSONS.map((p, i) => [p, f.praesens[i]])));
-  if (f.past) {
-    const p = document.createElement("div"); p.className = "pastline";
-    p.textContent = `过去式 ${f.past[0]} · 完成时 ${f.past[1]}`;
-    box.appendChild(p);
-  }
-}
-
 function render() {
   const done = idx >= cards.length;
   $("cardBox").classList.toggle("hidden", done);
@@ -73,12 +39,9 @@ function render() {
   $("btnShow").classList.remove("hidden");
   $("btnCard").classList.add("hidden");
   $("aResult").textContent = "";
-  wordInto($("aWord"), c);
+  fillWordCard("a", c, { pos: false });   // 答案区, 和单词卡共用(wordcard.js)
   $("aWord").classList.toggle("hidden", !spell);
-  $("aMeaning").textContent = spell ? "" : c.meaning;
-  $("aPlural").textContent = c.plural && !(c.forms && c.forms.cases) ? "复数：" + c.plural : "";
-  exampleInto($("aExample"), c.example);
-  renderForms(c.forms);
+  if (spell) $("aMeaning").textContent = "";   // 拼写题的释义就是题目
   $("btnSpeakEx").classList.toggle("hidden", !c.example);
   $("answer").classList.add("hidden");
   if (spell) $("spellIn").focus();
