@@ -282,8 +282,70 @@ async function boot() {
 // PWA: 注册 Service Worker(断网时还能打开页面), 记下浏览器给的“安装”机会
 let installEvent = null;
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
-window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvent = e; showInstall(); });
-window.addEventListener("appinstalled", () => { installEvent = null; showInstall(); });
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvent = e; showInstall(); installGate(); });
+window.addEventListener("appinstalled", () => { installEvent = null; installed = true; showInstall(); installGate(); });
+let installed = false;
+
+// 安装引导整页: 网址带 ?install 一定显示; 否则手机浏览器打开、还没装、这次没点过“先在网页里用”时显示
+const IS_STANDALONE = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+let gateForced = new URLSearchParams(location.search).has("install");
+function gateWanted() {
+  if (IS_STANDALONE) return false;
+  if (gateForced) return true;
+  let skipped = false;
+  try { skipped = sessionStorage.getItem("sb_gateSkip") === "1"; } catch (e) {}
+  return !skipped && matchMedia("(pointer: coarse)").matches;
+}
+function installGate() {
+  const gate = $("gate");
+  if (!gateWanted()) { gate.classList.add("hidden"); return; }
+  gate.classList.remove("hidden");
+  const ua = navigator.userAgent;
+  const inApp = /MicroMessenger|QQ\/|Weibo|DingTalk|AlipayClient/i.test(ua);
+  const ios = /iPhone|iPad|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
+  const iosOther = ios && /CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  const steps = $("gateSteps");
+  steps.innerHTML = "";
+  const add = (title, items) => {
+    const b = document.createElement("b"); b.textContent = title; steps.appendChild(b);
+    if (!items) return;
+    const ol = document.createElement("ol");
+    for (const t of items) { const li = document.createElement("li"); li.textContent = t; ol.appendChild(li); }
+    steps.appendChild(ol);
+  };
+  let copy = false;
+  if (installed) add("已经装好了！回到手机桌面，点“通德”图标打开。");
+  else if (installEvent) { /* 只显示按钮 */ }
+  else if (inApp) { add("这里装不了，请换到浏览器打开：", ["点右上角“···”", "选“在浏览器打开”", "在浏览器里点“安装到桌面”"]); copy = true; }
+  else if (iosOther) { add("苹果手机只能用 Safari 安装：", ["点下面“复制链接”", "打开 Safari，粘贴到地址栏打开", "点底部“分享”按钮，选“添加到主屏幕”"]); copy = true; }
+  else if (ios) add("三步装到桌面：", ["点屏幕底部的“分享”按钮（方框加向上箭头）", "往下找，选“添加到主屏幕”", "点右上角“添加”"]);
+  else { add("从浏览器菜单安装：", ["点右上角“⋮”或底部“≡”菜单", "选“安装应用”或“添加到主屏幕”", "找不到这一项：复制链接，用 Chrome 或 Edge 打开"]); copy = true; }
+  $("gateBtn").classList.toggle("hidden", !installEvent || installed);
+  $("gateCopy").classList.toggle("hidden", !copy || installed);
+  $("gateArrow").classList.toggle("hidden", !inApp || installed);
+}
+$("gateBtn").onclick = async () => {
+  if (!installEvent) return;
+  installEvent.prompt();
+  const { outcome } = await installEvent.userChoice;
+  if (outcome === "accepted") { installEvent = null; installed = true; }
+  installGate();
+};
+$("gateCopy").onclick = async () => {
+  const link = location.origin + "/?install";
+  try { await navigator.clipboard.writeText(link); toast("已复制链接"); }
+  catch (e) { prompt("长按复制这个链接：", link); }
+};
+$("gateSkip").onclick = () => {
+  try { sessionStorage.setItem("sb_gateSkip", "1"); } catch (e) {}
+  if (gateForced) {
+    gateForced = false;
+    const u = new URL(location.href); u.searchParams.delete("install");
+    history.replaceState(null, "", u.pathname + u.search + u.hash);
+  }
+  $("gate").classList.add("hidden");
+};
+installGate();
 
 function showInstall() {
   const box = $("installBox");

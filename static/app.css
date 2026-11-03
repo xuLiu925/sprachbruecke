@@ -10,6 +10,30 @@ html, body { margin:0; background:var(--bg); color:var(--text);
   font-family:system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
 .hidden { display:none !important; }
 
+/* ---------- 安装引导(PWA) ---------- */
+.gate { position:fixed; inset:0; z-index:100; overflow-y:auto; background:var(--bg);
+  padding:calc(env(safe-area-inset-top) + 48px) 16px calc(env(safe-area-inset-bottom) + 24px); }
+.gate-in { max-width:380px; margin:0 auto; text-align:center; }
+.gate-icon { width:96px; height:96px; border-radius:22px; box-shadow:0 6px 20px rgba(31,78,120,.25); }
+.gate h1 { font-size:30px; margin:16px 0 4px; letter-spacing:2px; }
+.gate-sub { color:var(--muted); margin:0 0 24px; }
+.gate-pts { list-style:none; padding:0; margin:0 0 28px; text-align:left; display:inline-block; }
+.gate-pts li { padding:6px 0 6px 26px; position:relative; line-height:1.4; }
+.gate-pts li::before { content:"✓"; position:absolute; left:0; color:var(--accent); font-weight:700; }
+.gate-btn { display:block; width:100%; padding:15px; font-size:17px; font-weight:600; border-radius:12px; }
+.gate-steps { text-align:left; background:var(--card); border:1px solid var(--line); border-radius:14px;
+  padding:14px 16px; line-height:1.6; }
+.gate-steps:empty { display:none; }
+.gate-steps b { color:var(--accent); }
+.gate-steps ol { margin:6px 0 0; padding-left:20px; }
+.gate-copy { width:100%; margin-top:12px; }
+.gate-skip { display:block; margin:22px auto 0; background:none; border:0; color:var(--muted);
+  text-decoration:underline; font-size:14px; cursor:pointer; }
+.gate-arrow { position:fixed; top:calc(env(safe-area-inset-top) + 4px); right:18px; font-size:44px;
+  color:var(--accent); animation:gateBob 1.2s ease-in-out infinite; }
+@keyframes gateBob { 50% { transform:translate(4px,-6px); } }
+@media (prefers-reduced-motion:reduce) { .gate-arrow { animation:none; } }
+
 /* ---------- 顶栏 / 底部标签栏 ---------- */
 .topbar { position:fixed; top:0; left:0; right:0; z-index:10; height:calc(var(--head-h) + env(safe-area-inset-top));
   padding-top:env(safe-area-inset-top); background:var(--card); border-bottom:1px solid var(--line);

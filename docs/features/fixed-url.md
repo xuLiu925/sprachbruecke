@@ -53,9 +53,26 @@ Cloudflare 网页上的按钮名称可能和下面写的不完全一样。
    `echo https://sprachbruecke.账号名.workers.dev > ~/sprachbruecke/.worker_url`
 8. 等 1 分钟后打开 Worker 网址，能看到通德就配置好了。同步记录可以用 `cat ~/sprachbruecke/tunnel_sync.log` 查看。
 
+### 短网址 `tongde.pages.dev`（2026-11-03）
+
+`workers.dev` 的网址中间带账号名，太长。Cloudflare Pages 的网址是 `项目名.pages.dev`，同样免费。做法：`cloudflare/pages/_worker.js` 是 `cloudflare/worker.js` 的**原样复制**（改 Worker 时两个一起改），Pages 用同一个 KV，所以两个网址指向同一个隧道链接：
+
+- `tunnel.sh` 还是只告诉 `workers.dev`（`.worker_url` 不变），Pages 读同一个 KV，不用改服务器
+- Pages 不用加 `SET_TOKEN`：没有它时 Pages 上的 `/__tunnel` 返回 403，只能从 `workers.dev` 改链接
+- 两个网址是不同的网站：登录状态、本机设置、装好的 PWA 各是各的。旧网址保留，Stripe webhook 继续指向旧网址
+- 会员到期邮件里的链接（`member_mail.py` 的 `SITE`）改成新网址；付款成功后的跳转按用户当时打开的网址，不用改
+
+配置步骤（只做一次，按钮名称可能不完全一样）：
+
+1. 「Workers 和 Pages」→ 创建 → 选 **Pages** → **上传资产**（不要选连接 Git）→ 项目名填 `tongde` → 创建项目。名字被占了就换一个，同时改 `member_mail.py` 的 `SITE`。
+2. 上传文件夹 `cloudflare\pages`（里面只有 `_worker.js`）→ 部署站点。
+3. 项目的「设置」→「绑定」→ 添加 →「KV 命名空间」，变量名填 `TUNNEL`，选 `sb_tunnel` → 保存。
+4. 绑定要重新部署才生效：「部署」→ 创建新部署 → 再上传一次 `cloudflare\pages` 文件夹。
+5. 打开 `https://tongde.pages.dev`，能看到通德就好了。
+
 ### 已知限制
 
-- `workers.dev` 和 `trycloudflare.com` 在国内能不能稳定访问还不确定，要找国内的人实测。打不开的话，要买域名挂到 Cloudflare。
+- `workers.dev`、`pages.dev` 和 `trycloudflare.com` 在国内能不能稳定访问还不确定，要找国内的人实测。打不开的话，要买域名挂到 Cloudflare。
 - 隧道断开到恢复之间（最长约 1 分钟）用户打不开页面。
 - 服务器重启后 `tunnel.sh` 不会自己启动，要等开机自启（CLAUDE.md 待办第 22 项）。
 - 服务器看到的访问者 IP 仍然是 127.0.0.1。Worker 会加 `X-Real-IP` 请求头，但后端还没有用。
@@ -63,3 +80,4 @@ Cloudflare 网页上的按钮名称可能和下面写的不完全一样。
 ## 变更记录
 
 - 2026-11-02：新增。已部署，在 Cloudflare 上配置好了：同步成功，经 Worker 访问首页和 `/api/me` 正常，不带密钥改链接返回 403。还没在浏览器里登录试过，也没测过隧道重启后能不能自动恢复。
+- 2026-11-03：服务器重启后隧道换了链接，固定网址自动恢复（已实测）。加短网址 `tongde.pages.dev`（Cloudflare Pages + 同一个 KV），会员到期邮件改用新网址。

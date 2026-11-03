@@ -14,6 +14,25 @@
 </head>
 <body class="no-tabs">
 
+<!-- 安装引导(PWA): 手机浏览器打开、还没装时整页显示; ?install 链接一定显示。core.js 的 installGate() -->
+<div id="gate" class="gate hidden">
+  <div class="gate-in">
+    <img src="static/icons/icon-192.png" alt="" class="gate-icon">
+    <h1>通德</h1>
+    <p class="gate-sub">中文母语者的德语学习 App</p>
+    <ul class="gate-pts">
+      <li>单词、语法、情景对话，每天跟着学</li>
+      <li>装到桌面，全屏打开，和普通 App 一样</li>
+      <li>不占空间，不用应用商店，免费安装</li>
+    </ul>
+    <button id="gateBtn" class="gate-btn hidden">安装到桌面</button>
+    <div id="gateSteps" class="gate-steps"></div>
+    <button id="gateCopy" class="gate-copy hidden">复制链接</button>
+    <button id="gateSkip" class="gate-skip">先在网页里用</button>
+  </div>
+  <div id="gateArrow" class="gate-arrow hidden">↗</div>
+</div>
+
 <!-- 登录 / 注册 -->
 <div id="login" class="login hidden">
   <div class="logo"><b>通德</b><span>Sprachbrücke · 语言之桥</span></div>

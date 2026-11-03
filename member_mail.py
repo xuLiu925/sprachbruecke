@@ -13,7 +13,7 @@ from database import DB_PATH, fmt_time, parse_time
 
 DAYS = 3
 KEY = "expiry_mail"
-SITE = "https://sprachbruecke.xuliu00925.workers.dev"
+SITE = "https://tongde.pages.dev"
 BEIJING = timezone(timedelta(hours=8))   # 用户大多在国内, 邮件里的日期按北京时间写
 
 
