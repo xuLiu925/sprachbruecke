@@ -63,6 +63,7 @@ import verb_usage  # noqa: F401  同上
 import sentences
 import tts
 import today
+import trial
 import vocab
 import word_add
 import word_parts
@@ -129,6 +130,7 @@ app.register_blueprint(grammar.bp)
 app.register_blueprint(gender_hint.bp)
 app.register_blueprint(word_parts.bp)
 app.register_blueprint(tts.bp)
+app.register_blueprint(trial.bp)
 app.register_blueprint(feedback.bp)
 
 def _on_error(sender, exception, **extra):

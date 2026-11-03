@@ -2,6 +2,7 @@
 
 服务器替浏览器去谷歌翻译的朗读接口取 mp3 并缓存到 tts_cache/,
 同一句话只取一次; 浏览器不用直接连谷歌(国内的朋友也能听)。
+没登录时只能读试学的词和例句。
 这个接口是非官方的, 谷歌随时可能限制, 取不到时返回 502, 前端退回系统语音。
 """
 import hashlib
@@ -12,7 +13,8 @@ import urllib.request
 from flask import Blueprint, Response, request
 
 from database import BASE
-from helpers import err, login_required
+from helpers import current_user_id, err
+from trial import allowed_tts
 
 bp = Blueprint("tts", __name__)
 
@@ -34,11 +36,12 @@ def _fetch(text):
 
 
 @bp.get("/api/tts")
-@login_required
 def tts():
     text = " ".join((request.args.get("q") or "").split())
     if not text:
         return err("缺少文字")
+    if current_user_id() is None and not allowed_tts(text):   # 游客只能读试学的词(trial.py)
+        return err("请先登录", 401)
     if len(text) > MAX_LEN:
         return err("文字太长")
     path = os.path.join(CACHE_DIR, hashlib.sha1(text.encode("utf-8")).hexdigest() + ".mp3")

@@ -35,7 +35,9 @@
 
 <!-- 登录 / 注册 -->
 <div id="login" class="login hidden">
+  <button id="loginClose" class="linkbtn login-close">‹ 先随便看看</button>
   <div class="logo"><b>通德</b><span>Sprachbrücke · 语言之桥</span></div>
+  <p class="meta" id="loginWhy" style="margin:-16px 0 16px"></p>
   <div class="card">
     <!-- 登录 -->
     <div id="authLogin">
@@ -83,6 +85,37 @@
 
   <main>
     <!-- ===== 首页 ===== -->
+    <!-- 游客首页(没登录时代替 home): 试学、语法基础、登录注册。core.js 的 GUEST_PAGES -->
+    <section class="page" data-page="welcome">
+      <div class="welcome-hero">
+        <img src="static/icons/icon-192.png" alt="" class="gate-icon">
+        <h2>通德</h2>
+        <p class="meta">中文母语者的德语学习 App · 从 A1 学起</p>
+      </div>
+      <div class="card">
+        <b>先试学 10 个词</b>
+        <p class="meta left" style="margin:6px 0 12px">不用注册。看单词、听发音、写拼写，忘了的词马上再练一次，按记忆曲线安排复习。</p>
+        <button id="wTrial" style="width:100%">开始试学</button>
+      </div>
+      <div class="card">
+        <b>语法基础</b>
+        <p class="meta left" style="margin:6px 0 12px">冠词、代词、动词变位、语序……每个知识点有速查表和练习题。</p>
+        <button id="wGrammar" class="secondary" style="width:100%">去看看</button>
+      </div>
+      <div class="card">
+        <b>注册以后还有</b>
+        <ul class="meta left welcome-more">
+          <li>A1–C1 单词书，每天自动安排要学和要复习的词</li>
+          <li>情景对话课、角色扮演、句子练习</li>
+          <li>冠词、复数、动词专项练习和错题本</li>
+        </ul>
+        <div class="row">
+          <button id="wLogin" class="secondary">登录</button>
+          <button id="wReg">免费注册</button>
+        </div>
+      </div>
+    </section>
+
     <section class="page" data-page="home">
       <div class="hello" id="hello"></div>
       <!-- 会员快到期 / 刚到期的提醒(home.js 的 showMemberWarn) -->
@@ -305,6 +338,7 @@
       </div>
       <div id="done" class="card hidden" style="text-align:center">
         <p style="font-size:20px" id="doneMsg"></p>
+        <p class="meta" id="doneSub"></p>
         <div class="row">
           <button id="btnHome" class="secondary">回首页</button>
           <button id="btnReload"></button>

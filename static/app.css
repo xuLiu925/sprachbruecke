@@ -95,6 +95,10 @@ button:disabled { opacity:.5; cursor:default; }
 .login .logo { text-align:center; margin-bottom:28px; }
 .login .logo b { display:block; font-size:34px; }
 .login .logo span { color:var(--muted); }
+.login-close { position:absolute; top:calc(env(safe-area-inset-top) + 12px); left:12px; }
+.welcome-hero { text-align:center; padding:12px 0 20px; }
+.welcome-hero h2 { font-size:28px; margin:12px 0 4px; letter-spacing:2px; }
+.welcome-more { padding-left:20px; margin:8px 0 14px; line-height:1.7; }
 .authlinks { display:flex; justify-content:space-between; margin-top:10px; }
 button.linkbtn { background:none; border:none; color:var(--accent); padding:4px 0; width:auto; font-size:14px; }
 

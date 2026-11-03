@@ -158,14 +158,18 @@ def review_answer():
     mode = data.get("mode", "recall")
     if mode not in ("recall", "spell"):
         return err("mode 无效")
-    uid = current_user_id()
-    db = get_db()
     if word_row(word_id) is None:
         return err("单词不存在", 404)
+    r = apply_review(get_db(), current_user_id(), word_id, rating, mode, datetime.now(timezone.utc))
+    get_db().commit()
+    return jsonify(r)
+
+
+def apply_review(db, uid, word_id, rating, mode, now):
+    """记一次评分: 按 FSRS 更新 progress, 写 review_log; 不提交。试学结果导入(trial.py)也用它"""
     row = db.execute(
         f"SELECT {', '.join(PROGRESS_COLS)} FROM progress WHERE user_id = ? AND word_id = ?", (uid, word_id)
     ).fetchone()
-    now = datetime.now(timezone.utc)
     if row is None or row["stability"] is None:
         s, d, days = fsrs_review(None, None, None, rating, now)
         reps = lapses = spell_ok = 0
@@ -190,13 +194,12 @@ def review_answer():
         "INSERT INTO review_log (user_id, word_id, rating, mode, reviewed_at, prev) VALUES (?,?,?,?,?,?)",
         (uid, word_id, rating, mode, fmt_time(now), json.dumps(dict(row)) if row else None),
     ).lastrowid
-    db.commit()
-    return jsonify({
+    return {
         "next_review": nxt, "interval_days": days,
         "stability": round(s, 2), "difficulty": round(d, 2),
         "mastered": s >= MASTERED_STABILITY and spell_ok > 0,
         "log_id": log_id,
-    })
+    }
 
 
 @bp.route("/api/review/undo", methods=["POST"])

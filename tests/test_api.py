@@ -1757,4 +1757,25 @@ for i in range(10):
     fp = os.path.join(cdir, f"{i}.mp3"); open(fp, "wb").write(b"x" * 100); os.utime(fp, (1000 + i, 1000 + i))
 assert WD.prune_cache(cdir, max_size=2000) == 0 and WD.prune_cache(cdir, max_size=500) == 6
 assert sorted(os.listdir(cdir)) == ["6.mp3", "7.mp3", "8.mp3", "9.mp3"]
+
+# 试学: 游客能拿到 10 张卡、只能读试学的词; 登录后导入, 已学过的词和不在试学里的词跳过, 重复导入不再记
+guest = A.app.test_client()
+tc = guest.get("/api/trial/cards").get_json()["cards"]
+assert 0 < len(tc) <= 10 and all(   # 测试库词少, 真实单词书是 10 个
+x["mode"] == "recall" and x["is_new"] for x in tc)
+assert guest.get("/api/tts?q=" + "Hallo Welt xyz").status_code == 401
+assert guest.post("/api/trial/save", json={"answers": []}).status_code == 401
+assert guest.get("/api/review/today").status_code == 401
+os.environ["ALLOW_REGISTER"] = "1"   # 新用户 trialuser: 学过的词跳过要另外验证, 这里先让他学一个
+c = A.app.test_client()
+assert c.post("/api/register", json={"username": "trialuser", "password": "12345678"}).status_code == 200
+os.environ["ALLOW_REGISTER"] = "0"
+assert c.post("/api/review/answer", json={"word_id": tc[0]["id"], "rating": 3, "mode": "recall"}).status_code == 200
+fresh_ids = [x["id"] for x in tc[1:]]
+ans = [{"word_id": x["id"], "rating": 3, "mode": "recall"} for x in tc]
+ans += [{"word_id": 99999999, "rating": 3, "mode": "recall"}, {"word_id": tc[0]["id"], "rating": 9, "mode": "recall"}]
+assert c.post("/api/trial/save", json={"answers": ans}).get_json()["saved"] == len(fresh_ids)
+assert all(c.get(f"/api/words/{i}").get_json()["status"] != "new" for i in fresh_ids)
+assert c.post("/api/trial/save", json={"answers": ans}).get_json()["saved"] == 0
+assert c.post("/api/trial/save", json={"answers": "x"}).status_code == 400
 print("ALL OK")

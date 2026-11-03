@@ -11,7 +11,7 @@ const searchIsOpen = () => isShown("search");
 
 function searchLocked() {
   const lock = SEARCH_LOCKS[current];
-  return !!lock && isShown(lock[0]) && !isShown(lock[1]);
+  return !user || (!!lock && isShown(lock[0]) && !isShown(lock[1]));   // 游客不能搜索(要登录)
 }
 const searchRefresh = () => $("btnSearch").classList.toggle("hidden", searchLocked());
 // 各练习页显示答案时都会改 class, 在这里统一监听, 不用每个页面都写

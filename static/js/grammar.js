@@ -258,10 +258,11 @@ onShow.gtopic = () => {
   }
   const best = bestScore(t.id);
   // 题库知识点的进度显示在练习范围里; 每组固定题数, 最好成绩很快就满分, 没有参考价值
-  $("gStart").textContent = "开始练习" + (best && !t.bank ? `（上次最好 ${best[0]} / ${best[1]}）` : "");
+  $("gStart").textContent = !user && t.bank ? "注册后练习（题目来自你的单词书）"
+    : "开始练习" + (best && !t.bank ? `（上次最好 ${best[0]} / ${best[1]}）` : "");
   $("gBank").classList.toggle("hidden", !(t.adminBank && isAdmin));
-  $("gScopeRow").classList.toggle("hidden", !t.bank);
-  if (t.bank) gScopeLoad();
+  $("gScopeRow").classList.toggle("hidden", !t.bank || !user);
+  if (t.bank && user) gScopeLoad();
 };
 $("gBank").onclick = () => go("gbank");
 
@@ -297,7 +298,10 @@ function scopeInto(box, list, now, pick, open) {
     box.appendChild(it);
   }
 }
-$("gStart").onclick = () => go("gquiz");
+$("gStart").onclick = () => {
+  if (!user && gTopic && gTopic.bank) return openLogin("reg", "这个练习按你的单词书出题，注册后就能做");
+  go("gquiz");
+};
 
 // ---------- 练习 ----------
 onShow.gquiz = async () => {

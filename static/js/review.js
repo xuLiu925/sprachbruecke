@@ -1,6 +1,10 @@
 // 今日学习: 先复习到期的词, 再学新词; 认词 + 拼写, 评分交给后端的 FSRS
 let cards = [], idx = 0, busy = false, leftToday = 0;
 let hist = [];   // 本轮评过的卡: {idx, logId, repeat}, 「上一个」从最后一张开始撤销
+// 试学(没登录): 卡片来自 /api/trial/cards, 评分只记在本机, 登录或注册后由 core.js 的 saveTrial() 交给服务器
+const TRIAL_KEY = "sb_trial";
+let trial = false, trialAnswers = [];
+function trialStore() { try { localStorage.setItem(TRIAL_KEY, JSON.stringify(trialAnswers)); } catch (e) {} }
 
 const CASES = ["第一格 Nom.", "第二格 Gen.", "第三格 Dat.", "第四格 Akk."];
 const PERSONS = ["ich", "du", "er/sie/es", "wir", "ihr", "sie/Sie"];
@@ -9,6 +13,13 @@ async function loadReview() {
   $("flash").textContent = "";
   $("cardBox").classList.add("hidden");
   $("done").classList.add("hidden");
+  trial = !user;
+  if (trial) {
+    const r = await api("/api/trial/cards");
+    cards = r.cards; idx = 0; hist = []; trialAnswers = [];
+    $("rStats").textContent = `试学 ${cards.length} 个词 · 不用注册`;
+    return render();
+  }
   const r = await api("/api/review/today?" + tzQuery());
   cards = r.cards; idx = 0; hist = [];
   $("rStats").textContent = `复习 ${r.due} · 新词 ${r.new}`;
@@ -50,6 +61,16 @@ function render() {
 
 // 一轮有上限, 今天还有词时显示“继续学习”, 学完了才是“再学 10 个”
 async function showDone() {
+  $("doneSub").textContent = "";
+  if (trial) {
+    trialStore();
+    const n = new Set(trialAnswers.map(a => a.word_id)).size;
+    $("doneMsg").textContent = `试学完成，学了 ${n} 个词 🎉`;
+    $("doneSub").textContent = "注册后保存这些词的进度，明天按记忆曲线提醒你复习，还能从 A1 单词书接着学。";
+    $("btnReload").textContent = "免费注册，保存进度";
+    $("btnHome").textContent = "回首页";
+    return;
+  }
   $("doneMsg").textContent = "今天的学习完成了 🎉";
   $("btnReload").textContent = "再学 10 个";
   leftToday = 0;
@@ -97,7 +118,7 @@ function reveal() {
   $("btnShow").classList.add("hidden");
   $("spellIn").blur();   // 让后面的 1-4 / 空格 当快捷键, 而不是打进输入框
   $("btnSpeak").classList.remove("hidden");
-  $("btnCard").classList.remove("hidden");
+  $("btnCard").classList.toggle("hidden", trial);   // 单词卡要登录(/api/words)
   if (c.mode === "spell" && getSetting("autoWord")) speakDe(wordText(c));
   if (getSetting("autoExample") && c.example) speakDe(exampleDe(c.example), true);
 }
@@ -112,6 +133,7 @@ $("btnCard").onclick = () => { if (idx < cards.length) openWordId(cards[idx].id,
 async function answer(rating) {
   if (busy || idx >= cards.length) return;
   const c = cards[idx];
+  if (trial) return trialAnswer(c, rating);
   busy = true;
   let r;
   try { r = await api("/api/review/answer", "POST", { word_id: c.id, rating, mode: c.mode }); }
@@ -127,14 +149,28 @@ async function answer(rating) {
 }
 [1, 2, 3, 4].forEach(n => $("btnR" + n).onclick = () => answer(n));
 
+// 试学的评分: 不发给服务器, 只记下来; 下次复习的天数注册后才算
+const TRIAL_FLASH = { 2: "有点难，过一两天再复习", 3: "记住了，过几天再复习", 4: "很简单，过一段时间再复习" };
+function trialAnswer(c, rating) {
+  const repeat = rating === 1 ? { ...c, mode: "spell", is_new: 0 } : null;
+  if (repeat) cards.push(repeat);
+  trialAnswers.push({ word_id: c.id, rating, mode: c.mode });
+  hist.push({ idx, repeat, trial: true });
+  $("flash").textContent = c.german + "：" + (rating === 1 ? "稍后再练一次" : TRIAL_FLASH[rating]);
+  idx++; render();
+}
+
 // 上一个: 撤销上一次评分(进度恢复原样), 回到那张卡重新答
 async function undo() {
   if (busy || !hist.length) return;
   const h = hist.pop();
+  if (h.trial) trialAnswers.pop();
+  else {
   busy = true;
   try { await api("/api/review/undo", "POST", { log_id: h.logId }); }
   catch (e) { toast(e.message); render(); return; }
   finally { busy = false; }
+  }
   if (h.repeat) cards.splice(cards.indexOf(h.repeat), 1);   // 后加的卡已先撤销, 所以它在队尾
   idx = h.idx;
   $("flash").textContent = "已撤销「" + cards[idx].german + "」的评分，请重新作答";
@@ -166,6 +202,7 @@ onKey.review = (e, typing) => {
   return false;
 };
 $("btnReload").onclick = async () => {
+  if (trial) return openLogin("reg", "注册后试学的词会保存到你的进度");
   if (!leftToday) {
     try { await api("/api/today/more?" + tzQuery(), "POST", {}); } catch (e) { return toast(e.message); }
   }

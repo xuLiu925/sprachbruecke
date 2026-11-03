@@ -184,7 +184,10 @@ const PAGES = {
   edit:     { title: "编辑单词", parent: "words", section: "add" },   // 和添加单词共用一个界面
   import:   { title: "批量导入", parent: "words" },
   books:    { title: "选择单词书", parent: "home" },
+  welcome:  { title: "通德" },                             // 游客首页
 };
+// 没登录也能看的页面(游客的 home 换成 welcome); 其他页面要先登录。试学在 review.js
+const GUEST_PAGES = ["welcome", "review", "grammar", "gtopic", "gquiz"];
 const onShow = {};    // 各页面注册: 进入该页时执行
 let current = null, pushed = false;
 
@@ -192,16 +195,21 @@ function go(name) { pushed = true; location.hash = name; }
 function switchTab(name) { location.replace("#" + name); }
 
 function route() {
-  if (!user) return;
   let name = location.hash.slice(1);
   if (!PAGES[name]) name = "home";
+  if (!user) {
+    if (name === "home") name = "welcome";
+    else if (!GUEST_PAGES.includes(name)) { location.replace("#welcome"); openLogin("reg", "注册后就能使用这个功能"); return; }
+  } else if (name === "welcome") name = "home";
   const p = PAGES[name];
   const sec = p.section || name;
   document.querySelectorAll(".page").forEach(s => s.classList.toggle("hidden", s.dataset.page !== sec));
   $("title").textContent = p.title;
-  $("btnBack").classList.toggle("hidden", !!p.tab);
-  $("tabbar").classList.toggle("hidden", !p.tab);
-  document.body.classList.toggle("no-tabs", !p.tab);
+  const tabs = !!p.tab && !!user;
+  $("btnBack").classList.toggle("hidden", !!p.tab || name === "welcome");
+  $("tabbar").classList.toggle("hidden", !tabs);
+  document.body.classList.toggle("no-tabs", !tabs);
+  searchRefresh();   // 游客不显示搜索(search.js)
   document.querySelectorAll("#tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   window.scrollTo(0, 0);
   current = name;
@@ -219,7 +227,7 @@ document.querySelectorAll("#tabbar button").forEach(b => b.onclick = () => switc
 // 各页面注册 onKey.页面名 = (e, typing) => 处理了返回 true; typing = 焦点在输入框里
 const onKey = {};
 document.addEventListener("keydown", e => {
-  if (!user || e.isComposing || e.altKey || e.metaKey) return;   // 输入法选字时不算
+  if (!$("login").classList.contains("hidden") || e.isComposing || e.altKey || e.metaKey) return;   // 输入法选字时不算
   if (!$("wsheet").classList.contains("hidden")) {               // 单词卡打开时, 快捷键别影响下面的页面(比如误触评分)
     if (e.key === "Escape") { e.preventDefault(); closeWordSheet(); }
     else if (e.key === "Backspace" && wsStack.length) { e.preventDefault(); wsBack(); }
@@ -248,16 +256,45 @@ document.querySelectorAll(".umlauts button").forEach(b => b.onclick = () => {
 });
 
 // ---------- 登录 ----------
-function showLogin() {
+function showLogin() { openLogin("login"); }
+
+// 登录 / 注册页盖在应用上面; 没登录时左上角“先随便看看”回到游客页面。why = 为什么要登录(可选)
+function openLogin(view = "login", why = "") {
+  stopSpeak();
   $("app").classList.add("hidden");
   $("login").classList.remove("hidden");
-  authView("login");
+  $("loginWhy").textContent = why;
+  authView(view);
+  window.scrollTo(0, 0);
 }
+$("loginClose").onclick = () => {   // 回到刚才那一页, 不重新加载(试学做到一半不会从头开始)
+  $("login").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  if (!current) route();
+};
 
 function showApp() {
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
   route();
+}
+
+// 游客首页的按钮
+$("wTrial").onclick = () => go("review");
+$("wGrammar").onclick = () => go("grammar");
+$("wLogin").onclick = () => openLogin("login");
+$("wReg").onclick = () => openLogin("reg");
+
+// 试学的评分存在本机(review.js 的 TRIAL_KEY), 登录或注册后交给服务器记进进度
+async function saveTrial() {
+  let answers = null;
+  try { answers = JSON.parse(localStorage.getItem(TRIAL_KEY) || "null"); } catch (e) {}
+  if (!Array.isArray(answers) || !answers.length) return;
+  try {
+    const r = await api("/api/trial/save", "POST", { answers });
+    try { localStorage.removeItem(TRIAL_KEY); } catch (e) {}
+    if (r.saved) { toast(`试学的 ${r.saved} 个词已保存到你的进度`); route(); }   // 刷新首页的数字
+  } catch (e) {}   // 没保存成功就留着, 下次登录再试
 }
 
 let registerMode = "invite";   // 后端的注册方式: email(邮箱验证码) / invite(邀请码) / open
@@ -272,10 +309,12 @@ async function boot() {
     user = me.username; isAdmin = !!me.admin; userEmail = me.email || null;
     if (me.register) registerMode = me.register;
   } catch (e) { user = null; }
-  if (user) { showApp(); checkPaid(); } else showLogin();
+  showApp();   // 没登录时是游客页面(route 里换成 welcome)
+  if (user) checkPaid();
+  installGate();
   if (inviteLink) {
     if (user) toast("你已经登录了；要用邀请链接注册新账号，先退出");
-    else authView("reg");
+    else openLogin("reg");
   }
 }
 
@@ -286,7 +325,7 @@ window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); instal
 window.addEventListener("appinstalled", () => { installEvent = null; installed = true; showInstall(); installGate(); });
 let installed = false;
 
-// 安装引导整页: 网址带 ?install 一定显示; 否则手机浏览器打开、还没装、这次没点过“先在网页里用”时显示
+// 安装引导整页: 网址带 ?install 一定显示; 否则已登录、手机浏览器打开、还没装、这次没点过“先在网页里用”时显示
 const IS_STANDALONE = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
 let gateForced = new URLSearchParams(location.search).has("install");
 function gateWanted() {
@@ -294,7 +333,7 @@ function gateWanted() {
   if (gateForced) return true;
   let skipped = false;
   try { skipped = sessionStorage.getItem("sb_gateSkip") === "1"; } catch (e) {}
-  return !skipped && matchMedia("(pointer: coarse)").matches;
+  return !skipped && !!user && matchMedia("(pointer: coarse)").matches;   // 游客先试用, 登录后才自动提示安装
 }
 function installGate() {
   const gate = $("gate");
@@ -385,7 +424,8 @@ function loggedIn(r) {
   ["p", "rp", "fp", "inv", "rc", "fc"].forEach(id => $(id).value = "");
   inviteLink = "";
   user = r.username; isAdmin = !!r.admin;
-  boot();   // 重新取一次 me(带邮箱)
+  if (!location.hash || location.hash === "#welcome" || location.hash === "#review") location.replace("#home");
+  boot().then(saveTrial);   // 重新取一次 me(带邮箱); 有试学记录就存进进度
 }
 
 async function doAuth(path, body) {
