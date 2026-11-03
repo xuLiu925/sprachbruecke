@@ -233,6 +233,32 @@ CREATE TABLE IF NOT EXISTS mail_log (
     sent_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_mail_log_email ON mail_log (email, sent_at);
+-- 会员(billing.py): until = 到期时间(UTC), 过期的行留着不删
+CREATE TABLE IF NOT EXISTS memberships (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    until TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+-- 付款记录: session_id = Stripe Checkout 会话编号; status = open / paid; amount 以分为单位
+CREATE TABLE IF NOT EXISTS payments (
+    session_id TEXT PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    plan TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    paid_at TEXT
+);
+-- 免费用户每天用了几次(billing.py 的 LIMITS); day = 用户本地日期(凌晨 4 点换日)
+-- 情景课按课记: feature = lesson:课程编号, 看过的课以后随时能再看
+CREATE TABLE IF NOT EXISTS usage_daily (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day TEXT NOT NULL,
+    feature TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day, feature)
+);
 -- 意见反馈(「我的」页随便写的, 不针对某道题): page = 写反馈时在哪个页面; done_at 不为空 = 管理员处理过
 CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY,

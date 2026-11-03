@@ -5,12 +5,14 @@ let isAdmin = false;  // 管理员(第一个注册的用户): “我的”页多
 let stats = null;     // 最近一次 /api/stats 的结果
 
 async function api(path, method = "GET", body) {
-  const opt = { method, credentials: "same-origin", headers: {} };
+  // X-TZ: 免费次数按本地日期算(billing.py)
+  const opt = { method, credentials: "same-origin", headers: { "X-TZ": String(new Date().getTimezoneOffset()) } };
   if (body !== undefined) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
   const r = await fetch(path, opt);
   let data = {};
   try { data = await r.json(); } catch (e) {}
   if (r.status === 401 && user) { user = null; showLogin(); }
+  if (r.status === 402 && data.paywall && confirm(data.error + "\n\n现在去看看会员？")) switchTab("me");
   if (!r.ok) { const e = new Error(data.error || "请求失败"); e.status = r.status; throw e; }
   return data;
 }
@@ -267,7 +269,7 @@ async function boot() {
     user = me.username; isAdmin = !!me.admin; userEmail = me.email || null;
     if (me.register) registerMode = me.register;
   } catch (e) { user = null; }
-  if (user) showApp(); else showLogin();
+  if (user) { showApp(); checkPaid(); } else showLogin();
 }
 
 // 登录页的三块: login / reg / forgot

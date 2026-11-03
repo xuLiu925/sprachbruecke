@@ -404,8 +404,9 @@ def delete_invite(code):
 @admin_required
 def list_users():
     rows = get_db().execute(
-        "SELECT u.id, u.username, u.email, (SELECT COUNT(*) FROM progress p WHERE p.user_id = u.id) AS learned "
-        "FROM users u ORDER BY u.id"
+        "SELECT u.id, u.username, u.email, (SELECT COUNT(*) FROM progress p WHERE p.user_id = u.id) AS learned, "
+        "(SELECT until FROM memberships m WHERE m.user_id = u.id AND m.until > ?) AS member_until "
+        "FROM users u ORDER BY u.id", (now_str(),)
     ).fetchall()
     me_id = current_user_id()
     return jsonify({"users": [{**dict(r), "me": r["id"] == me_id} for r in rows]})

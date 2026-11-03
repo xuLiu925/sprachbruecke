@@ -4,7 +4,9 @@ os.environ["DB_PATH"] = os.path.join(d, "t.db")
 os.environ["LEXICON_PATH"] = os.path.join(d, "没有词典.db")   # 不用真实词典; 校验的测试有自己的小词典
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import app as A
+import billing
 import database, srs
+billing.ENFORCE = False   # 免费次数只在下面会员那一段测
 c = A.app.test_client()
 J = lambda r: r.get_json()
 
@@ -274,6 +276,83 @@ assert code_req(A.app.test_client(), "hank", "hank@x.de").status_code == 429
 dbe.execute("DELETE FROM mail_log"); dbe.commit(); dbe.close()
 del os.environ["REGISTER_MODE"]
 email_codes.sender = None
+
+# 会员和免费次数(billing.py): dave 是普通用户, alice 是管理员
+import hashlib, hmac, time
+billing.ENFORCE = True
+billing.config = lambda: {"secret_key": "sk_test_x", "webhook_secret": "whsec_t"}
+dave_id = next(u for u in J(c.get("/api/admin/users"))["users"] if u["username"] == "dave")["id"]
+assert J(cd.get("/api/billing"))["until"] is None and J(cd.get("/api/billing"))["enabled"]
+for i in range(3):
+    assert cd.get("/api/drill/articles").status_code == 200
+r = cd.get("/api/drill/articles")
+assert r.status_code == 402 and J(r)["paywall"]
+assert J(cd.get("/api/billing"))["usage"] == [{"name": "冠词练习", "used": 3, "limit": 3, "split": False}]
+for i in range(4):
+    assert c.get("/api/drill/articles").status_code == 200        # 管理员不限
+assert cd.get("/api/sentences?mode=cloze").status_code == 200 and cd.get("/api/sentences?mode=cloze").status_code == 200
+assert cd.get("/api/sentences?mode=cloze").status_code == 402 and cd.get("/api/sentences?mode=order").status_code == 200
+for i in range(3):
+    assert cd.get("/api/roleplay/due?count=1").status_code == 200   # 首页只看数量, 不算
+assert cd.get("/api/roleplay/due").status_code == 200 and cd.get("/api/roleplay/due").status_code == 402
+# 情景课: 每天 1 节新课, 开过的随时能再看
+assert cd.post("/api/usage/lesson", json={"id": "a1-1"}).status_code == 200
+assert cd.post("/api/usage/lesson", json={"id": "a1-1"}).status_code == 200
+assert cd.get("/api/roleplay/lesson/a1-1").status_code == 200
+assert cd.post("/api/usage/lesson", json={"id": "a1-2"}).status_code == 402
+assert cd.get("/api/roleplay/lesson/a1-2").status_code == 402
+assert cd.post("/api/usage/lesson", json={"id": "u999"}).status_code == 200   # 自建的课不算
+# 第二天重新算
+dbb = sqlite3.connect(os.environ["DB_PATH"])
+dbb.execute("UPDATE usage_daily SET day = '2000-01-01'"); dbb.commit()
+assert cd.get("/api/drill/articles").status_code == 200
+assert cd.post("/api/usage/lesson", json={"id": "a1-1"}).status_code == 200
+assert cd.post("/api/usage/lesson", json={"id": "a1-2"}).status_code == 200
+# 付款(假的 Stripe)
+calls = []
+def fake_stripe(method, path, data=None):
+    calls.append((method, path, data))
+    if method == "POST":
+        return {"id": f"cs_test_{len(calls)}", "url": "https://checkout.stripe.com/x"}
+    return {"id": path.split("/")[-1], "payment_status": "paid", "amount_total": 1800, "currency": "cny"}
+billing.stripe = fake_stripe
+assert cd.post("/api/billing/checkout", json={"plan": "week"}).status_code == 400
+r = J(cd.post("/api/billing/checkout", json={"plan": "month"}, headers={"Origin": "https://ex.workers.dev"}))
+sid = calls[-1] and f"cs_test_{len(calls)}"
+assert r["url"] == "https://checkout.stripe.com/x"
+assert calls[-1][2]["success_url"] == "https://ex.workers.dev/?paid={CHECKOUT_SESSION_ID}#me"
+assert calls[-1][2]["line_items[0][price_data][unit_amount]"] == 1800 and calls[-1][2]["customer_email"] == "dave@x.de"
+assert c.get("/api/billing/confirm?session_id=" + sid).status_code == 404     # 别人的付款
+assert cd.get("/api/billing/confirm?session_id=bad").status_code == 400
+r = J(cd.get("/api/billing/confirm?session_id=" + sid))
+assert r["paid"] and r["until"]
+until1 = r["until"]
+assert J(cd.get("/api/billing"))["usage"] == []
+for i in range(4):
+    assert cd.get("/api/drill/articles").status_code == 200       # 会员不限
+# webhook: 签名不对、太旧都不收; 同一笔再来一次不重复加
+def hook(obj, secret="whsec_t", t=None):
+    p = json.dumps({"type": "checkout.session.completed", "data": {"object": obj}}).encode()
+    t = str(int(time.time()) if t is None else t)
+    s = f"t={t},v1=" + hmac.new(secret.encode(), t.encode() + b"." + p, hashlib.sha256).hexdigest()
+    return A.app.test_client().post("/api/stripe/webhook", data=p, headers={"Stripe-Signature": s}).status_code
+paid = {"id": sid, "payment_status": "paid", "amount_total": 1800, "currency": "cny"}
+assert hook(paid, secret="whsec_wrong") == 400 and hook(paid, t=int(time.time()) - 3600) == 400
+assert hook(paid) == 200 and J(cd.get("/api/billing"))["until"] == until1
+cd.post("/api/billing/checkout", json={"plan": "year"})
+sid2 = f"cs_test_{len(calls)}"
+assert hook({**paid, "id": sid2}) == 200 and J(cd.get("/api/billing"))["until"] == until1    # 金额对不上
+assert hook({**paid, "id": sid2, "amount_total": 12800}) == 200
+assert J(cd.get("/api/billing"))["until"] > until1
+# 管理员送会员 / 取消
+assert cd.post(f"/api/admin/users/{dave_id}/membership", json={"days": 5}).status_code == 403
+assert J(c.post(f"/api/admin/users/{dave_id}/membership", json={"days": 0}))["until"] is None
+assert cd.get("/api/drill/articles").status_code == 200 and cd.get("/api/drill/articles").status_code == 200
+assert cd.get("/api/drill/articles").status_code == 402
+assert J(c.post(f"/api/admin/users/{dave_id}/membership", json={"days": 30}))["until"]
+assert next(u for u in J(c.get("/api/admin/users"))["users"] if u["id"] == dave_id)["member_until"]
+dbb.close()
+billing.ENFORCE = False
 
 # 单词书: 还没有分级的词时默认「全部」; 有了以后默认 A1, 新词按 rank 出
 assert J(c.get("/api/books"))["current"] == "all"

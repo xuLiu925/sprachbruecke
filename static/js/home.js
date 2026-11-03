@@ -52,7 +52,7 @@ $("hSentences").onclick = () => rpOpen(null);
 async function showSentenceDue(btn) {
   btn.classList.add("hidden");
   try {
-    const { count } = await api("/api/roleplay/due");
+    const { count } = await api("/api/roleplay/due?count=1");
     btn.textContent = `🎭 整句复习（${count} 句）`;
     btn.classList.toggle("hidden", !count);
   } catch (e) {}
@@ -131,12 +131,55 @@ onShow.me = async () => {
   $("meName").textContent = user;
   $("avatar").textContent = (user || "?").slice(0, 1).toUpperCase();
   showEmail();
+  showMember();
   const s = await loadStats();
   $("meStats").textContent = `已学 ${s.learned} · 已掌握 ${s.mastered}`;
   try { $("optGoal").value = String((await api("/api/today?" + tzQuery())).goal); } catch (e) {}
   $("adminBox").classList.toggle("hidden", !isAdmin);
   if (isAdmin) { loadAdmin(); loadPending(); loadReports(); }
 };
+
+// 会员: 免费版今天用了多少、买月卡 / 年卡(跳到 Stripe 付款页, 付完回来 ?paid=编号)
+async function showMember() {
+  let b;
+  try { b = await api("/api/billing"); } catch (e) { return; }
+  const now = $("memberNow"), usage = $("memberUsage"), plans = $("memberPlans");
+  usage.textContent = ""; plans.textContent = "";
+  now.textContent = b.admin ? "管理员：所有功能不限次数。"
+    : b.until ? `会员有效期到 ${localDate(b.until).text}，所有练习不限次数。`
+    : "免费版：今日学习、词库、查词、语法基础不限；其他练习每天有次数（冠词练习、听写每天 3 组，句子练习每种题型 2 组，语法专项每种 2 组，情景课每天 1 节新课，整句复习每天 1 轮）。";
+  for (const u of b.usage) {
+    const li = document.createElement("li");
+    li.textContent = u.split ? `${u.name}：今天做了 ${u.used} 组（每种题型 ${u.limit} 组）` : `${u.name}：今天 ${u.used} / ${u.limit} 组`;
+    usage.appendChild(li);
+  }
+  $("memberNote").classList.toggle("hidden", b.admin);
+  if (b.admin) return;
+  if (!b.enabled) { plans.textContent = "收款还没开通。"; return; }
+  for (const p of b.plans) {
+    const btn = document.createElement("button");
+    btn.textContent = `${b.until ? "续费" : "开通"}${p.name} ¥${p.price}`;
+    if (p.id === "month") btn.className = "secondary";
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try { location.href = (await api("/api/billing/checkout", "POST", { plan: p.id })).url; }
+      catch (e) { btn.disabled = false; toast(e.message); }
+    };
+    plans.appendChild(btn);
+  }
+}
+
+// 从 Stripe 付款页回来: 核对这笔付款, 再把网址里的编号去掉
+async function checkPaid() {
+  const sid = new URLSearchParams(location.search).get("paid");
+  if (!sid) return;
+  history.replaceState(null, "", location.pathname + location.hash);
+  try {
+    const r = await api("/api/billing/confirm?session_id=" + encodeURIComponent(sid));
+    toast(r.paid ? "付款成功，会员已开通！" : "还没收到付款，到账后会自动开通");
+  } catch (e) { toast(e.message); }
+  if (location.hash === "#me") showMember();
+}
 
 // 意见反馈: 所有人都能写; 管理员在下面的列表里看到
 $("btnFeedback").onclick = async () => {
@@ -288,8 +331,15 @@ async function loadAdmin() {
   }
   const ul = $("userList"); ul.textContent = "";
   for (const u of us.users) {
-    const row = adminRow(ul, `${u.username}${u.me ? "（我）" : ""} · 已学 ${u.learned}${u.email ? " · " + u.email : ""}`);
+    const row = adminRow(ul, `${u.username}${u.me ? "（我）" : ""} · 已学 ${u.learned}${u.email ? " · " + u.email : ""}`
+      + (u.member_until ? ` · 会员到 ${localDate(u.member_until).text}` : ""));
     if (u.me) continue;
+    miniBtn(row, "会员", async () => {
+      const v = prompt(`给 ${u.username} 加几天会员？（填 0 = 取消会员）`, "30");
+      if (v === null) return;
+      try { await api(`/api/admin/users/${u.id}/membership`, "POST", { days: Number(v) }); } catch (e) { return toast(e.message); }
+      loadAdmin();
+    });
     miniBtn(row, "重置密码", async () => {
       if (!confirm(`把 ${u.username} 的密码重置成一个临时密码？他原来的密码会失效。`)) return;
       let r;

@@ -12,6 +12,7 @@
   database.py    数据库连接、时间工具、建表和迁移
   helpers.py     公共小工具(错误返回、登录检查、读 JSON)
   auth.py        账号
+  billing.py     会员、免费次数、付款(Stripe)
   srs.py         FSRS 复习算法(纯计算)
   vocab.py       词汇模块接口
   today.py       今日学习(每日学习量、今天出哪些词)
@@ -41,6 +42,7 @@ from datetime import timedelta
 from flask import Flask, send_from_directory
 
 import auth
+import billing
 import custom_lessons
 import dictionary
 import explain
@@ -98,6 +100,7 @@ def index():
 
 
 app.register_blueprint(auth.bp)
+app.register_blueprint(billing.bp)   # 在 auth 后面: 先核对登录, 再查免费次数
 app.register_blueprint(vocab.bp)
 app.register_blueprint(today.bp)
 app.register_blueprint(word_add.bp)

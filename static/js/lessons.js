@@ -27,7 +27,12 @@ onShow.lessons = async () => {
     const h = document.createElement("h2"); h.textContent = name;
     const list = document.createElement("div"); list.className = "list";
     for (const l of items) {
-      list.appendChild(listItem(done[l.id] ? "✅" : ico, l.title, l.scene, () => { lessonNow = l; go("lesson"); }));
+      list.appendChild(listItem(done[l.id] ? "✅" : ico, l.title, l.scene, async () => {
+        if (!l.custom) {   // 免费版每天能开的新课有限, 先登记(billing.py)
+          try { await api("/api/usage/lesson", "POST", { id: l.id }); } catch (e) { return e.status === 402 || toast(e.message); }
+        }
+        lessonNow = l; go("lesson");
+      }));
     }
     box.append(h, list);
   };

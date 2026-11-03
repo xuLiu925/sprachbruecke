@@ -139,13 +139,16 @@ def roleplay_lesson(lesson_id):
 @bp.route("/api/roleplay/due")
 @login_required
 def roleplay_due():
-    """到期要复习的句子。count 是到期总数, items 最多 DUE_LIMIT 句; 课文改掉的旧句子跳过"""
+    """到期要复习的句子。count 是到期总数, items 最多 DUE_LIMIT 句; 课文改掉的旧句子跳过
+    ?count=1 只要数量(首页用, 不算免费次数, 见 billing.py)"""
     rows = get_db().execute(
         "SELECT item_key FROM sentence_progress WHERE user_id = ? AND next_review <= ? ORDER BY next_review",
         (current_user_id(), now_str()),
     ).fetchall()
     by_key = my_items()[0]
     due = [by_key[r["item_key"]] for r in rows if r["item_key"] in by_key]
+    if request.args.get("count"):
+        return jsonify({"count": len(due)})
     return jsonify({"count": len(due), "items": due[:DUE_LIMIT]})
 
 

@@ -30,3 +30,4 @@ tts_cache/
 .tunnel_url
 tunnel_sync.log
 .mail_config
+.stripe_config
