@@ -166,7 +166,8 @@ const GROUP_EXAMPLES = { "冠词": "der die das", "代词": "ich · mich · mir"
   "可分动词": "an|rufen", "否定": "nicht · kein", "数字和时间": "halb drei" };
 
 // ---------- 练习 ----------
-// 按能力分组; to = 点了做什么, due = 返回错题数的接口(有错题时显示橙色标记)
+// 按能力分组; to = 点了做什么, wrong / due = 有错题或到期时显示橙色标记的 key;
+// admin = 只有管理员看得到(和别的练习重复, 先不给用户看, 以后决定合并还是去掉)
 const PRACTICE_GROUPS = [
   { title: "名词", sub: "冠词 · 复数 · 变格", items: [
     { tile: { text: "die", cls: "die" }, name: "定冠词", sub: "der / die / das 和四个格", to: () => openTopic("art-def"), wrong: "noun" },
@@ -174,14 +175,14 @@ const PRACTICE_GROUPS = [
     { tile: { text: "kein", cls: "der" }, name: "否定冠词 kein", sub: "kein / keine 的四个格", to: () => openTopic("art-kein") },
     { tile: { text: "mein", cls: "der" }, name: "物主冠词", sub: "mein / dein / sein …", to: () => openTopic("art-poss") },
     { tile: { text: "-en", cls: "das" }, name: "复数", sub: "看规律写复数", to: () => go("plural"), wrong: "plural" },
-    { tile: { text: "Akk" }, name: "变格", sub: "四个格的冠词和词尾", to: () => openForms("cases", "变格练习") },
-    { tile: { text: "?" }, name: "冠词快速选择", sub: "der / die / das 三选一", to: () => go("drill") },
+    { tile: { text: "Akk" }, name: "变格", sub: "四个格的冠词和词尾", to: () => openForms("cases", "变格练习"), admin: true },
+    { tile: { text: "?" }, name: "冠词快速选择", sub: "der / die / das 三选一", to: () => go("drill"), admin: true },
   ] },
   { title: "动词", sub: "变位 · 时态 · 搭配", items: [
     { tile: { text: "-st" }, name: "现在时变位", sub: "du kommst, er arbeitet", to: () => openTopic("verb-praes"), wrong: "verb" },
     { tile: { text: "hat" }, name: "完成时", sub: "haben 还是 sein，过去分词", to: () => openTopic("perf-bank"), wrong: "perf" },
     { tile: { text: "auf" }, name: "动词搭配", sub: "warten auf + 第四格", to: () => openTopic("verb-usage"), wrong: "usage" },
-    { tile: { text: "ich" }, name: "变位表练习", sub: "不同人称的现在时", to: () => openForms("verbs", "动词变位") },
+    { tile: { text: "ich" }, name: "变位表练习", sub: "不同人称的现在时", to: () => openForms("verbs", "动词变位"), admin: true },
   ] },
   { title: "句子", sub: "用学过的词造句", items: [
     { tile: { text: "__" }, name: "句子练习", sub: "填空、连词成句、中译德", to: () => go("sentence") },
@@ -191,7 +192,7 @@ const PRACTICE_GROUPS = [
     { tile: { text: "说" }, name: "整句复习", sub: "情景对话里的句子，限时开口说", to: () => rpOpen(null), due: "rp" },
   ] },
 ];
-const practiceItems = {};
+const practiceItems = {}, adminRows = [];
 (function buildPractice() {
   const box = $("pGroups");
   for (const g of PRACTICE_GROUPS) {
@@ -201,9 +202,10 @@ const practiceItems = {};
     head.append(h, sub);
     const list = document.createElement("div"); list.className = "list";
     for (const it of g.items) {
-      const row = listItem(it.tile, it.name, it.sub, it.to);
+      const row = listItem(it.tile, it.name, it.admin ? it.sub + " · 仅管理员可见" : it.sub, it.to);
       if (it.wrong) practiceItems[it.wrong] = row;
       if (it.due) practiceItems[it.due] = row;
+      if (it.admin) { row.classList.add("adminonly", "hidden"); adminRows.push(row); }
       list.appendChild(row);
     }
     box.append(head, list);
@@ -211,6 +213,7 @@ const practiceItems = {};
 })();
 
 onShow.practice = async () => {
+  adminRows.forEach(r => r.classList.toggle("hidden", !isAdmin));
   const get = url => api(url).catch(() => null);
   const [noun, plural, verb, perf, usage, rp] = await Promise.all([
     get("/api/grammar/nouns/books"), get("/api/plural/books"), get("/api/grammar/verbs/books"),
