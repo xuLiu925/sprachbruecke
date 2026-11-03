@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS study_queue (
     bonus INTEGER NOT NULL DEFAULT 0,      -- 1 = 单个加的词: 加入当天学习量 +1
     PRIMARY KEY (user_id, word_id)
 );
--- 用户自建的工作对话(AI 生成后确认保存的)。data = JSON: lines / glossary / cloze / task, 格式同 static/lessons.json
+-- 用户自建的工作对话(AI 生成后确认保存的)。data = JSON: lines / glossary / cloze / task, 格式同 content/lessons.json
 CREATE TABLE IF NOT EXISTS custom_lessons (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

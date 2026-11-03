@@ -75,6 +75,7 @@ a1 = J(c.post("/api/review/answer", json={"word_id": hid, "rating": 3}))
 p1 = db.execute("SELECT * FROM progress WHERE word_id = ?", (hid,)).fetchone()
 a2 = J(c.post("/api/review/answer", json={"word_id": hid, "rating": 1}))
 assert undo(a1["log_id"]).status_code == 400
+assert undo([1]).status_code == 404 and undo("x").status_code == 404 and undo(True).status_code == 404
 assert undo(a2["log_id"]).status_code == 200
 assert db.execute("SELECT * FROM progress WHERE word_id = ?", (hid,)).fetchone() == p1
 assert undo(a1["log_id"]).status_code == 200
@@ -302,6 +303,13 @@ assert cd.get("/api/roleplay/lesson/a1-1").status_code == 200
 assert cd.post("/api/usage/lesson", json={"id": "a1-2"}).status_code == 402
 assert cd.get("/api/roleplay/lesson/a1-2").status_code == 402
 assert cd.post("/api/usage/lesson", json={"id": "u999"}).status_code == 200   # 自建的课不算
+# 课文走接口: 列表没有课文, 全文和角色扮演一样查次数, 静态文件不能直接下载
+ll = J(cd.get("/api/lessons"))["lessons"]
+assert len(ll) == 15 and "lines" not in ll[0] and ll[0]["glossary"]
+assert J(cd.get("/api/lessons/a1-1"))["lesson"]["lines"]
+assert cd.get("/api/lessons/a1-3").status_code == 402
+assert cd.get("/api/lessons/nope").status_code in (402, 404)
+assert cd.get("/static/lessons.json").status_code == 404
 # 第二天重新算
 dbb = sqlite3.connect(os.environ["DB_PATH"])
 dbb.execute("UPDATE usage_daily SET day = '2000-01-01'"); dbb.commit()
@@ -530,7 +538,7 @@ assert J(c.get(f"/api/words/{pid}"))["private"] and cb.get(f"/api/words/{pid}").
 assert c.post("/api/review/queue", json={"german": ""}).status_code == 400
 
 # 情景课内容: 结构完整, 填空的答案在句子里只出现一次
-ld = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "lessons.json"), encoding="utf-8"))["lessons"]
+ld = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "content", "lessons.json"), encoding="utf-8"))["lessons"]
 assert len(ld) == 15 and len({l["id"] for l in ld}) == 15
 assert {lv: sum(l["level"] == lv for l in ld) for lv in ("A1", "A2", "B1")} == {"A1": 5, "A2": 5, "B1": 5}
 import re

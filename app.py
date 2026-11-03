@@ -1,11 +1,12 @@
-"""通德 Sprachbrücke - 德语学习平台 (目前只有「词汇」模块) - Flask + SQLite 后端
+"""通德 Sprachbrücke - 德语学习平台(词汇、语法、句子、情景课) - Flask + SQLite 后端
 
 运行:  python app.py
 环境变量(可选):
   PORT=8000            监听端口
   HOST=0.0.0.0         监听地址(只想本机访问用 127.0.0.1)
   DB_PATH=...          数据库文件路径
-  ALLOW_REGISTER=1     允许继续注册新用户(默认: 只有第一个用户可以注册)
+  REGISTER_MODE=...    注册方式 email / invite / open(默认: 配了发信用邮箱验证码, 否则要邀请码; 第一个用户直接注册)
+  ALLOW_REGISTER=1     旧写法, 等于 REGISTER_MODE=open
 
 代码分布:
   app.py         入口: 创建应用、注册各模块
@@ -18,7 +19,7 @@
   today.py       今日学习(每日学习量、今天出哪些词)
   word_add.py    添加单词和管理员审核; word_store.py 放进词库的规则; lexicon.py 德语词典校验
   sentences.py   句子练习(用例句出题)
-  lessons.py     情景课(点词查词、加入复习、角色扮演; 课文在 static/lessons.json)
+  lessons.py     情景课(点词查词、加入复习、角色扮演; 课文在 content/lessons.json, 走接口)
   custom_lessons.py  自建工作对话(AI 生成, 确认后保存)
   explain.py     句子讲解和替换练习(AI 生成, 每句保存一次)
   dictionary.py  查词(德语、变化形式、中文)

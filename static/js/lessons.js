@@ -1,4 +1,4 @@
-// 情景课: 读课文(点词看详情) → 练习 → 用德语写出来。内容在 static/lessons.json, 完成记录存本机
+// 情景课: 读课文(点词看详情) → 练习 → 用德语写出来。列表(含词表)来自 /api/lessons, 课文打开时才取, 完成记录存本机
 let lessons = null, lessonNow = null, lessonShown = null, wsSeq = 0, wsWord = null, lessonAi = false;
 let wsStack = [], wsNow = null, wsLoads = Promise.resolve();   // 单词卡看过的词, 返回时重新打开
 let wsAsk = null;     // 单词卡要交给 AI 查的 {q, context}
@@ -6,9 +6,8 @@ const LESSON_LEVELS = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶" };
 
 async function loadLessons() {
   if (lessons) return lessons;
-  const [r, mine] = await Promise.all([fetch("static/lessons.json"), api("/api/custom_lessons")]);
-  if (!r.ok) throw new Error("课程加载失败");
-  lessons = [...mine.lessons, ...(await r.json()).lessons];
+  const [r, mine] = await Promise.all([api("/api/lessons"), api("/api/custom_lessons")]);
+  lessons = [...mine.lessons, ...r.lessons];
   lessonAi = mine.ai;
   return lessons;
 }
@@ -28,10 +27,12 @@ onShow.lessons = async () => {
     const list = document.createElement("div"); list.className = "list";
     for (const l of items) {
       list.appendChild(listItem(done[l.id] ? "✅" : ico, l.title, l.scene, async () => {
-        if (!l.custom) {   // 免费版每天能开的新课有限, 先登记(billing.py)
-          try { await api("/api/usage/lesson", "POST", { id: l.id }); } catch (e) { return e.status === 402 || toast(e.message); }
+        let full = l;
+        if (!l.custom) {   // 课文打开时才取; 免费版每天能开的新课有限(billing.py)
+          try { full = (await api("/api/lessons/" + encodeURIComponent(l.id))).lesson; }
+          catch (e) { return e.status === 402 || toast(e.message); }
         }
-        lessonNow = l; go("lesson");
+        lessonNow = full; go("lesson");
       }));
     }
     box.append(h, list);

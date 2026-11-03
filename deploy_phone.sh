@@ -14,6 +14,9 @@ command -v tmux >/dev/null || pkg install -y tmux
 command -v cloudflared >/dev/null || pkg install -y cloudflared
 python -c "import flask" 2>/dev/null || pip install -r requirements.txt
 
+# 情景课课文已挪到 content/（走接口查免费次数），删掉旧位置的静态文件，免得能直接下载
+rm -f static/lessons.json
+
 # 3. 停掉旧服务
 tmux kill-session -t sprachbruecke 2>/dev/null && sleep 2 || true
 

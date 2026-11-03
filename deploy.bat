@@ -3,7 +3,7 @@ rem Deploy Sprachbruecke to the phone. Usage: double-click, or run "deploy.bat 1
 rem Put "set PHONE_USER=<your Termux user (whoami)>" in deploy.local.bat to skip the prompt.
 cd /d "%~dp0"
 
-if exist deploy.local.bat call deploy.local.bat
+if exist deploy.local.bat call "%~dp0deploy.local.bat"
 if "%PHONE_USER%"=="" set /p PHONE_USER=Termux user name (run whoami in Termux):
 if "%PHONE_USER%"=="" goto :eof
 
@@ -12,7 +12,7 @@ if "%IP%"=="" set /p IP=Phone IP (e.g. 192.168.1.23):
 if "%IP%"=="" goto :eof
 
 echo == Packing...
-tar -czf sb.tar.gz app.py database.py helpers.py auth.py billing.py email_codes.py feedback.py srs.py vocab.py today.py vocab_seed.py tts.py sentences.py lessons.py custom_lessons.py explain.py dictionary.py form_drills.py grammar.py grammar_seed.py gender_hint.py word_parts.py word_add.py word_store.py lexicon.py noun_quiz.py article_quiz.py plural_quiz.py verb_quiz.py perfekt_quiz.py verb_usage.py verb_sentences.py requirements.txt deploy_phone.sh tunnel.sh boot.sh static tools/import_wordbook.py tools/backup_db.py data/wordbook.json
+tar -czf sb.tar.gz app.py database.py helpers.py auth.py billing.py email_codes.py feedback.py srs.py vocab.py today.py vocab_seed.py tts.py sentences.py lessons.py custom_lessons.py explain.py dictionary.py form_drills.py grammar.py grammar_seed.py gender_hint.py word_parts.py word_add.py word_store.py lexicon.py noun_quiz.py article_quiz.py plural_quiz.py verb_quiz.py perfekt_quiz.py verb_usage.py verb_sentences.py requirements.txt deploy_phone.sh tunnel.sh boot.sh static content tools/import_wordbook.py tools/backup_db.py data/wordbook.json
 if errorlevel 1 goto fail
 
 echo == Uploading (enter phone password if asked)...

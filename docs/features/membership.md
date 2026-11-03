@@ -28,13 +28,13 @@
 | `lessons.py` | `/api/roleplay/due?count=1` 只返回数量（首页用，不算次数） |
 | `static/js/core.js` | 每个请求带 `X-TZ`（时区）；收到 402 时问要不要去看会员；付完款回来调 `checkPaid()` |
 | `static/js/home.js` | 「我的」页会员卡片 `showMember()`、`checkPaid()`、管理员“会员”按钮 |
-| `static/js/lessons.js` | 打开情景课前先 POST `/api/usage/lesson` |
+| `static/js/lessons.js` | 列表用 GET `/api/lessons`，打开课时才 GET `/api/lessons/<id>` 取课文 |
 
 ### 免费次数怎么算
 
 - `billing.py` 用 `before_app_request` 统一检查：路径在 `LIMITS` 里、是 GET、用户不是会员也不是管理员，就看今天用了几次，到上限返回 **402** `{error, paywall: true}`。接口返回 200 才记一次（`after_app_request`），出错不扣次数。各练习模块的代码不用改。
 - 一次请求 = 一组题。以后加新的练习接口，要在 `LIMITS` 里登记才会限次数。
-- 情景课的课文是静态文件 `static/lessons.json`，前端打开课之前先 POST `/api/usage/lesson {id}` 登记，角色扮演接口 `/api/roleplay/lesson/<id>` 也查同一个记录。每节课只在第一次打开那天记一行，`usage_daily` 里有这节课的记录就算“看过”。
+- 情景课的课文在 `content/lessons.json`（不在 `static/`，不能直接下载）。课程列表 GET `/api/lessons` 只有标题、场景和词表；课文要 GET `/api/lessons/<id>`，和角色扮演接口 `/api/roleplay/lesson/<id>` 一样由 `LESSON_RE` 查次数。旧版前端用的 POST `/api/usage/lesson {id}` 还留着。每节课只在第一次打开那天记一行，`usage_daily` 里有这节课的记录就算“看过”。
 - 日期：前端请求头 `X-TZ` = `getTimezoneOffset()`，用 `today.local_day()` 算本地日期。
 
 ### 付款流程
@@ -54,7 +54,8 @@
 | POST `/api/billing/checkout` | `{plan}` → `{url}` 付款页 |
 | GET `/api/billing/confirm?session_id=` | 只能核对自己的付款 → `{paid, until}` |
 | POST `/api/stripe/webhook` | Stripe 调用，要签名 |
-| POST `/api/usage/lesson` | `{id}` 打开情景课前登记，超出返回 402 |
+| GET `/api/lessons`、GET `/api/lessons/<id>` | 情景课列表（没有课文）；一节课的全文，没看过的新课超出返回 402 |
+| POST `/api/usage/lesson` | `{id}` 旧版前端打开情景课前登记，超出返回 402 |
 | POST `/api/admin/users/<id>/membership` | 管理员 `{days}`：加天数，0 = 取消 |
 
 ### 配置
@@ -75,7 +76,7 @@
 
 ### 已知限制
 
-- 情景课的课文本身是公开的静态文件，懂技术的人可以绕过次数直接读课文；角色扮演接口有后端限制。
+- 课程列表里的词表（`glossary`）是公开给登录用户的，单词卡查词要用。
 - AI 功能目前只有管理员能用，还没有开放给会员，也没有“每天 5 次”的限制。
 - 不支持退款和自动续费；退款要在 Stripe 后台手动退，再用管理员“会员”按钮把天数减掉（填 0 取消后重新送）。
 - 会员到期前不会提醒。
@@ -84,3 +85,4 @@
 
 - 2026-11-03：新增。接口测试通过（假的 Stripe）；用测试密钥真实建过一次付款页（人民币 ¥18，显示银行卡、支付宝、微信支付、Link），webhook 已在 Stripe 建好。还没部署，页面没在浏览器里点过，也没真实走完一次付款。
 - 2026-11-03：已部署，服务器上配置了测试密钥（`.stripe_config`）。用户在线上用测试卡走完一次付款，会员开通成功。
+- 2026-11-03：堵住情景课绕过次数：课文从 `static/lessons.json` 挪到 `content/lessons.json`，改成走 `/api/lessons/<id>`，部署时删掉服务器上旧的静态文件。接口测试通过，还没部署，页面没点过。

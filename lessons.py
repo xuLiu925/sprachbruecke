@@ -1,4 +1,5 @@
-"""情景课的后端: 点词查词、把词加入复习、角色扮演和整句复习。课文本身是静态文件 static/lessons.json
+"""情景课的后端: 课文、点词查词、把词加入复习、角色扮演和整句复习。
+课文在 content/lessons.json, 不放 static/: 列表只给标题和词表, 课文要走 /api/lessons/<id>, 免费次数在 billing.py 里查
 
 文章里的词可能是变位 / 变格后的样子(ging, Häusern), find_word 用 word_forms 里的形式反查原形。
 可分动词(hole ... ab)查不出来, 由课文的 map 字段直接给出原形。
@@ -21,10 +22,11 @@ from word_store import word_id_for
 
 bp = Blueprint("lessons", __name__)
 
-LESSONS_FILE = os.path.join(BASE, "static", "lessons.json")
+LESSONS_FILE = os.path.join(BASE, "content", "lessons.json")
 ROLE = "Li"             # 用户扮演的角色
 DUE_LIMIT = 30          # 整句复习一次最多多少句
-_items = {"mtime": None, "by_key": {}, "by_lesson": {}, "glossary": []}
+LIST_FIELDS = ("id", "level", "title", "scene", "glossary")   # 课程列表给的字段(词表单词卡要用)
+_items = {"mtime": None, "lessons": {}, "by_key": {}, "by_lesson": {}, "glossary": []}
 
 ADJ_ENDINGS = ("en", "em", "er", "es", "e")
 COLS = ("w.id, w.german, w.pos, w.gender, w.plural, w.meaning, w.example, "
@@ -89,7 +91,8 @@ def load_items():
         for x in lessons:
             for g in x["glossary"]:
                 glossary.setdefault((g["german"].lower(), g["gender"]), g)
-        _items.update(mtime=mtime, by_lesson=by_lesson, glossary=list(glossary.values()),
+        _items.update(mtime=mtime, lessons={x["id"]: x for x in lessons},
+                      by_lesson=by_lesson, glossary=list(glossary.values()),
                       by_key={i["key"]: i for items in by_lesson.values() for i in items})
     return _items
 
@@ -125,6 +128,23 @@ def my_items():
     for r in get_db().execute("SELECT de, level, data FROM sentence_drills"):
         by_key.update({i["key"]: i for i in drill_items(r["de"], r["level"], json.loads(r["data"]))})
     return by_key, {**base["by_lesson"], **custom}
+
+
+@bp.route("/api/lessons")
+@login_required
+def lesson_list():
+    """自带课程的列表(没有课文)"""
+    return jsonify({"lessons": [{k: x[k] for k in LIST_FIELDS} for x in load_items()["lessons"].values()]})
+
+
+@bp.route("/api/lessons/<lesson_id>")
+@login_required
+def lesson_text(lesson_id):
+    """一节自带课程的全文; 免费用户每天能开的新课有限(billing.py 的 check_quota)"""
+    lesson = load_items()["lessons"].get(lesson_id)
+    if lesson is None:
+        return err("课程不存在", 404)
+    return jsonify({"lesson": lesson})
 
 
 @bp.route("/api/roleplay/lesson/<lesson_id>")

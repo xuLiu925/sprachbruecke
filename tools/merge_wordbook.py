@@ -37,7 +37,7 @@ ANKI = os.path.join(RAW, "A1_Goethe_760__", "collection.anki21")
 FREQ = os.path.join(RAW, "de_50k.txt")
 ZH_GLOSSES = os.path.join(ROOT, "data", "work", "zh_glosses.json")
 ENTRIES = os.path.join(ROOT, "data", "work", "de_entries.jsonl")
-LESSONS = os.path.join(ROOT, "static", "lessons.json")
+LESSONS = os.path.join(ROOT, "content", "lessons.json")
 # 手写定冠词题里有、情景课词表里没有的名词
 WAREHOUSE_EXTRA = [{"german": "Fahrer", "gender": "der", "pos": "名词", "plural": "Fahrer", "meaning": "司机"},
                    {"german": "Kundin", "gender": "die", "pos": "名词", "plural": "Kundinnen", "meaning": "女客户"}]

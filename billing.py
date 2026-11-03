@@ -52,7 +52,7 @@ LIMITS = {
     "/api/roleplay/due": ("整句复习", 1, None),
 }
 LESSONS_PER_DAY = 1   # 每天能开几节新的情景课; 开过的课以后随时能再看, 自建的课不算
-LESSON_RE = re.compile(r"^/api/roleplay/lesson/([\w-]+)$")
+LESSON_RE = re.compile(r"^/api/(?:lessons|roleplay/lesson)/([\w-]+)$")
 SESSION_RE = re.compile(r"^cs_(test|live)_[A-Za-z0-9]+$")
 TOLERANCE = 300       # webhook 签名的时间最多差 5 分钟
 ENFORCE = True        # 测试里关掉, 别的模块的测试不受次数限制
@@ -240,7 +240,7 @@ def count_quota(resp):
 @bp.route("/api/usage/lesson", methods=["POST"])
 @login_required
 def open_lesson():
-    """打开一节情景课(课文是静态文件, 前端打开前先来这里登记)"""
+    """旧版前端打开情景课前来这里登记; 新版直接 GET /api/lessons/<id>, 留着兼容还没刷新的页面"""
     data = json_body() or {}
     lesson_id = str(data.get("id", ""))
     if not re.fullmatch(r"[\w-]{1,40}", lesson_id):

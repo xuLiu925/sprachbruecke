@@ -206,10 +206,12 @@ def review_undo():
     data = json_body()
     if data is None:
         return err("请求格式错误")
+    log_id = data.get("log_id")
+    if not isinstance(log_id, int) or isinstance(log_id, bool):
+        return err("找不到这次评分", 404)
     uid = current_user_id()
     db = get_db()
-    log = db.execute("SELECT * FROM review_log WHERE id = ? AND user_id = ?",
-                     (data.get("log_id"), uid)).fetchone()
+    log = db.execute("SELECT * FROM review_log WHERE id = ? AND user_id = ?", (log_id, uid)).fetchone()
     if log is None:
         return err("找不到这次评分", 404)
     latest = db.execute("SELECT MAX(id) FROM review_log WHERE user_id = ? AND word_id = ?",
