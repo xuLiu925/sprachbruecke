@@ -207,13 +207,16 @@ def roleplay_answer():
 
 
 @bp.route("/api/lookup")
-@login_required
 def lookup():
-    """?w=词形 → {word: 词 或 null}"""
+    """?w=词形 → {word: 词 或 null}。没登录时只查得到试学的词(试学例句里点到它们)"""
     w = request.args.get("w", "").strip()
     if not w or len(w) > 60:
         return err("词无效")
     row = find_word(w)
+    if current_user_id() is None:
+        from trial import is_trial_id   # trial 依赖 vocab, 放这里免得循环导入
+        if not row or not is_trial_id(row["id"]):
+            return err("请先登录", 401)
     return jsonify({"word": dict(row) if row else None})
 
 

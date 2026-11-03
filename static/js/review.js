@@ -118,7 +118,7 @@ function reveal() {
   $("btnShow").classList.add("hidden");
   $("spellIn").blur();   // 让后面的 1-4 / 空格 当快捷键, 而不是打进输入框
   $("btnSpeak").classList.remove("hidden");
-  $("btnCard").classList.toggle("hidden", trial);   // 单词卡要登录(/api/words)
+  $("btnCard").classList.remove("hidden");   // 试学的词游客也能看单词卡(trial.py)
   if (c.mode === "spell" && getSetting("autoWord")) speakDe(wordText(c));
   if (getSetting("autoExample") && c.example) speakDe(exampleDe(c.example), true);
 }

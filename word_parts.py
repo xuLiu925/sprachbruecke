@@ -14,6 +14,7 @@ from custom_lessons import CHINESE, AiError, api_key, call_gemini, extract_json,
 from database import get_db, now_str
 from explain import feedback_text
 from helpers import current_user_id, err, json_body, login_required
+from trial import arg_word, guest_open
 
 bp = Blueprint("word_parts", __name__)
 
@@ -139,7 +140,7 @@ def save_parts(word, parts):
 
 
 @bp.route("/api/parts")
-@login_required
+@guest_open(arg_word)   # 游客能看试学的词
 def get_parts():
     """?german=词 → 已保存的解释(没有是 null); can = 这个用户能生成; ai = 配置了 Key"""
     word = normalize(request.args.get("german", ""))

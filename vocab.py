@@ -389,9 +389,13 @@ def word_row(word_id):
 
 
 @bp.route("/api/words/<int:word_id>")
-@login_required
 def get_word(word_id):
-    """一个词的全部内容(当前用户的版本), 加上他的学习情况; 改过的话附上原文 original"""
+    """一个词的全部内容(当前用户的版本), 加上他的学习情况; 改过的话附上原文 original。
+    没登录时只能看试学的词(单词卡)"""
+    if current_user_id() is None:
+        from trial import is_trial_id   # trial 依赖 vocab, 放这里免得循环导入
+        if not is_trial_id(word_id):
+            return err("请先登录", 401)
     row = query(
         "SELECT w.*, l.level, p.next_review, p.stability, p.spell_ok, p.reps, p.lapses "
         "FROM all_my_words w LEFT JOIN word_levels l ON l.word_id = w.id "

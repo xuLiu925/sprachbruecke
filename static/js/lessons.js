@@ -247,7 +247,11 @@ async function openWordSheet(token, line, back = false) {
   const gl = lessonGlossary(lemma);
   let found = null;
   try { found = (await api("/api/lookup?w=" + encodeURIComponent(gl ? gl.german : lemma))).word; }
-  catch (e) { if (seq === wsSeq) toast(e.message); }
+  catch (e) {
+    if (seq !== wsSeq) return;
+    if (e.status === 401 && !user) { closeWordSheet(); return openLogin("reg", "注册后可以查所有单词"); }   // 游客只能查试学的词
+    toast(e.message);
+  }
   if (seq !== wsSeq) return;                 // 查询期间又点了别的词
   const w = found || gl;
   if (!w) {

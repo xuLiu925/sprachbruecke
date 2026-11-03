@@ -12,6 +12,8 @@ async function api(path, method = "GET", body) {
   let data = {};
   try { data = await r.json(); } catch (e) {}
   if (r.status === 401 && user) { user = null; showLogin(); }
+  else if (r.status === 401 && method !== "GET" && !/^\/api\/(login|register|password)/.test(path))
+    openLogin("reg", "注册后就能使用这个功能");   // 游客点了要账号的操作(加入学习、报错等)
   if (r.status === 402 && data.paywall && confirm(data.error + "\n\n现在去看看会员？")) switchTab("me");
   if (!r.ok) { const e = new Error(data.error || "请求失败"); e.status = r.status; throw e; }
   return data;

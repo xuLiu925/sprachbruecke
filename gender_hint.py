@@ -16,6 +16,7 @@ from custom_lessons import CHINESE, AiError, api_key, call_gemini, extract_json,
 from database import get_db, now_str
 from dictionary import all_glossary
 from helpers import current_user_id, err, json_body, login_required
+from trial import arg_word, guest_open
 
 bp = Blueprint("gender_hint", __name__)
 
@@ -136,7 +137,7 @@ def gender_reason(word, gender):
 
 
 @bp.route("/api/gender_reason")
-@login_required
+@guest_open(arg_word)   # 游客能看试学的词
 def reason():
     german, gender = request.args.get("german", "").strip(), request.args.get("gender", "")
     if not german or len(german) > 100 or gender not in GENDERS:

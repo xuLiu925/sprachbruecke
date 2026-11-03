@@ -6,10 +6,14 @@
 
 试学的评分只存在浏览器里(localStorage), 服务器不记游客的任何东西。
 在线发音 /api/tts 游客新取有全站次数限制, 试学这几个词和例句不算(allowed_tts)。
+试学的词游客也能看完整功能: 单词卡、词性解释、构词解释、例句讲解和点词(guest_open / is_trial_*),
+只读已保存的内容, AI 生成仍然只有管理员能用。
 """
+import time
 from datetime import datetime, timezone
+from functools import wraps
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from database import get_db
 from helpers import current_user_id, err, json_body, login_required
@@ -49,16 +53,61 @@ def trial_rows():
     return rows
 
 
+_cache = {"at": 0, "sets": None}
+CACHE_SECONDS = 600   # 单词书更新后最多 10 分钟生效
+
+
+def norm(s):
+    return " ".join((s or "").split())
+
+
+def trial_sets():
+    """试学的 {ids, words(原形), texts(词、带冠词的词、例句第一行, 空格规整过)}, 缓存 10 分钟"""
+    if _cache["sets"] is None or time.time() - _cache["at"] > CACHE_SECONDS:
+        ids, words, texts = set(), set(), set()
+        for r in trial_rows():
+            ids.add(r["id"])
+            words.add(r["german"])
+            texts.add(r["german"])
+            if r["gender"]:
+                texts.add(r["gender"] + " " + r["german"])
+            if r["example"]:
+                texts.add(norm(r["example"].split("\n")[0]))
+        _cache.update(at=time.time(), sets={"ids": ids, "words": words, "texts": texts})
+    return _cache["sets"]
+
+
 def allowed_tts(text):
-    """游客能用在线发音读的文字: 试学的词(带冠词和不带)和例句第一行"""
-    ok = set()
-    for r in trial_rows():
-        ok.add(r["german"])
-        if r["gender"]:
-            ok.add(r["gender"] + " " + r["german"])
-        if r["example"]:
-            ok.add(" ".join(r["example"].split("\n")[0].split()))
-    return text in ok
+    """试学的词(带冠词和不带)和例句第一行: 游客在线读不算次数, 例句讲解游客也能看"""
+    return norm(text) in trial_sets()["texts"]
+
+
+def is_trial_id(word_id):
+    return word_id in trial_sets()["ids"]
+
+
+def is_trial_word(german):
+    return norm(german) in trial_sets()["words"]
+
+
+def guest_open(check):
+    """代替 login_required: 登录了照常; 没登录时 check() 为真(请求的是试学的词或例句)才放行"""
+    def deco(fn):
+        @wraps(fn)
+        def wrapper(*a, **kw):
+            if current_user_id() is None and not check():
+                return err("请先登录", 401)
+            return fn(*a, **kw)
+        return wrapper
+    return deco
+
+
+def arg_word():
+    return is_trial_word(request.args.get("german", ""))
+
+
+def arg_sentence():
+    return allowed_tts(request.args.get("de", ""))
 
 
 @bp.route("/api/trial/cards")

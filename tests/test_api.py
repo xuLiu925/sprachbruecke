@@ -995,7 +995,7 @@ assert c.post("/api/grammar/questions/99999/status", json={"status": "active"}).
 
 # 词性解释: 词尾、复合词、动词名词、时间词; 对不上就说没有规律, 不编原因
 gr = lambda german, gender: J(c.get(f"/api/gender_reason?german={urllib.parse.quote(german)}&gender={gender}"))["reason"]
-assert A.app.test_client().get("/api/gender_reason?german=Tisch&gender=der").status_code == 401
+assert A.app.test_client().get("/api/gender_reason?german=Zzzwort&gender=der").status_code == 401   # 试学的词游客能查, 用别的词
 assert c.get("/api/gender_reason?german=Tisch&gender=x").status_code == 400 and c.get("/api/gender_reason?gender=der").status_code == 400
 assert "-ung" in gr("Zeitung", "die") and "-chen" in gr("Mädchen", "das") and "-ling" in gr("Lehrling", "der")
 assert gr("Sprung", "der") == "这个词没有明显规律，要和冠词一起记"                # der Sprung 不是 -ung 规律
@@ -1772,6 +1772,20 @@ assert guest.get("/api/tts?q=Gastwort0").status_code == 200   # 缓存里有的�
 assert guest.get("/api/tts?q=" + tc[0]["german"]).status_code == 200   # 试学的词不受限
 assert guest.post("/api/trial/save", json={"answers": []}).status_code == 401
 assert guest.get("/api/review/today").status_code == 401
+# 试学的词游客也能看完整功能(单词卡、词性、构词、例句讲解、点词), 别的词还是要登录
+t0 = tc[0]
+assert guest.get(f"/api/words/{t0['id']}").status_code == 200
+assert guest.get("/api/words/99999999").status_code == 401
+q0 = "german=" + t0["german"]
+assert guest.get(f"/api/gender_reason?{q0}&gender={t0['gender'] or ''}").status_code == 200
+assert guest.get("/api/gender_reason?german=Zzzwort&gender=der").status_code == 401
+assert guest.get(f"/api/parts?{q0}").status_code == 200 and guest.get("/api/parts?german=Zzzwort").status_code == 401
+assert guest.get("/api/lookup?w=" + t0["german"]).get_json()["word"]["id"] == t0["id"]
+assert guest.get("/api/lookup?w=Zzzwort").status_code == 401
+ex0 = next((x["example"].split("\n")[0] for x in tc if x["example"]), None)
+if ex0:
+    assert guest.get("/api/explain?de=" + ex0).status_code == 200
+assert guest.get("/api/explain?de=Das ist kein Testsatz.").status_code == 401
 os.environ["ALLOW_REGISTER"] = "1"   # 新用户 trialuser: 学过的词跳过要另外验证, 这里先让他学一个
 c = A.app.test_client()
 assert c.post("/api/register", json={"username": "trialuser", "password": "12345678"}).status_code == 200

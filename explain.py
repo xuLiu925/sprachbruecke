@@ -14,6 +14,7 @@ from custom_lessons import CHINESE, TOKEN, AiError, api_key, call_gemini, extrac
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
 from lessons import drill_items
+from trial import arg_sentence, guest_open
 
 bp = Blueprint("explain", __name__)
 
@@ -150,7 +151,7 @@ def report():
 
 
 @bp.route("/api/explain")
-@login_required
+@guest_open(arg_sentence)   # 游客能看试学词的例句讲解
 def get_note():
     """?de=句子 → 已保存的讲解(没有是 null); can = 这个用户能生成; ai = 配置了 Key"""
     de = request.args.get("de", "").strip()
