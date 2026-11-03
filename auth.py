@@ -257,7 +257,9 @@ def me():
     if row is None:
         session.clear()
         return jsonify({"username": None, "register": register_mode()})
-    return jsonify({"username": row["username"], "admin": is_admin(uid), "email": row["email"]})
+    # register 登录后也要给: 页面是登录状态打开的, 退出后去注册时要用
+    return jsonify({"username": row["username"], "admin": is_admin(uid), "email": row["email"],
+                    "register": register_mode()})
 
 
 @bp.route("/api/password", methods=["POST"])

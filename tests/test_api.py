@@ -150,7 +150,7 @@ inv = J(c.post("/api/invites", json={}))["code"]
 ci = A.app.test_client()
 assert ci.post("/api/register", json={"username": "dave", "password": "12345678",
                                       "invite": inv.lower().replace("-", " ")}).status_code == 200
-assert J(ci.get("/api/me")) == {"username": "dave", "admin": False, "email": None}
+assert J(ci.get("/api/me")) == {"username": "dave", "admin": False, "email": None, "register": "invite"}
 assert reg("erin", inv).status_code == 400                       # 用过了
 assert ci.post("/api/invites", json={}).status_code == 403       # 不是管理员
 assert ci.get("/api/admin/users").status_code == 403
