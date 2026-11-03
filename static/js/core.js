@@ -315,6 +315,7 @@ async function boot() {
   showApp();   // 没登录时是游客页面(route 里换成 welcome)
   if (user) checkPaid();
   installGate();
+  showInstall();   // 游客首页 / 「我的」页的安装卡片
   if (inviteLink) {
     if (user) toast("你已经登录了；要用邀请链接注册新账号，先退出");
     else openLogin("reg");
@@ -372,6 +373,7 @@ $("gateBtn").onclick = async () => {
   const { outcome } = await installEvent.userChoice;
   if (outcome === "accepted") { installEvent = null; installed = true; }
   installGate();
+  showInstall();   // 装好了就藏起安装卡片
 };
 $("gateCopy").onclick = async () => {
   const link = location.origin + "/?install";
@@ -389,9 +391,23 @@ $("gateSkip").onclick = () => {
 };
 installGate();
 
+// 游客首页的“装到手机桌面”卡片: 浏览器给了安装许可就直接安装, 否则打开安装引导整页看步骤
+$("wInstall").onclick = async () => {
+  if (installEvent) {
+    installEvent.prompt();
+    const { outcome } = await installEvent.userChoice;
+    if (outcome === "accepted") { installEvent = null; installed = true; toast("已添加到桌面"); }
+    return showInstall();
+  }
+  gateForced = true;
+  installGate();
+};
+
 function showInstall() {
   const box = $("installBox");
   const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  $("wInstallBox").classList.toggle("hidden", !!standalone || installed);
+  $("wInstall").textContent = installEvent ? "安装到桌面" : "看看怎么装";
   const ua = navigator.userAgent;
   const ios = /iPhone|iPad|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
   box.classList.toggle("hidden", !!standalone || !matchMedia("(pointer: coarse)").matches && !installEvent);
