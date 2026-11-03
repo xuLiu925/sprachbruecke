@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1f4e78">
 <title>通德 Sprachbrücke</title>
+<link rel="manifest" href="static/manifest.json">
+<link rel="icon" type="image/png" href="static/icons/icon-192.png">
+<link rel="apple-touch-icon" href="static/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="通德">
 <link rel="stylesheet" href="static/app.css">
 </head>
 <body class="no-tabs">
@@ -129,6 +134,12 @@
         <div id="avatar" style="width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;
              display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700"></div>
         <div><b id="meName" style="font-size:18px"></b><div class="meta left" id="meStats"></div></div>
+      </div>
+      <!-- 装到桌面(PWA): 已经从桌面打开时不显示, 内容由 core.js 的 showInstall() 填 -->
+      <div class="card hidden" id="installBox">
+        <b>装到手机桌面</b>
+        <p class="meta left" id="installTip" style="margin:6px 0 0"></p>
+        <button id="btnInstall" class="hidden" style="width:100%;margin-top:10px">安装到桌面</button>
       </div>
       <h2>会员</h2>
       <div class="card" id="memberBox">

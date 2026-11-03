@@ -102,6 +102,14 @@ def index():
     return send_from_directory(app.static_folder, "index.html")
 
 
+@app.route("/sw.js")
+def service_worker():
+    # Service Worker 要放在网站根目录才能管整个网站; 不让浏览器缓存它, 改了马上生效
+    resp = send_from_directory(app.static_folder, "sw.js", mimetype="text/javascript")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 app.register_blueprint(auth.bp)
 app.register_blueprint(billing.bp)   # 在 auth 后面: 先核对登录, 再查免费次数
 app.register_blueprint(vocab.bp)

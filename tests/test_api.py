@@ -318,6 +318,13 @@ assert J(cd.get("/api/lessons/a1-1"))["lesson"]["lines"]
 assert cd.get("/api/lessons/a1-3").status_code == 402
 assert cd.get("/api/lessons/nope").status_code in (402, 404)
 assert cd.get("/static/lessons.json").status_code == 404
+# PWA: Service Worker 在根目录、不缓存; manifest 和图标都在
+r = cd.get("/sw.js")
+assert r.status_code == 200 and "javascript" in r.content_type and r.headers["Cache-Control"] == "no-cache"
+man = J(cd.get("/static/manifest.json"))
+assert man["start_url"] == "/" and man["display"] == "standalone"
+for ic in man["icons"]:
+    assert cd.get(ic["src"]).status_code == 200, ic
 # 第二天重新算
 dbb = sqlite3.connect(os.environ["DB_PATH"])
 dbb.execute("UPDATE usage_daily SET day = '2000-01-01'"); dbb.commit()

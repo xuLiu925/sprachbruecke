@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "通德 Sprachbrücke",
+  "short_name": "通德",
+  "description": "给中文母语者的德语学习：单词、语法、句子、情景课",
+  "lang": "zh",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1f4e78",
+  "theme_color": "#1f4e78",
+  "icons": [
+    {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/static/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

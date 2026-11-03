@@ -279,6 +279,33 @@ async function boot() {
   }
 }
 
+// PWA: 注册 Service Worker(断网时还能打开页面), 记下浏览器给的“安装”机会
+let installEvent = null;
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvent = e; showInstall(); });
+window.addEventListener("appinstalled", () => { installEvent = null; showInstall(); });
+
+function showInstall() {
+  const box = $("installBox");
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
+  box.classList.toggle("hidden", !!standalone || !matchMedia("(pointer: coarse)").matches && !installEvent);
+  $("btnInstall").classList.toggle("hidden", !installEvent);
+  $("installTip").textContent =
+    installEvent ? "装好后桌面上有“通德”图标，点开全屏使用，和普通 App 一样。"
+    : /MicroMessenger|QQ\//.test(ua) ? "微信、QQ 里打不开安装：点右上角“…”，选“在浏览器打开”，再到这里安装。"
+    : ios ? "用 Safari 打开本页，点底部的“分享”按钮，再选“添加到主屏幕”。"
+    : "点浏览器菜单（右上角“⋮”或底部“≡”），选“添加到主屏幕”或“安装应用”。";
+}
+$("btnInstall").onclick = async () => {
+  if (!installEvent) return;
+  installEvent.prompt();
+  const { outcome } = await installEvent.userChoice;
+  if (outcome === "accepted") { installEvent = null; toast("已添加到桌面"); }
+  showInstall();
+};
+
 // 登录页的三块: login / reg / forgot
 function authView(name) {
   $("authLogin").classList.toggle("hidden", name !== "login");

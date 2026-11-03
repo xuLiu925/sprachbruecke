@@ -132,6 +132,7 @@ onShow.me = async () => {
   $("avatar").textContent = (user || "?").slice(0, 1).toUpperCase();
   showEmail();
   showMember();
+  showInstall();
   const s = await loadStats();
   $("meStats").textContent = `已学 ${s.learned} · 已掌握 ${s.mastered}`;
   try { $("optGoal").value = String((await api("/api/today?" + tzQuery())).goal); } catch (e) {}
