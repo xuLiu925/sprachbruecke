@@ -32,3 +32,6 @@ tunnel_sync.log
 .mail_config
 .stripe_config*
 .alert_state
+
+# 敏感词表(服务器上, 不公开)
+.blocked_words

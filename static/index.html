@@ -211,7 +211,7 @@
         </button>
         <button class="item" id="lNewLesson">
           <span class="tile44 gray"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
-          <span class="body"><b>新建我的工作对话</b><small>描述一个场景，AI 帮你写成课文</small></span>
+          <span class="body"><b>新建我的情景对话</b><small>工作、租房、看医生……描述一个场景，AI 帮你写成课文</small></span>
           <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
         </button>
       </div>
@@ -597,9 +597,9 @@
 
     <!-- ===== 情景课 ===== -->
     <section class="page" data-page="lessons">
-      <p class="meta left">海外仓场景：读课文、做练习、开口说，再用德语写出来。点课文里的单词看释义，不会的词可以加入学习。</p>
+      <p class="meta left">读课文、做练习、开口说，再用德语写出来。自带的课是海外仓场景，也可以新建自己的情景对话（工作、生活、学习都行）。点课文里的单词看释义，不会的词可以加入学习。</p>
       <button class="big hidden" id="lDue" style="margin-bottom:8px"></button>
-      <button class="big secondary" id="lNew">＋ 新建工作对话</button>
+      <button class="big secondary" id="lNew">＋ 新建情景对话</button>
       <div id="lessonList"></div>
       <p class="meta left" style="font-size:12px">课文由 AI 编写，建议请老师或母语者抽查。</p>
     </section>
@@ -636,9 +636,10 @@
 
     <section class="page" data-page="lnew">
       <div class="card">
-        <p class="meta left" style="margin-top:0">用中文写下你想练的工作情况。不要写真实的客户、地址和订单号。</p>
+        <p class="meta left" style="margin-top:0">用中文写下你想练的情况，工作、生活、学习都行；点下面的场景能直接填一个例子。不要写真实的人名、地址和订单号。</p>
+        <div class="chips wrap" id="lnScenes"></div>
         <select id="lnLevel"><option value="A1">A1 入门</option><option value="A2" selected>A2 基础</option><option value="B1">B1 进阶</option></select>
-        <textarea id="lnWant" maxlength="500" placeholder="例如：司机来提货，发现少了一托，我要核对提货单并联系主管" style="min-height:100px;margin-top:8px"></textarea>
+        <textarea id="lnWant" maxlength="500" placeholder="例如：给房东打电话，约时间看房，问租金和押金" style="min-height:100px;margin-top:8px"></textarea>
         <button class="big" id="lnGen" style="margin-top:8px">AI 生成对话</button>
         <p id="lnMsg" class="msg"></p>
         <details id="lnManual">

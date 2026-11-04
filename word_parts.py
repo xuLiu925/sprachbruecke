@@ -10,6 +10,7 @@ import re
 from flask import Blueprint, jsonify, request
 
 from ai_inputs import word_meaning
+from content_filter import AI_MSG, SAFETY_RULE, added
 from auth import admin_required, is_admin
 from billing import ai_block, ai_can_generate, ai_done
 from custom_lessons import CHINESE, AiError, api_key, call_gemini, extract_json, text
@@ -78,6 +79,7 @@ def build_prompt(word, meaning, reason=None):
 - literal 写字面意思怎么走到现在的词义，用 → 连接，30 字以内。
 - clarity：clear = 看字面就能猜到词义；partial = 字面有关但要联想；memo = 词义已经转变，拆开只帮助记忆。
 - 不要编造词源。不确定某部分的来历时，选 memo，不要硬讲。
+{SAFETY_RULE}
 - 只输出一个 JSON 对象，不要 Markdown 代码块，不要其他文字。
 
 JSON 格式：
@@ -175,12 +177,15 @@ def generate():
         return blocked
     try:
         # 释义用词库 / 词典里的, 不信前端传的(构词解释大家共用)
-        raw = call_gemini(build_prompt(word, word_meaning(word)[:100], report_reason(word)))
+        meaning = word_meaning(word)[:100]
+        raw = call_gemini(build_prompt(word, meaning, report_reason(word)))
     except AiError as ex:
         return err(ex.msg, ex.code)
     parts, e = clean_parts(extract_json(raw), word)
     if e:
         return err("AI 解释不合格（" + e + "），请再试一次", 502)
+    if added(parts, word, meaning):
+        return err(AI_MSG, 502)
     save_parts(word, parts)
     ai_done(uid, "parts:" + word, generated=True)
     return jsonify({"parts": parts})

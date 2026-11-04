@@ -94,7 +94,7 @@ async function showResume() {
     if (!l) return box.classList.add("hidden");
   }
   const finished = group.filter(x => done.includes(x.id)).length;
-  $("hResumeTag").textContent = l.custom ? "我的工作对话" : "情景课 · " + l.level;
+  $("hResumeTag").textContent = l.custom ? "我的情景对话" : "情景课 · " + l.level;
   $("hResumePos").textContent = `第 ${group.indexOf(l) + 1} / ${group.length} 课`;
   $("hResumeTitle").textContent = l.title;
   $("hResumeBar").style.width = (finished / group.length * 100) + "%";

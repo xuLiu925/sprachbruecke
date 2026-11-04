@@ -229,7 +229,7 @@ const PAGES = {
   gnouns:   { title: "单词列表", parent: "gtopic" },       // 标题在页面里换成单词书名字
   lessons:  { title: "情景课", parent: "learn" },
   lesson:   { title: "情景课", parent: "lessons" },       // 标题在页面里换成课名
-  lnew:     { title: "新建工作对话", parent: "lessons" },
+  lnew:     { title: "新建情景对话", parent: "lessons" },
   roleplay: { title: "角色扮演", parent: "lessons" },     // 标题在页面里换(整句复习用同一页)
   sentence: { title: "句子练习", parent: "practice" },
   squiz:    { title: "句子练习", parent: "sentence" },     // 标题在页面里换成题型名字

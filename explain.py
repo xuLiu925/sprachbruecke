@@ -16,6 +16,7 @@ from custom_lessons import CHINESE, TOKEN, AiError, api_key, call_gemini, extrac
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
 from ai_inputs import official_zh
+from content_filter import AI_MSG, SAFETY_RULE, added
 from lessons import drill_items
 from trial import arg_sentence, guest_open
 
@@ -30,7 +31,7 @@ SCHEMA_TEXT = """{
              "why": "为什么是这个形式，一两句中文"}],
   "order": "用中文说明语序：动词在哪里，为什么这样放；没有特别之处就写一句话说明",
   "point": "这句最值得记住的一个语法点或固定搭配，一句中文",
-  "similar": [{"de": "同样语法的海外仓工作例句", "zh": "中文翻译"}]
+  "similar": [{"de": "同样语法的例句", "zh": "中文翻译"}]
 }"""
 
 
@@ -57,7 +58,7 @@ def zh_line(zh):
 
 
 def build_prompt(de, zh, level, reason=None):
-    return f"""你是德语语法老师，学习者的母语是中文，水平 {level}，在德国海外仓工作。请讲解这句德语。
+    return f"""你是德语语法老师，学习者的母语是中文，水平 {level}，在德国生活、学习或工作。请讲解这句德语。
 
 德语：{de}
 {zh_line(zh)}
@@ -67,7 +68,8 @@ def build_prompt(de, zh, level, reason=None):
 - 讲解句子里的主要名词短语（第几格、单复数、冠词为什么这样变）、动词（人称、时态、是否可分）、介词（支配第几格）和固定搭配。
 - 格、时态和语法规则必须准确；不确定时不要编造。
 - words 里的 word 必须和句子中的写法完全一样。
-- similar 给 2–3 个例句，必须用同样的语法结构，内容是仓库工作场景，水平不超过 {level}。
+- similar 给 2–3 个例句，必须用同样的语法结构，场景和原句相近（原句是工作就写工作，是租房就写租房），水平不超过 {level}。
+{SAFETY_RULE}
 - 只输出一个 JSON 对象，不要 Markdown 代码块，不要其他文字。
 
 JSON 格式：
@@ -206,6 +208,8 @@ def generate():
     note, e = clean_note(extract_json(raw), de)
     if e:
         return err("AI 讲解不完整（" + e + "），请再试一次", 502)
+    if added(note, de, zh):
+        return err(AI_MSG, 502)
     save_note(de, note)
     ai_done(uid, k, generated=True)
     return jsonify({"note": note})
@@ -258,7 +262,7 @@ DRILL_SCHEMA = """{
 
 
 def build_drill_prompt(de, zh, level, reason=None):
-    return f"""你是德语老师，学习者的母语是中文，水平 {level}，在德国海外仓工作。请为这句德语出替换练习，帮助他举一反三。
+    return f"""你是德语老师，学习者的母语是中文，水平 {level}，在德国生活、学习或工作。请为这句德语出替换练习，帮助他举一反三。
 
 原句：{de}
 {zh_line(zh)}
@@ -268,7 +272,8 @@ def build_drill_prompt(de, zh, level, reason=None):
 - 替换后要逼学习者动脑：比如换一个不同性别的名词让冠词变化，或换人称让动词变位变化。
 - cue 用中文说明新情况，不要写出德语答案。
 - answer 必须是语法正确、自然的德语，水平不超过 {level}，和原句不能相同。
-- 内容是仓库工作场景，不要写真实公司、客户和订单信息。
+- 场景和原句相近，不要写真实公司、人名和订单信息。
+{SAFETY_RULE}
 - 只输出一个 JSON 对象，不要 Markdown 代码块，不要其他文字。
 
 JSON 格式：
@@ -356,12 +361,15 @@ def drill_generate():
     if blocked:
         return blocked
     try:
-        raw = call_gemini(build_drill_prompt(de, official_zh(de), level))   # 同上, 中文用服务器自己的
+        zh = official_zh(de)   # 同上, 中文用服务器自己的
+        raw = call_gemini(build_drill_prompt(de, zh, level))
     except AiError as ex:
         return err(ex.msg, ex.code)
     drills, e = clean_drills(extract_json(raw), de)
     if e:
         return err("AI 出题不完整（" + e + "），请再试一次", 502)
+    if added(drills, de, zh):
+        return err(AI_MSG, 502)
     items = save_drills(de, level, drills)
     ai_done(uid, "drill:" + key_of(de), generated=True)
     return jsonify({"items": items})

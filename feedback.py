@@ -4,6 +4,7 @@
 管理员: 一个列表看全部反馈和各处的报错(content_reports: 讲解、替换练习、语法题库、自动出的题、构词解释),
 处理完点“已处理”: 报错直接删掉(和各处“清除报错”一样), 意见反馈记下处理时间, 不再显示。
 """
+from content_filter import MSG as BLOCK_MSG, blocked
 from flask import Blueprint, jsonify
 
 from auth import admin_required
@@ -37,6 +38,8 @@ def submit():
         return err("请写一下遇到了什么问题")
     if len(text) > MAX_TEXT:
         return err(f"最多 {MAX_TEXT} 个字")
+    if blocked(text):
+        return err(BLOCK_MSG)
     db = get_db()
     uid = current_user_id()
     n = db.execute("SELECT COUNT(*) FROM feedback WHERE user_id = ? AND created_at >= ?",

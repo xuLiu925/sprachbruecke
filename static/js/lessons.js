@@ -58,7 +58,7 @@ onShow.lessons = async () => {
     }
     box.append(h, list);
   };
-  section("我的工作对话", all.filter(x => x.custom), "我的");
+  section("我的情景对话", all.filter(x => x.custom), "我的");
   for (const [lv, name] of Object.entries(LESSON_LEVELS)) {
     section(name, all.filter(x => x.level === lv && !x.custom), lv);
   }

@@ -1,4 +1,4 @@
-"""自建工作对话: 用中文描述场景, AI 写成课程, 用户确认后保存。保存后和自带的情景课用同一套页面
+"""自建情景对话(原来叫工作对话, 2026-11-05 起场景不限): 用中文描述场景, AI 写成课程, 用户确认后保存。保存后和自带的情景课用同一套页面
 
 AI 只在后端调用, 只有管理员能用(防止别人消耗额度)。Key 来自环境变量 GEMINI_API_KEY 或文件 .gemini_key,
 不进版本库。没有 Key 或额度用完时, 可以把提示词复制到免费 AI, 再把返回的 JSON 粘贴回来(/check)。
@@ -13,6 +13,7 @@ import urllib.request
 from flask import Blueprint, jsonify, request
 
 from auth import is_admin
+from content_filter import MSG as BLOCK_MSG, SAFETY_RULE, blocked
 from database import BASE, get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
 from lessons import ROLE, as_lesson, my_lessons, roleplay_items
@@ -31,9 +32,9 @@ SCHEMA_TEXT = """{
   "level": "A2",
   "title": "中文课名，10 字以内",
   "scene": "用一句中文说明场景",
-  "lines": [{"who": "司机", "de": "德语句子", "zh": "中文翻译",
+  "lines": [{"who": "房东", "de": "德语句子", "zh": "中文翻译",
              "map": {"句中的词": "原形，只给可分动词、过去分词、不规则变位的词；没有就省略这个字段"}}],
-  "glossary": [{"german": "Lieferschein", "gender": "der", "pos": "名词", "plural": "Lieferscheine", "meaning": "送货单"}],
+  "glossary": [{"german": "Mietvertrag", "gender": "der", "pos": "名词", "plural": "Mietverträge", "meaning": "租房合同"}],
   "cloze": [{"line": 1, "answer": "句子里原样出现且只出现一次的一个词", "base": "原形", "gender": "", "meaning": "中文"}],
   "task": {"prompt": "中文任务：让学习者用德语写 3 句", "tips": ["句型提示"],
            "model": [{"de": "参考答案", "zh": "中文"}]}
@@ -41,17 +42,19 @@ SCHEMA_TEXT = """{
 
 
 def build_prompt(level, want):
-    return f"""你是德语老师，为在德国海外仓工作的中文学习者写一段工作对话。
+    return f"""你是德语老师，为在德国生活、学习或工作的中文学习者写一段情景对话，场景完全按下面的要求来。
 
 场景要求：{want}
 德语水平：{level}（词汇和语法不要超过这个水平）
 
 规则：
-- 学习者的角色固定叫 "{ROLE}"，对方用中文身份或德语名字，如 "司机"、"Anna"。
+- 学习者的角色固定叫 "{ROLE}"，对方用中文身份或德语名字，如 "房东"、"医生"、"Anna"。
 - 写 8–12 句，{ROLE} 和对方基本轮流说话，{ROLE} 至少回答 3 次。
-- 德语必须正确、自然，是仓库工作中真实会说的话。句子不要太长。
-- 不要写真实公司、客户、地址和订单信息，全部虚构。
-- glossary 只列本课的仓储和工作词汇，名词必须有 gender，gender 只能是 der、die、das 或空字符串。
+- 德语必须正确、自然，是这个场景里真实会说的话。句子不要太长。
+- 不要写真实公司、人名、地址和订单信息，全部虚构。
+- glossary 只列本课场景的重要词汇，名词必须有 gender，gender 只能是 der、die、das 或空字符串。
+{SAFETY_RULE}
+- 场景要求涉及上面这些内容时，不要写对话，只输出 {{"refused": true}}。
 - cloze 出 3–4 题，line 是 lines 的下标（从 0 开始）。
 - task 的 model 给 3 句德语参考答案。
 - 只输出一个 JSON 对象，不要 Markdown 代码块，不要其他文字。
@@ -167,6 +170,8 @@ def clean_lesson(d):
         return None, "缺少写作任务或参考答案"
     if len(roleplay_items(lesson)) < MIN_ROLEPLAY:
         return None, f"{ROLE} 的回答太少，至少要回答 {MIN_ROLEPLAY} 次"
+    if blocked(lesson):     # 生成的、粘贴的、保存的都查一遍
+        return None, BLOCK_MSG
     return lesson, None
 
 
@@ -230,6 +235,8 @@ def read_request():
         return None, None, "级别只能是 A1 / A2 / B1"
     if len(want) < 4:
         return None, None, "请先写一下想练的场景"
+    if blocked(want):
+        return None, None, BLOCK_MSG
     return level, want, None
 
 
@@ -271,8 +278,12 @@ def generate():
     data = extract_json(raw)
     if data is None:
         return err("AI 返回的格式不对，请重新生成", 502)
+    if data.get("refused"):
+        return err("这个场景不适合做成课文（通德不讨论政治、色情、暴力等话题），换一个场景吧")
     data["level"] = level
     lesson, e = clean_lesson(data)
+    if e == BLOCK_MSG:
+        return err(e)
     if e:
         return err("AI 写得不完整（" + e + "），请重新生成", 502)
     ai_done(uid, "lesson", generated=True)

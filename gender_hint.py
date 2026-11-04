@@ -12,6 +12,7 @@ import re
 from flask import Blueprint, jsonify, request
 
 from ai_inputs import known_genders, word_meaning
+from content_filter import AI_MSG, SAFETY_RULE, added
 from auth import admin_required, is_admin
 from billing import ai_block, ai_can_generate, ai_done
 from custom_lessons import CHINESE, AiError, api_key, call_gemini, extract_json, text
@@ -155,7 +156,7 @@ def reason():
 
 def build_prompt(german, gender, meaning):
     colors = {"der": "蓝色", "die": "红色", "das": "绿色"}
-    return f"""你在帮在德国海外仓工作的中文学习者记住德语名词的冠词。这个词没有明显的语法规律，所以需要一个联想。
+    return f"""你在帮在德国生活、学习或工作的中文学习者记住德语名词的冠词。这个词没有明显的语法规律，所以需要一个联想。
 
 词：{gender} {german}
 意思：{meaning or "（未提供）"}
@@ -163,7 +164,8 @@ def build_prompt(german, gender, meaning):
 
 规则：
 - 用一句简短的中文写一个好记的联想，把这个词的意思和“{gender}”或{colors[gender]}联系起来，30 字以内。
-- 尽量用仓库、工作或日常场景。
+- 尽量用日常生活、学习或工作的场景。
+{SAFETY_RULE}
 - 不要声称这是语法规则，不要编造词源或“因为……所以是 {gender}”。
 - 不要写真实公司、客户信息。
 - 只输出一个 JSON 对象，不要 Markdown 代码块，不要其他文字。
@@ -205,12 +207,15 @@ def memo():
         return blocked
     try:
         # 释义用词库 / 词典里的, 不信前端传的(联想记忆大家共用)
-        raw = call_gemini(build_prompt(word, gender, word_meaning(word, gender)[:100]))
+        meaning = word_meaning(word, gender)[:100]
+        raw = call_gemini(build_prompt(word, gender, meaning))
     except AiError as ex:
         return err(ex.msg, ex.code)
     result = clean_memo(extract_json(raw))
     if result is None:
         return err("AI 没写好，请再试一次", 502)
+    if added(result, word, meaning):
+        return err(AI_MSG, 502)
     db = get_db()
     db.execute(
         "INSERT INTO gender_memos (german, gender, memo, created_at) VALUES (?,?,?,?) "

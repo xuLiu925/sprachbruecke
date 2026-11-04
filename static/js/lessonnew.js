@@ -1,4 +1,4 @@
-// 新建工作对话: 描述场景 → AI 生成草稿(或复制提示词到免费 AI, 再粘贴回来) → 修改 → 保存成课程
+// 新建情景对话: 描述场景(可以点场景按钮填一个例子) → AI 生成草稿(或复制提示词到免费 AI, 再粘贴回来) → 修改 → 保存成课程
 let lnDraft = null;
 
 function lnMsg(text, ok) {
@@ -11,7 +11,33 @@ function lnBody() {
   return { level: $("lnLevel").value, request: want };
 }
 
+// 场景按钮: 点了把例子填进描述框, 用户再改
+const LN_SCENES = [
+  ["工作", "上班第一天，同事带我熟悉工作，我问清楚工作时间、休息和要注意的事"],
+  ["Ausbildung", "和培训企业的带教师傅谈这个月的学习计划，还有职业学校的课"],
+  ["租房", "给房东打电话，约时间看房，问租金、押金和什么时候能搬进去"],
+  ["看医生", "在诊所前台挂号，然后向医生说明哪里不舒服、持续了几天"],
+  ["办手续", "在外管局（Ausländerbehörde）办居留许可，问需要带哪些材料"],
+  ["大学", "去学生办公室问注册、选课和学期费用"],
+  ["购物", "在超市找不到东西，问店员；在收银台付款，问能不能刷卡"],
+  ["仓库", "司机来提货，发现少了一托，我要核对提货单并联系主管"],
+];
+function lnScenes() {
+  const box = $("lnScenes");
+  if (box.childElementCount) return;
+  for (const [name, text] of LN_SCENES) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = name;
+    b.onclick = () => {
+      $("lnWant").value = text; $("lnWant").focus();
+      for (const x of box.children) x.classList.toggle("on", x === b);
+    };
+    box.append(b);
+  }
+}
+
 onShow.lnew = async () => {
+  lnScenes();
   lnMsg("");
   try { await loadLessons(); } catch (e) { return toast(e.message); }
   $("lnGen").disabled = !lessonAi;

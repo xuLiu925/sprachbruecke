@@ -17,6 +17,7 @@ from flask import Blueprint, jsonify, request
 import lexicon
 from auth import admin_required, is_admin
 from billing import ai_block, ai_can_generate, ai_done
+from content_filter import AI_MSG, SAFETY_RULE, added
 from custom_lessons import TOKEN, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
@@ -159,14 +160,15 @@ def lookup_key(q):
 
 def build_prompt(q, context=""):
     where = f"\n这个词出现在这句话里，请按句中的意思解释：{context}\n" if context else ""
-    return f"""你是德汉词典编辑，读者是在德国海外仓工作的中文学习者。请查这个词：{q}
+    return f"""你是德汉词典编辑，读者是在德国生活、学习或工作的中文学习者。请查这个词：{q}
 {where}
 规则：
-- 输入可能是德语（可能是变化形式）或中文。给出对应德语词的原形。中文输入时选仓库工作中最常用的德语词。
+- 输入可能是德语（可能是变化形式）或中文。给出对应德语词的原形。中文输入时选日常生活和工作中最常用的德语词。
 - 如果不是真实存在的词，或你不确定，只输出 {{"found": false}}，不要编造。
 - gender 只能是 der、die、das 或空字符串，名词必须填写。pos 用中文，如 名词、动词、形容词。
 - plural 是名词复数，其他词性留空。meaning 是简短的中文释义。
 - example 是一句简单、正确的例句，格式：德语 + 换行 + 中文翻译。
+{SAFETY_RULE}
 - 只输出一个 JSON 对象，不要 Markdown 代码块，不要其他文字。
 
 JSON 格式：
@@ -223,7 +225,8 @@ def ai_lookup():
         return blocked
     try:
         # 原句只用自带课文 / 公共例句里的(结果大家共用, 不能让人在原句里塞别的话)
-        raw = call_gemini(build_prompt(q, official_context(text(data.get("context"), 300), q)))
+        ctx = official_context(text(data.get("context"), 300), q)
+        raw = call_gemini(build_prompt(q, ctx))
     except AiError as ex:
         return err(ex.msg, ex.code)
     parsed = extract_json(raw)
@@ -233,6 +236,8 @@ def ai_lookup():
     word, e = clean_ai_word(parsed)
     if e:
         return err("AI 查询结果不完整（" + e + "），请再试一次", 502)
+    if added(word, q, ctx):
+        return err(AI_MSG, 502)
     db = get_db()
     db.execute("INSERT OR REPLACE INTO ai_words (lookup_key, query, data, created_at) VALUES (?,?,?,?)",
                (lookup_key(q), q, json.dumps(word, ensure_ascii=False), now_str()))

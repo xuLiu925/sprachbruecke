@@ -241,6 +241,7 @@ assert code_req(ce, "fr@nk", "f@x.de").status_code == 400                # 用�
 assert code_req(ce, "fr​ank", "f@x.de").status_code == 400          # 零宽字符、空格、外文字母不行
 assert code_req(ce, "fr ank", "f@x.de").status_code == 400 and code_req(ce, "аlice", "f@x.de").status_code == 400
 assert code_req(ce, "DAVE", "f@x.de").status_code == 409                 # 大小写不同也算重名
+assert code_req(ce, "傻逼abc", "f@x.de").status_code == 400                # 用户名里的敏感词
 assert code_req(ce, "frank", "not-an-email").status_code == 400
 assert code_req(ce, "dave", "f@x.de").status_code == 409                 # 用户名已存在
 assert code_req(ce, "frank", " Frank@X.de ").status_code == 200 and sent[-1][0] == "frank@x.de"
@@ -683,6 +684,22 @@ draft = J(c.post("/api/custom_lessons/generate", json=want))["lesson"]
 assert draft["title"] == "少了一托"
 CL.call_gemini = lambda prompt: "不是 JSON"
 assert c.post("/api/custom_lessons/generate", json=want).status_code == 502
+# 敏感内容: 描述、AI 拒绝、AI 写进去的、粘贴的都拦; 提示词里有安全规则, 场景按用户写的来, 不再写死海外仓
+assert c.post("/api/custom_lessons/generate", json={"level": "A2", "request": "写一段批评习 近 平的对话"}).status_code == 400
+CL.call_gemini = lambda prompt: '{"refused": true}'
+r = c.post("/api/custom_lessons/generate", json={"level": "A2", "request": "讨论一下政府好不好"})
+assert r.status_code == 400 and "不适合" in J(r)["error"]
+bad_lesson = {**good, "lines": [{**good["lines"][0], "zh": "中国共产党……"}] + good["lines"][1:]}
+CL.call_gemini = lambda prompt: json.dumps(bad_lesson)
+assert c.post("/api/custom_lessons/generate", json=want).status_code == 400
+assert c.post("/api/custom_lessons/check", json={"level": "A2", "text": json.dumps(bad_lesson)}).status_code == 400
+assert c.post("/api/custom_lessons", json=bad_lesson).status_code == 400
+lp = J(c.post("/api/custom_lessons/prompt", json={"level": "A2", "request": "给房东打电话约看房"}))["prompt"]
+assert "不写政治" in lp and "refused" in lp and "海外仓" not in lp
+# 关键词不误伤: 中文“其中共有”“出口交易”, 德语里的 sex 只按整词
+import content_filter as CF
+assert not CF.blocked("其中共有三个人", "出口交易很多", "Das Haus extra", "舞台独唱") and CF.blocked("Heil Hitler", "你是傻逼")
+assert CF.added({"x": "独裁者"}, "Diktator", "独裁者") is False and CF.added({"x": "独裁者"}, "Haus", "房子")
 def quota(prompt): raise CL.AiError("额度", 429)
 CL.call_gemini = quota
 assert c.post("/api/custom_lessons/generate", json=want).status_code == 429
@@ -692,6 +709,7 @@ assert c.post("/api/custom_lessons/check", json={"text": "abc"}).status_code == 
 saved = J(c.post("/api/custom_lessons", json=draft))["lesson"]
 assert saved["id"].startswith("u") and saved["custom"] and J(c.get("/api/custom_lessons"))["lessons"][0]["id"] == saved["id"]
 assert J(cb.get("/api/custom_lessons"))["lessons"] == []                         # 别人看不到
+assert cb.post("/api/feedback", json={"text": "习近平是独裁者"}).status_code == 400   # 反馈也拦
 ri = J(c.get("/api/roleplay/lesson/" + saved["id"]))["items"]
 assert [i["answer"] for i in ri] == ["Ich prüfe den Lieferschein.", "Ich rufe meine Chefin an."]
 assert cb.get("/api/roleplay/lesson/" + saved["id"]).status_code == 404

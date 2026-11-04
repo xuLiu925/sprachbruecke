@@ -9,6 +9,7 @@ import re
 from flask import Blueprint, jsonify, request
 
 from auth import admin_required, is_admin
+from content_filter import SAFETY_RULE
 from custom_lessons import CHINESE, TOKEN, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
@@ -106,7 +107,7 @@ def clean_questions(data, topic):
 
 def build_prompt(topic, want, n):
     options = "、".join(topic["options"])
-    return f"""你是德语老师，为在德国海外仓工作的中文学习者出语法选择题。
+    return f"""你是德语老师，为在德国生活、学习或工作的中文学习者出语法选择题。
 
 知识点：{topic["title"]}（{topic["rule"]}）
 水平：{topic["level"]}
@@ -114,12 +115,13 @@ def build_prompt(topic, want, n):
 数量：{n} 道
 
 规则：
-- 每题是一句仓库工作场景的德语，用 ___ 代替要填的词，只有一个空。
+- 每题是一句日常生活、学习或工作场景的德语（“要求”里写了场景就按要求），用 ___ 代替要填的词，只有一个空。
 - 选项固定是：{options}。answer 必须是其中一个，而且只有这一个答案是对的。
 - 不要出有两个答案都说得通的题。特别注意单复数同形的名词（Scanner、Artikel、Hubwagen、Stapler）：放在第四格、第三格的句子里时，单复数都可能成立，不要用。
 - hint 写这个名词和性别，如 "die Palette · 阴性"，不要写第几格。
 - explain 用中文说明为什么是这个答案。zh 是整句的中文翻译。
 - 德语必须正确、自然，不要写真实公司、客户和订单信息。
+{SAFETY_RULE}
 - 只输出一个 JSON 对象，不要 Markdown 代码块，不要其他文字。
 
 JSON 格式：

@@ -21,6 +21,7 @@ from flask import Blueprint, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import email_codes
+from content_filter import blocked
 from database import DB_PATH, fmt_time, get_db, now_str
 from email_codes import norm_email
 from helpers import client_ip, current_user_id, err, json_body, login_required
@@ -119,6 +120,8 @@ def check_username(username):
         return "用户名里不能有 @"
     if not USERNAME_RE.fullmatch(username):
         return "用户名只能用英文字母、数字、汉字和 _ . -"
+    if blocked(username):
+        return "用户名里有不适合的词，换一个吧"
     return None
 
 
