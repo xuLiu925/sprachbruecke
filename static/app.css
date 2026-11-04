@@ -394,6 +394,8 @@ button.mini svg { width:18px; height:18px; vertical-align:-3px; }
 button.secondary svg { width:18px; height:18px; vertical-align:-3px; margin-right:6px; }
 .qcard .answer { text-align:left; border-top:1px solid var(--line2); margin-top:18px; padding-top:16px; }
 .qcard .answer .word { text-align:center; }
+.cardrow { text-align:center; margin:6px 0 4px; }
+.cardrow button { padding:8px 18px; }
 .ameaning { font-size:22px; font-weight:700; margin:4px 0 2px; }
 .whybox { margin:12px 0; padding:12px 14px; border-radius:14px; background:var(--accent-soft); font-size:14px; line-height:1.6;
   text-align:left; color:var(--text); }
