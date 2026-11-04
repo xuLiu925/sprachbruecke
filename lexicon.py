@@ -64,6 +64,18 @@ def find(word, gender=""):
         return None, (form["german"] if form else None)
 
 
+def lemmas_of(word):
+    """词形 → 词典里所有可能的原形(regnet → regnen、regen), 本身是原形的排在前面; 查不到返回 []"""
+    db = connect()
+    if db is None:
+        return []
+    with closing(db):
+        low = word.lower()
+        out = [r["german"] for r in db.execute("SELECT german FROM lemmas WHERE low = ?", (low,))]
+        out += [r["german"] for r in db.execute("SELECT german FROM forms WHERE form = ?", (low,))]
+    return list(dict.fromkeys(out))
+
+
 def is_noun(db, word):
     return db.execute("SELECT 1 FROM lemmas WHERE low = ? AND gender != '' LIMIT 1", (word.lower(),)).fetchone()
 

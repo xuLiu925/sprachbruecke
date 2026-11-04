@@ -19,6 +19,7 @@ from helpers import current_user_id, err, json_body, login_required
 from srs import fsrs_review
 from vocab import clean_word, enqueue, query
 from word_store import word_id_for
+import lexicon
 
 bp = Blueprint("lessons", __name__)
 
@@ -41,20 +42,37 @@ def like_escape(s):
 
 
 def find_word(token):
-    """词形 → 词库里的词。原形优先, 其次复数, 再次变格 / 变位; 同样匹配时选常用的。没有返回 None"""
+    """词形 → 词库里的词。原形优先, 其次复数, 再次变格 / 变位, 再查词典的变化形式; 同样匹配时选常用的。没有返回 None"""
+    row = find_in_words(token)
+    if row:
+        return row
+    rows = lexicon_rows(lexicon.lemmas_of(token))
+    return rows[0] if rows else None
+
+
+def exact_match(row, w):
+    """区分大小写地对得上: 文中的 gefahren 是 fahren 的分词, 不是 Gefahr 的复数 Gefahren"""
+    f = row["forms"] or ""
+    return w in (row["german"], row["plural"]) or f'"{w}"' in f or f' {w}"' in f
+
+
+def find_in_words(token, strict=False):
+    """只按词库自己的数据(原形、复数、变格 / 变位表、形容词词尾)找。
+    strict = 区分大小写(点词: 文中的大小写是准的); 查词搜索框里用户可能写 haus, 不区分"""
     lowered = token[:1].lower() + token[1:]
     for w in dict.fromkeys((token, lowered)):   # 句首大写的 Öffnen 也要能查到 öffnen
         e = like_escape(w)
-        row = query(
-            f"SELECT {COLS} FROM my_words w {JOINS} "
+        rows = query(
+            f"SELECT {COLS}, w.forms FROM my_words w {JOINS} "
             "WHERE w.german = :w COLLATE NOCASE OR w.plural = :w COLLATE NOCASE "
             "OR w.forms LIKE :whole ESCAPE '\\' OR w.forms LIKE :tail ESCAPE '\\' "
             "ORDER BY CASE WHEN w.german = :w THEN 0 WHEN w.german = :w COLLATE NOCASE THEN 1 "
-            "WHEN w.plural = :w COLLATE NOCASE THEN 2 ELSE 3 END, COALESCE(l.rank, 1000000000) LIMIT 1",
+            "WHEN w.plural = :w COLLATE NOCASE THEN 2 ELSE 3 END, COALESCE(l.rank, 1000000000) LIMIT 30",
             w=w, whole=f'%"{e}"%', tail=f'% {e}"%',   # "ging" 或 "ist gegangen" / "dem Haus"
-        ).fetchone()
+        ).fetchall()
+        row = next((r for r in rows if exact_match(r, w)), None) if strict else (rows[0] if rows else None)
         if row:
-            return row
+            return {k: row[k] for k in row.keys() if k != "forms"}
     for end in ADJ_ENDINGS:                     # 形容词词尾: schweren → schwer
         if lowered.endswith(end) and len(lowered) > len(end) + 1:
             row = query(
@@ -63,8 +81,40 @@ def find_word(token):
                 w=lowered[:-len(end)],
             ).fetchone()
             if row:
-                return row
+                return dict(row)
     return None
+
+
+def lexicon_rows(lemmas):
+    """词典给的原形候选里, 词库有的那些, 常用的在前(regnet → regnen 比 regen 常用)"""
+    found = []
+    for g in lemmas:
+        row = query(f"SELECT {COLS}, COALESCE(l.rank, 1000000000) AS rk FROM my_words w {JOINS} "
+                    "WHERE w.german = :g ORDER BY rk LIMIT 1", g=g).fetchone()
+        if row:
+            found.append(row)
+    found.sort(key=lambda r: r["rk"])
+    return [{k: r[k] for k in r.keys() if k != "rk"} for r in found]
+
+
+def resolve(token):
+    """点词: (词, 其他可能的原形)。词 = 词库里的词; 词库没有、词典有时是词典词条(id 为 null, lexicon = true);
+    都没有是 None。其他原形给“不是这个词？”用, 最多 3 个"""
+    row = find_in_words(token, strict=True)
+    if row:                                     # 词库自己的数据对得上, 不用问
+        return row, []
+    lemmas = lexicon.lemmas_of(token)
+    rows = lexicon_rows(lemmas)
+    if rows:
+        return rows[0], [g for g in lemmas if g.lower() != rows[0]["german"].lower()][:3]
+    for g in lemmas:
+        hit = lexicon.find(g)[0]
+        if hit:
+            from dictionary import NO_MEANING_HINT, glossary_row   # dictionary 依赖 lessons, 放这里免得循环导入
+            word = {**glossary_row({**hit, "meaning": hit["meaning"] or NO_MEANING_HINT}),
+                    "lexicon": True, "needs_meaning": not hit["meaning"], "learned": False, "queued": False}
+            return word, [x for x in lemmas if x != g][:3]
+    return None, []
 
 
 def roleplay_items(lesson):
@@ -264,16 +314,18 @@ def roleplay_answer():
 
 @bp.route("/api/lookup")
 def lookup():
-    """?w=词形 → {word: 词 或 null}。没登录时只查得到试学的词(试学例句里点到它们)"""
+    """?w=词形 → {word: 词 或 null, alts: 其他可能的原形}。词库没有、词典有时 word 是词典词条(id 为 null)。
+    没登录时只查得到试学的词(试学例句里点到它们)"""
     w = request.args.get("w", "").strip()
     if not w or len(w) > 60:
         return err("词无效")
-    row = find_word(w)
+    row, alts = resolve(w)
     if current_user_id() is None:
         from trial import is_trial_id   # trial 依赖 vocab, 放这里免得循环导入
-        if not row or not is_trial_id(row["id"]):
+        if not row or not row["id"] or not is_trial_id(row["id"]):
             return err("请先登录", 401)
-    return jsonify({"word": dict(row) if row else None})
+        alts = []
+    return jsonify({"word": row, "alts": alts})
 
 
 @bp.route("/api/review/queue", methods=["POST"])

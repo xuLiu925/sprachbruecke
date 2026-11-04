@@ -260,6 +260,7 @@ async function openWordSheet(token, line, back = false) {
   $("wsPlural").textContent = ""; $("wsMeaning").textContent = "查询中…";
   $("wsLesson").textContent = (line.notes && line.notes[token]) || "";   // 冠词题的答案: 说明词形怎么来的
   $("wsExample").textContent = "";
+  $("wsAlts").classList.add("hidden");
   wsMoreReset();
   genderReason($("wsGender"), "", "");
   wordParts($("wsParts"), "");
@@ -269,14 +270,22 @@ async function openWordSheet(token, line, back = false) {
   try { await loadLessons(); } catch (e) {}   // 复习页里可能还没加载过课程; 没有仓储词表也能查词
   if (seq !== wsSeq) return;
   const gl = lessonGlossary(lemma);
-  let found = null;
-  try { found = (await api("/api/lookup?w=" + encodeURIComponent(gl ? gl.german : lemma))).word; }
+  let found = null, alts = [];
+  try { ({ word: found, alts = [] } = await api("/api/lookup?w=" + encodeURIComponent(gl ? gl.german : lemma))); }
   catch (e) {
     if (seq !== wsSeq) return;
     if (e.status === 401 && !user) { closeWordSheet(); return openLogin("reg", "注册后可以查所有单词"); }   // 游客只能查试学的词
     toast(e.message);
   }
   if (seq !== wsSeq) return;                 // 查询期间又点了别的词
+  if (found && !found.id && gl) found = null;   // 课文词表里有就用词表的(仓储词的意思更准)
+  if (found && !found.id) {                  // 词库没有、词典有: 显示词典词条, 可以加入学习
+    openGlossaryWord(found, true, back);
+    const notes = ["词典里的词，还没进词库"];
+    if (token.toLowerCase() !== found.german.toLowerCase()) notes.push("文中是 " + token);
+    $("wsLesson").textContent = notes.join("；");
+    return wsAltsShow(alts, line);
+  }
   const w = found || gl;
   if (!w) {
     wsWord = null;
@@ -301,6 +310,21 @@ async function openWordSheet(token, line, back = false) {
   $("wsNoun").classList.toggle("hidden", !w.gender);
   $("wsView").classList.toggle("hidden", !found);
   if (getSetting("autoWord") && !back) speakDe(wordText(w));
+  if (found) wsAltsShow(alts, line);
+}
+// 同一个词形对得上几个原形时(regnet: regnen / regen), 自动选了常用的那个, 这里给出其他的
+function wsAltsShow(alts, line) {
+  const box = $("wsAlts");
+  box.textContent = "";
+  box.classList.toggle("hidden", !alts.length);
+  if (!alts.length) return;
+  box.append("不是这个词？");
+  for (const a of alts) {
+    const b = document.createElement("button");
+    b.className = "linkbtn"; b.textContent = a;
+    b.onclick = () => openWordSheet(a, { de: line.de });
+    box.append(" ", b);
+  }
 }
 // 查词结果里的仓储词: 不用查询, 内容都在手上
 // keep = 还是同一张卡(查词的结果), 不算打开新词; back = 从下一张卡返回, 不再朗读
@@ -309,6 +333,7 @@ function openGlossaryWord(g, keep = false, back = false) {
   wsSeq++;
   wsWord = { ...g, id: null, learned: false, queued: false };
   wsMoreReset();
+  $("wsAlts").classList.add("hidden");
   $("wsAi").classList.add("hidden");
   $("wsheet").classList.remove("hidden");
   wsLoads = fillWordCard("ws", g, { forms: false, example: false });

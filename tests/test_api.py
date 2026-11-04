@@ -1592,6 +1592,24 @@ assert add(c, german="<script>").status_code == 400 and add(c, german="Asdfgh").
 dg = dq(c, "Greifer")[0]
 assert dg["glossary"] and dg["id"] is None and dg["needs_meaning"] and dg["meaning"] == "暂无释义，写上释义后可以加入学习"
 assert not dq(c, "Hub")[0].get("needs_meaning")
+# 点词: 词库按变位表找不到时查词典的变化形式; 几个原形都对得上时选词库里有的, 其他的给“不是这个词？”
+ldb = sqlite3.connect(lp)
+ldb.executemany("INSERT INTO lemmas (german, low, gender, pos, plural, meaning, forms) VALUES (?,?,?,?,?,?,?)", [
+    ("regnen", "regnen", "", "动词", "", "下雨", None), ("regen", "regen", "", "动词", "", "动", None)])
+ldb.executemany("INSERT INTO forms (form, german) VALUES (?, ?)", [("regnet", "regnen"), ("regnet", "regen"), ("greifers", "Greifer")])
+ldb.commit(); ldb.close()
+assert J(add(c, german="regnen"))["added"] == 1
+lk = J(c.get("/api/lookup?w=regnet"))
+assert lk["word"]["german"] == "regnen" and lk["word"]["id"] and lk["alts"] == ["regen"]
+assert J(c.get("/api/lookup?w=regnen"))["alts"] == []                       # 点的就是原形
+lk = J(c.get("/api/lookup?w=Greifers"))                                     # 词库没有、词典有: 词典词条
+assert lk["word"]["german"] == "Greifer" and lk["word"]["id"] is None and lk["word"]["lexicon"] and lk["word"]["needs_meaning"]
+assert J(c.get("/api/lookup?w=Zzzwort"))["word"] is None
+# 点词区分大小写: 文中的 gefahren 不是 Gefahr 的复数; 查词搜索框不区分
+assert J(add(c, german="Gefahr", gender="die", plural="Gefahren", meaning="危险"))["queued"] == 1
+assert J(c.get("/api/lookup?w=Gefahren"))["word"]["german"] == "Gefahr"
+assert J(c.get("/api/lookup?w=gefahren"))["word"]["german"] == "zzfahren"   # 前面加的动词, 完成时 ist gefahren
+assert any(w["german"] == "Gefahr" for w in dq(c, "gefahren"))
 assert add(cb, german="Greifer").status_code == 400                               # 没有可靠释义, 不放进背不了的卡片
 assert J(add(cb, german="Greifer", meaning="抓斗"))["added"] == 1
 gid = J(cb.get("/api/words?q=Greifer"))["words"][0]["id"]
