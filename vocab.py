@@ -17,6 +17,7 @@ from srs import fsrs_review
 
 bp = Blueprint("vocab", __name__)
 
+PAGE = 100                 # 词库列表一页几个
 MASTERED_STABILITY = 21   # 稳定性 >= 21 天, 且拼写答对过, 才算「已掌握」
 GENDERS = {"", "der", "die", "das"}
 
@@ -348,15 +349,20 @@ def word_status(d):
 @bp.route("/api/words")
 @login_required
 def list_words():
-    """词库列表(带当前用户的学习状态), ?q= 按德语或释义搜索, ?level= A1..C1 / mine(自己加的) / hidden(删掉的), 最多 200 条"""
+    """词库列表(带当前用户的学习状态), ?q= 按德语或释义搜索, ?level= A1..C1 / 专题书 / mine(自己加的) / hidden(删掉的)。
+    一页 PAGE 条, ?offset= 往后翻; total / learned / mastered = 这个范围(和搜索条件)里一共多少、学过、掌握了多少"""
     q = request.args.get("q", "").strip()[:50]
     level = request.args.get("level", "")
+    try:
+        offset = max(0, int(request.args.get("offset", 0)))
+    except ValueError:
+        offset = 0
     like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
     source = "my_words"
     where = "(w.german LIKE :like ESCAPE '\\' OR w.meaning LIKE :like ESCAPE '\\')"
     args = {"like": like}
     theme_join = ""
-    order = "w.german COLLATE NOCASE"
+    order = "l.level IS NULL, l.level, l.rank, w.german COLLATE NOCASE"   # 全部: 按级别, 同级按常用程度
     if level in LEVELS:
         where += " AND l.level = :level"
         args["level"] = level
@@ -370,13 +376,17 @@ def list_words():
     elif level == "hidden":   # 自己删掉的词(可以恢复)
         source = "all_my_words"
         where += " AND w.hidden"
+    base = (f"FROM {source} w {theme_join} LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid "
+            f"LEFT JOIN word_levels l ON l.word_id = w.id WHERE {where}")
     rows = query(
         "SELECT w.id, w.german, w.gender, w.pos, w.plural, w.meaning, w.edited, w.hidden, w.private, l.level, "
-        "p.next_review, p.stability, p.spell_ok, p.reps "
-        f"FROM {source} w {theme_join} LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid "
-        f"LEFT JOIN word_levels l ON l.word_id = w.id WHERE {where} ORDER BY {order} LIMIT 200",
-        **args,
+        f"p.next_review, p.stability, p.spell_ok, p.reps {base} ORDER BY {order} LIMIT :lim OFFSET :off",
+        lim=PAGE, off=offset, **args,
     ).fetchall()
+    total, learned, mastered = query(
+        f"SELECT COUNT(*), COUNT(p.word_id), COALESCE(SUM(p.stability >= :ms AND p.spell_ok > 0), 0) {base}",
+        ms=MASTERED_STABILITY, **args,
+    ).fetchone()
     words = []
     for r in rows:
         d = dict(r)
@@ -385,7 +395,8 @@ def list_words():
         for k in ("stability", "spell_ok", "reps"):
             del d[k]
         words.append(d)
-    return jsonify({"words": words})
+    return jsonify({"words": words, "total": total, "learned": learned, "mastered": mastered,
+                    "offset": offset, "more": offset + len(words) < total})
 
 
 def word_row(word_id):

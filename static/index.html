@@ -239,14 +239,19 @@
 
     <!-- ===== 词库 ===== -->
     <section class="page" data-page="words">
-      <div class="row" style="margin-bottom:6px">
-        <button id="goAdd">＋ 添加单词</button>
-        <button id="goImport" class="secondary">批量导入</button>
+      <!-- 搜索框滚动时留在顶部; ＋ 打开添加单词 / 批量导入 -->
+      <div class="wtop">
+        <input id="wSearch" type="search" placeholder="查德语、变化形式（ging）或中文">
+        <button class="wplus" id="wPlus" aria-label="添加单词" aria-expanded="false">＋</button>
+        <div class="wmenu hidden" id="wMenu">
+          <button id="goAdd">添加单词</button>
+          <button id="goImport">批量导入</button>
+        </div>
       </div>
-      <div class="chips" id="wLevels"></div>
-      <input id="wSearch" type="search" placeholder="查词：德语、变化形式（ging）或中文">
-      <div class="meta left" id="wCount" style="margin:0 4px 8px;font-size:13px"></div>
+      <div class="chips wrap wchips" id="wLevels"></div>
+      <div class="wsum" id="wCount"></div>
       <div class="list" id="wList"></div>
+      <button class="secondary hidden" id="wMore" style="width:100%">再显示 100 个</button>
       <button class="big secondary hidden" id="wAi"></button>
     </section>
 

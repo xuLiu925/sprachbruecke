@@ -6,21 +6,31 @@ function openEdit(id) { editingId = id; go("edit"); }
 let viewingId = null, viewWord = null;   // 正在查看的词
 function openView(id) { viewingId = id; go("view"); }
 
-// 级别筛选
-let wLevel = "";
-const LEVEL_FILTERS = [["", "全部"], ["A1", "A1"], ["A2", "A2"], ["B1", "B1"], ["B2", "B2"], ["C1", "C1"],
+// 筛选: 第一行级别, 第二行专题书和自己的词; 两行排开, 不横向滚动
+let wLevel = null;      // null = 还没选过, 第一次进来用当前单词书
+const LEVEL_FILTERS = [["", "全部"], ["A1", "A1"], ["A2", "A2"], ["B1", "B1"], ["B2", "B2"], ["C1", "C1"], null,
                        ["dsh", "DSH"], ["common", "常用"], ["warehouse", "海外仓"], ["mine", "我加的"], ["hidden", "已删除"]];
-for (const [v, label] of LEVEL_FILTERS) {
+const LEVEL_NAMES = Object.fromEntries(LEVEL_FILTERS.filter(Boolean).map(([v, label]) => [v, v ? label : "全部单词"]));
+for (const f of LEVEL_FILTERS) {
+  if (!f) { const br = document.createElement("span"); br.className = "chips-break"; $("wLevels").appendChild(br); continue; }
+  const [v, label] = f;
   const b = document.createElement("button");
   b.textContent = label; b.dataset.level = v;
-  b.classList.toggle("on", v === wLevel);
-  b.onclick = () => {
-    wLevel = v;
-    document.querySelectorAll("#wLevels button").forEach(x => x.classList.toggle("on", x.dataset.level === v));
-    loadWords();
-  };
+  b.onclick = () => { setLevel(v); loadWords(); };
   $("wLevels").appendChild(b);
 }
+function setLevel(v) {
+  wLevel = v;
+  document.querySelectorAll("#wLevels button").forEach(x => x.classList.toggle("on", x.dataset.level === v));
+}
+
+// ＋: 添加单词 / 批量导入
+$("wPlus").onclick = e => {
+  e.stopPropagation();
+  const open = $("wMenu").classList.toggle("hidden") === false;
+  $("wPlus").setAttribute("aria-expanded", open);
+};
+document.addEventListener("click", () => { $("wMenu").classList.add("hidden"); $("wPlus").setAttribute("aria-expanded", false); });
 
 function localDate(s) {   // 数据库里是 UTC 字符串, 显示成本地日期
   const d = new Date(s.replace(" ", "T") + "Z");
@@ -34,27 +44,40 @@ function statusChip(w) {
   else if (w.status === "mastered") c.textContent = "已掌握";
   else {
     const t = localDate(w.next_review);
-    c.textContent = t.d <= new Date() ? "待复习" : "学习中 · " + t.text;
+    const due = t.d <= new Date();
+    c.textContent = due ? "待复习" : "学习中 · " + t.text;
+    if (due) c.classList.add("due");
   }
   return c;
 }
 
-let searchTimer, searchSeq = 0;
-async function loadWords() {
-  const seq = ++searchSeq;
+let searchTimer, searchSeq = 0, wOffset = 0, wLoading = false;
+async function loadWords(more = false) {
+  const seq = more ? searchSeq : ++searchSeq;
+  if (wLevel === null) {    // 第一次进来: 显示当前单词书
+    let cur = "";
+    try { cur = (await api("/api/books")).current; } catch (e) {}
+    if (seq !== searchSeq) return;
+    setLevel(cur && cur !== "all" && cur in LEVEL_NAMES ? cur : "");
+  }
   const q = $("wSearch").value.trim();
   // 在“全部”里输入内容 = 查词(能查变位变格, 最相关的在前); 选了级别 = 在这个范围里筛选
   const dict = q && !wLevel;
+  if (!more) wOffset = 0;
   $("wAi").classList.add("hidden");
-  const url = dict ? "/api/dict?q=" + encodeURIComponent(q) : "/api/words?q=" + encodeURIComponent(q) + "&level=" + wLevel;
+  const url = dict ? "/api/dict?q=" + encodeURIComponent(q)
+    : `/api/words?q=${encodeURIComponent(q)}&level=${wLevel}&offset=${wOffset}`;
   let r;
-  try { r = await api(url); } catch (e) { if (seq === searchSeq) toast(e.message); return; }
+  wLoading = true;
+  try { r = await api(url); } catch (e) { wLoading = false; if (seq === searchSeq) toast(e.message); return; }
+  wLoading = false;
   if (seq !== searchSeq) return;   // 只显示最后一次搜索的结果
-  const box = $("wList"); box.textContent = "";
-  const limit = dict ? 50 : 200;
-  $("wCount").textContent = q && !r.words.length ? `没有找到“${q}”`
-    : (q ? "找到 " : "共 ") + r.words.length + " 个" + (r.words.length >= limit ? `（最多显示 ${limit} 个）` : "");
-  box.classList.toggle("hidden", !r.words.length);
+  const box = $("wList");
+  if (!more) box.textContent = "";
+  wOffset += r.words.length;
+  $("wMore").classList.toggle("hidden", dict || !r.more);
+  wSummary(r, q, dict);
+  box.classList.toggle("hidden", !box.childElementCount && !r.words.length);
   if (dict && !r.words.length && r.gen && r.ai) {     // 查不到: 用户点了才调用 AI
     $("wAi").dataset.q = q; $("wAi").disabled = false;
     $("wAi").textContent = `用 AI 查询“${q}”`;
@@ -64,7 +87,22 @@ async function loadWords() {
     box.appendChild(wordRow(w, () => w.id ? openView(w.id) : openGlossaryWord(w)));   // 情景课的仓储词还不在词库里, 用单词卡显示
   }
 }
-onShow.words = loadWords;
+// 数量: “A1 · 共 652 个，已学 120，已掌握 35”; 查词时“找到 N 个”
+function wSummary(r, q, dict) {
+  const el = $("wCount"); el.textContent = "";
+  if (q && !(dict ? r.words.length : r.total)) { el.textContent = `没有找到“${q}”`; return; }
+  if (dict) { el.textContent = `找到 ${r.words.length} 个` + (r.words.length >= 50 ? "（显示最相关的 50 个）" : ""); return; }
+  const b = n => { const x = document.createElement("b"); x.textContent = n; return x; };
+  el.append(`${q ? "找到" : (LEVEL_NAMES[wLevel] || "") + " · 共"} `, b(r.total), " 个");
+  if (wLevel !== "hidden") el.append("，已学 ", b(r.learned), "，已掌握 ", b(r.mastered));
+}
+$("wMore").onclick = () => loadWords(true);
+// 滑到底自动加载下一批(“再显示 100 个”按钮离屏幕底不到 300px 时)
+addEventListener("scroll", () => {
+  if (current !== "words" || wLoading || $("wMore").classList.contains("hidden")) return;
+  if ($("wMore").getBoundingClientRect().top < innerHeight + 300) loadWords(true);
+}, { passive: true });
+onShow.words = () => loadWords();
 
 // 词库和全局搜索共用的一行
 function wordRow(w, open) {
@@ -94,7 +132,7 @@ $("wAi").onclick = async () => {
   await loadWords();
   openGlossaryWord(r.word);
 };
-$("wSearch").oninput =() => { clearTimeout(searchTimer); searchTimer = setTimeout(loadWords, 250); };
+$("wSearch").oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadWords(), 250); };
 
 // ---- 单词详情(查看) ----
 function studyText(w) {

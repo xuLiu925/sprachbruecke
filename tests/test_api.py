@@ -91,6 +91,13 @@ assert ws["Tisch"]["next_review"] and ws["Lampe"]["next_review"] is None
 assert [w["german"] for w in J(c.get("/api/words?q=桌"))["words"]] == ["Tisch"]
 assert [w["german"] for w in J(c.get("/api/words?q=haus"))["words"]] == ["Haus"]
 assert J(c.get("/api/words?q=%25"))["words"] == []  # % 不当通配符
+import vocab as VO                                   # 分页: total 是真实总数, offset 往后翻, 两页不重复
+VO.PAGE = 5
+p1, p2 = J(c.get("/api/words")), J(c.get("/api/words?offset=5"))
+assert len(p1["words"]) == 5 and p1["more"] and p1["total"] == len(ws) and p1["learned"] <= p1["total"]
+assert not {w["id"] for w in p1["words"]} & {w["id"] for w in p2["words"]}
+assert J(c.get("/api/words?q=haus"))["total"] == 1
+VO.PAGE = 100
 
 # 冠词练习: 学过的名词不到 5 个时, 从全部名词里抽
 d = J(c.get("/api/drill/articles"))["words"]
