@@ -39,7 +39,7 @@ async function wordParts(el, german, meaning = "") {
       const title = document.createElement("div"); title.textContent = "构词";
       const literal = document.createElement("div"); literal.textContent = "字面：" + parts.literal;
       const tip = document.createElement("div"); tip.className = "lzh";
-      tip.textContent = `${PARTS_CLARITY[parts.clarity]} · AI 生成，未核对`;
+      tip.textContent = PARTS_CLARITY[parts.clarity];
       el.append(title, ...parts.steps.map(renderPartStep), literal, tip);
     } else if (parts) {
       const none = document.createElement("div"); none.textContent = "构词：这个词不用拆";

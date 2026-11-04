@@ -50,13 +50,12 @@ function renderNote(box, note, body, meta = {}) {
     const zh = document.createElement("div"); zh.className = "lzh"; zh.textContent = s.zh;
     box.append(b, zh);
   }
-  const tip = document.createElement("div"); tip.className = "lzh nfoot"; tip.textContent = "AI 生成，未核对，语法以教材或老师为准。";
   const drill = document.createElement("button"); drill.textContent = "替换练习：换个情况再说一遍";
   drill.style.cssText = "width:100%;margin-top:10px";
   const drillBox = document.createElement("div");
   drill.onclick = () => openDrills(drillBox, drill, body);
 
-  const issue = document.createElement("div"); issue.className = "lzh";
+  const issue = document.createElement("div"); issue.className = "lzh nfoot";
   const showIssue = t => { issue.textContent = t ? "已记录的问题：" + t : ""; };
   showIssue(meta.report);
   const row = document.createElement("div"); row.className = "row"; row.style.marginTop = "8px";
@@ -80,7 +79,7 @@ function renderNote(box, note, body, meta = {}) {
     });
     row.appendChild(regen);
   }
-  box.append(tip, issue, row, fixBox);
+  box.append(issue, row, fixBox);
   if (!wsCanLeave()) return;              // 复习和练习页: 跳去替换练习再回来会重新出题
   box.append(drill, drillBox);
   if (meta.can) {

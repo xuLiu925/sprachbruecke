@@ -104,7 +104,7 @@ onShow.lesson = () => {
   if (lessonShown === l.id) return;   // 从单词详情 / 练习回来: 写了一半的内容要保留
   lessonShown = l.id;
   tipOnce("tip_lesson", "点课文里任意一个词就能查意思，不会的词可以加入学习；句子旁的按钮能听发音、看讲解。");
-  $("lLevel").textContent = LESSON_LEVELS[l.level] + (l.custom ? " · AI 生成，未核对" : "");
+  $("lLevel").textContent = LESSON_LEVELS[l.level];
   $("lDelete").classList.toggle("hidden", !l.custom);
   $("lScene").textContent = l.scene;
   const box = $("lLines"); box.textContent = "";
@@ -339,7 +339,7 @@ function openGlossaryWord(g, keep = false, back = false) {
   $("wsheet").classList.remove("hidden");
   wsLoads = fillWordCard("ws", g, { forms: false, example: false });
   $("wsExample").textContent = g.example || "";
-  $("wsLesson").textContent = g.ai_word ? "AI 生成，未核对" : "";
+  $("wsLesson").textContent = "";
   $("wsSay").classList.remove("hidden");
   $("wsView").classList.add("hidden");
   $("wsAdd").classList.remove("hidden"); wsButton(wsWord);

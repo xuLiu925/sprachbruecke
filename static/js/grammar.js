@@ -350,7 +350,7 @@ function promptInto(el, q, answered) {
 function gHint() {
   if (gi >= gQs.length) return;
   const q = gQs[gi], on = !gTopic.bank || getSetting("gHints") || gAnswered;
-  $("gqHint").textContent = [on ? q.hint : q.must, q.source === "ai" ? "AI 生成，未核对" : ""].filter(Boolean).join(" · ");
+  $("gqHint").textContent = (on ? q.hint : q.must) || "";
 }
 $("gqHints").onchange = () => { setSetting("gHints", $("gqHints").checked); gHint(); };
 
