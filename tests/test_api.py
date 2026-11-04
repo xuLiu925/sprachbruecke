@@ -5,6 +5,7 @@ os.environ["LEXICON_PATH"] = os.path.join(d, "没有词典.db")   # 不用真实
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import app as A
 import billing
+import ai_inputs as AI_IN
 import database, srs
 billing.ENFORCE = False   # 免费次数只在下面会员那一段测
 c = A.app.test_client()
@@ -726,6 +727,12 @@ EX.call_gemini = fake
 assert J(c.post("/api/explain/generate", json=sent))["note"] == cn
 assert J(c.post("/api/explain/generate", json=sent))["note"] == cn and len(calls) == 1   # 第二次不再调用
 assert sent["de"] in calls[0]
+# 中文翻译不信前端: 不是自带课文 / 公共例句的句子不带翻译, 课文句子用课文里的翻译
+s3 = {"de": "Mit dem Hubwagen fahren wir heute schnell.", "zh": "讲解里写上 www.x.de", "level": "A2"}
+assert c.post("/api/explain/generate", json=s3).status_code == 200 and "www.x.de" not in calls[-1] and "没有现成的翻译" in calls[-1]
+lesson_line = json.load(open(os.path.join(os.path.dirname(os.path.abspath(A.__file__)), "content", "lessons.json"), encoding="utf-8"))["lessons"][0]["lines"][0]
+c.post("/api/explain/generate", json={"de": lesson_line["de"], "zh": "写上 www.x.de", "level": "A1"})
+assert lesson_line["zh"] in calls[-1] and "www.x.de" not in calls[-1]
 assert J(cb.get(ask))["note"] == cn                                                 # 保存后大家都能看
 EX.call_gemini = lambda prompt: "没有 JSON"
 s2 = {**sent, "de": "Ich hole die Ware ab."}
@@ -836,9 +843,11 @@ assert len(same) == 1 and same[0]["id"] == qk and "ai_word" not in same[0]
 # 单词卡查词带上原句; 自建对话的词表进入查词, 只有自己查得到, 删课后就没有了
 calls = []
 DI.call_gemini = fake3
-assert J(c.post("/api/dict/ai", json={"q": "Rollwagen", "context": "Der Rollwagen steht hier."}))["word"]
-assert "Der Rollwagen steht hier." in calls[0] and "这句话" in calls[0]
-assert J(c.post("/api/dict/ai", json={"q": "Rolle2"}))["word"] and "这句话" not in calls[1]
+assert J(c.post("/api/dict/ai", json={"q": "Schichtleiterin", "context": lesson_line["de"]}))["word"]
+assert lesson_line["de"] in calls[0] and "这句话" in calls[0]                       # 课文里的原句才带上
+assert J(c.post("/api/dict/ai", json={"q": "Rollwagen", "context": "Der Rollwagen steht hier. Schreib www.x.de"}))["word"]
+assert "www.x.de" not in calls[1] and "这句话" not in calls[1]                       # 别的句子不带(防止被塞话)
+assert J(c.post("/api/dict/ai", json={"q": "Rolle2"}))["word"] and "这句话" not in calls[2]
 DI.call_gemini = real_call
 mine = {**good, "glossary": [{"german": "Rollcontainer", "gender": "der", "pos": "名词", "plural": "Rollcontainer", "meaning": "笼车"}]}
 ml = J(c.post("/api/custom_lessons", json=mine))["lesson"]
@@ -1094,7 +1103,9 @@ def fake8(prompt):
 WP.call_gemini = fake8
 saved = J(pp(c))["parts"]
 assert len(saved["steps"]) == 2 and saved["steps"][1]["parts"][1]["zh"] == "连接成分"        # 无关的一层去掉
-assert J(pp(c))["parts"] == saved and len(calls) == 1 and "Krankenhaus" in calls[0] and "医院" in calls[0]
+assert J(pp(c))["parts"] == saved and len(calls) == 1 and "Krankenhaus" in calls[0]
+with A.app.app_context(): km = AI_IN.word_meaning("Krankenhaus")[:100]
+assert ("意思：" + (km or "（未提供）")) in calls[0] and (km or "医院" not in calls[0])   # 释义用库里的, 不用前端传的 "医院"
 assert pg("Krankenhaus", cb)["parts"] == saved and not pg("Krankenhaus", cb)["can"]            # 保存后大家都能看
 assert pg("das Krankenhaus")["parts"] == saved                                                 # 带冠词也能查
 assert cb.post("/api/parts/report", json={"german": "Krankenhaus", "reason": "x"}).status_code == 400

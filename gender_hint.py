@@ -11,6 +11,7 @@ import re
 
 from flask import Blueprint, jsonify, request
 
+from ai_inputs import known_genders, word_meaning
 from auth import admin_required, is_admin
 from billing import ai_block, ai_can_generate, ai_done
 from custom_lessons import CHINESE, AiError, api_key, call_gemini, extract_json, text
@@ -189,6 +190,9 @@ def memo():
     word = german.split(" ")[-1]
     if analyze(word, gender)[0]:
         return err("这个词有规律可循，不用联想")
+    genders = known_genders(word)
+    if genders and gender not in genders:       # 词库 / 词典里有这个词, 冠词对不上就不生成
+        return err("这个词的冠词不对")
     uid = current_user_id()
     if data.get("again") and not is_admin(uid):   # 换一个只有管理员能用
         return err("没有权限", 403)
@@ -200,7 +204,8 @@ def memo():
     if blocked:
         return blocked
     try:
-        raw = call_gemini(build_prompt(word, gender, text(data.get("meaning"), 100)))
+        # 释义用词库 / 词典里的, 不信前端传的(联想记忆大家共用)
+        raw = call_gemini(build_prompt(word, gender, word_meaning(word, gender)[:100]))
     except AiError as ex:
         return err(ex.msg, ex.code)
     result = clean_memo(extract_json(raw))

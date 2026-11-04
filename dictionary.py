@@ -20,6 +20,7 @@ from billing import ai_block, ai_can_generate, ai_done
 from custom_lessons import TOKEN, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
+from ai_inputs import official_context
 from lessons import find_word, like_escape, load_items, my_lessons
 from vocab import GENDERS, query, word_status
 
@@ -221,7 +222,8 @@ def ai_lookup():
     if blocked:
         return blocked
     try:
-        raw = call_gemini(build_prompt(q, text(data.get("context"), 300)))
+        # 原句只用自带课文 / 公共例句里的(结果大家共用, 不能让人在原句里塞别的话)
+        raw = call_gemini(build_prompt(q, official_context(text(data.get("context"), 300), q)))
     except AiError as ex:
         return err(ex.msg, ex.code)
     parsed = extract_json(raw)

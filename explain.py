@@ -1,7 +1,8 @@
 """句子讲解(词形、第几格、语序、为什么这样用、类似用法)和替换练习(换一个情况, 用同样的结构再说一遍)
 
 都按句子保存(sentence_notes / sentence_drills, 用德语原句的哈希做主键), 每句只生成一次, 所有课程共用。
-生成和保存只有管理员能做(会消耗额度, 而且保存的内容大家共用); 没有 Key 时可以复制提示词到免费 AI, 再粘贴回来。
+生成开放给登录用户(次数见 billing.py); 结果大家共用, 所以提示词里的中文翻译用服务器自己的(ai_inputs.official_zh), 不信前端传的。
+复制提示词、粘贴结果、重新生成只有管理员能做。
 """
 import hashlib
 import json
@@ -14,6 +15,7 @@ from billing import ai_block, ai_can_generate, ai_done, member_only
 from custom_lessons import CHINESE, TOKEN, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
+from ai_inputs import official_zh
 from lessons import drill_items
 from trial import arg_sentence, guest_open
 
@@ -50,11 +52,15 @@ def feedback_text(reason):
     return f"\n上一版有这个问题，这次必须改正：{reason}\n" if reason else ""
 
 
+def zh_line(zh):
+    return "中文：" + zh if zh else "中文：（没有现成的翻译，请按德语原句理解）"
+
+
 def build_prompt(de, zh, level, reason=None):
     return f"""你是德语语法老师，学习者的母语是中文，水平 {level}，在德国海外仓工作。请讲解这句德语。
 
 德语：{de}
-中文：{zh}
+{zh_line(zh)}
 {feedback_text(reason)}
 规则：
 - 用简单的中文解释，德语术语后面加中文。
@@ -192,6 +198,7 @@ def generate():
     if saved:
         ai_done(uid, k)
         return jsonify({"note": saved})
+    zh = official_zh(de)   # 中文翻译用服务器自己的, 不信前端传的(结果大家共用, 防止被塞进别的话)
     try:
         raw = call_gemini(build_prompt(de, zh, level))
     except AiError as ex:
@@ -254,7 +261,7 @@ def build_drill_prompt(de, zh, level, reason=None):
     return f"""你是德语老师，学习者的母语是中文，水平 {level}，在德国海外仓工作。请为这句德语出替换练习，帮助他举一反三。
 
 原句：{de}
-中文：{zh}
+{zh_line(zh)}
 {feedback_text(reason)}
 规则：
 - 出 3 道题。每道题保持原句的核心语法结构，只替换 1–2 个部分，如地点、物品、数量、人称、时间。
@@ -349,7 +356,7 @@ def drill_generate():
     if blocked:
         return blocked
     try:
-        raw = call_gemini(build_drill_prompt(de, zh, level))
+        raw = call_gemini(build_drill_prompt(de, official_zh(de), level))   # 同上, 中文用服务器自己的
     except AiError as ex:
         return err(ex.msg, ex.code)
     drills, e = clean_drills(extract_json(raw), de)

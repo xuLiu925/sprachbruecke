@@ -9,6 +9,7 @@ import re
 
 from flask import Blueprint, jsonify, request
 
+from ai_inputs import word_meaning
 from auth import admin_required, is_admin
 from billing import ai_block, ai_can_generate, ai_done
 from custom_lessons import CHINESE, AiError, api_key, call_gemini, extract_json, text
@@ -173,7 +174,8 @@ def generate():
     if blocked:
         return blocked
     try:
-        raw = call_gemini(build_prompt(word, text(data.get("meaning"), 100), report_reason(word)))
+        # 释义用词库 / 词典里的, 不信前端传的(构词解释大家共用)
+        raw = call_gemini(build_prompt(word, word_meaning(word)[:100], report_reason(word)))
     except AiError as ex:
         return err(ex.msg, ex.code)
     parts, e = clean_parts(extract_json(raw), word)
