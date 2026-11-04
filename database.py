@@ -230,7 +230,8 @@ CREATE TABLE IF NOT EXISTS mail_log (
     id INTEGER PRIMARY KEY,
     email TEXT NOT NULL,
     purpose TEXT NOT NULL,
-    sent_at TEXT NOT NULL
+    sent_at TEXT NOT NULL,
+    ip TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_mail_log_email ON mail_log (email, sent_at);
 -- 会员(billing.py): until = 到期时间(UTC), 过期的行留着不删
@@ -559,6 +560,9 @@ def migrate(db):
     if "email" not in {r[1] for r in db.execute("PRAGMA table_info(users)")}:
         db.execute("ALTER TABLE users ADD COLUMN email TEXT")
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email) WHERE email IS NOT NULL")
+    if "ip" not in {r[1] for r in db.execute("PRAGMA table_info(mail_log)")}:   # 验证码按 IP 限次(2026-11-04)
+        db.execute("ALTER TABLE mail_log ADD COLUMN ip TEXT")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_mail_log_ip ON mail_log (ip, sent_at)")
     if "owner_id" not in {r[1] for r in db.execute("PRAGMA table_info(words)")}:
         rebuild_words(db)
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_words_public ON words (german, gender) WHERE owner_id IS NULL")

@@ -12,6 +12,7 @@ import os
 import re
 import secrets
 import sqlite3
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -22,14 +23,21 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import email_codes
 from database import fmt_time, get_db, now_str
 from email_codes import norm_email
-from helpers import current_user_id, err, json_body, login_required
+from helpers import client_ip, current_user_id, err, json_body, login_required
 
 bp = Blueprint("auth", __name__)
 
-# 登录失败限速(内存里, 重启清零): 同一用户名 10 分钟内最多失败 8 次
+# 登录失败限速(内存里, 重启清零), 10 分钟内:
+#   同一用户名 + 同一 IP 最多失败 FAIL_MAX 次  —— 别人在他那边输错, 不会锁住你
+#   同一 IP 最多失败 FAIL_IP_MAX 次              —— 挡住换着用户名撞密码
+#   同一用户名(所有 IP 加起来)最多 FAIL_NAME_MAX 次 —— 挡住换着 IP 猜一个人的密码
 _fail = {}
+_fail_lock = threading.Lock()
 FAIL_WINDOW = 600
 FAIL_MAX = 8
+FAIL_IP_MAX = 30
+FAIL_NAME_MAX = 100
+FAIL_KEYS_MAX = 5000      # 记录的键超过这么多时清掉过期的, 免得被随机用户名撑大内存
 
 INVITE_DAYS = 7                                   # 邀请码几天后过期
 CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"    # 去掉了容易看错的 I L O 0 1
@@ -39,15 +47,41 @@ NO_LOGIN_PATHS = {"/api/me", "/api/login", "/api/register", "/api/register/code"
                   "/api/password/forgot", "/api/password/reset"}
 
 
-def too_many_fails(name):
+def _recent(key, t):
+    lst = [x for x in _fail.get(key, []) if t - x < FAIL_WINDOW]
+    if lst:
+        _fail[key] = lst
+    else:
+        _fail.pop(key, None)
+    return len(lst)
+
+
+def too_many_fails(name, ip=None, limit=FAIL_MAX):
+    """name 是用户名(小写)或 #uid编号 这类键; 带 ip 时另外按 IP、按用户名总数查"""
     t = time.time()
-    lst = [x for x in _fail.get(name, []) if t - x < FAIL_WINDOW]
-    _fail[name] = lst
-    return len(lst) >= FAIL_MAX
+    with _fail_lock:
+        if ip is None:
+            return _recent(name, t) >= limit
+        return (_recent(f"{name}|{ip}", t) >= FAIL_MAX or _recent(f"@ip|{ip}", t) >= FAIL_IP_MAX
+                or _recent(name, t) >= FAIL_NAME_MAX)
 
 
-def record_fail(name):
-    _fail.setdefault(name, []).append(time.time())
+def record_fail(name, ip=None):
+    t = time.time()
+    with _fail_lock:
+        if len(_fail) > FAIL_KEYS_MAX:
+            for k in list(_fail):
+                _recent(k, t)
+        keys = [name] if ip is None else [name, f"{name}|{ip}", f"@ip|{ip}"]
+        for k in keys:
+            _fail.setdefault(k, []).append(t)
+
+
+def clear_fails(name):
+    """密码被重置后, 解开这个用户名的限速(各 IP 的也一起)"""
+    with _fail_lock:
+        for k in [k for k in _fail if k == name or k.startswith(name + "|")]:
+            del _fail[k]
 
 
 def random_code(n):
@@ -103,6 +137,11 @@ def admin_required(fn):
 
 
 def login_ok(uid, username):
+    start_session(uid)
+    return jsonify({"username": username, "admin": is_admin(uid)})
+
+
+def start_session(uid):
     # 一个账号同时只能一个设备登录: 每次登录换一个令牌, 存在 user_settings, 旧设备的令牌就对不上了
     tok = secrets.token_hex(16)
     db = get_db()
@@ -113,7 +152,6 @@ def login_ok(uid, username):
     session["uid"] = uid
     session["tok"] = tok
     session.permanent = True
-    return jsonify({"username": username, "admin": is_admin(uid)})
 
 
 def drop_login(uid):
@@ -224,8 +262,8 @@ def login():
         return err("请求格式错误")
     username = str(data.get("username", "")).strip()
     password = str(data.get("password", ""))
-    key = username.lower()
-    if too_many_fails(key):
+    key, ip = username.lower(), client_ip()
+    if too_many_fails(key, ip):
         return err("尝试次数过多, 请 10 分钟后再试", 429)
     if "@" in username:     # 用邮箱登录
         row = get_db().execute("SELECT id, username, password_hash FROM users WHERE email = ?",
@@ -235,7 +273,7 @@ def login():
             "SELECT id, username, password_hash FROM users WHERE username = ?", (username,)
         ).fetchone()
     if row is None or not check_password_hash(row["password_hash"], password):
-        record_fail(key)
+        record_fail(key, ip)
         return err("用户名或密码错误", 401)
     return login_ok(row["id"], row["username"])
 
@@ -271,7 +309,7 @@ def change_password():
     if data is None:
         return err("请求格式错误")
     uid = current_user_id()
-    key = f"#uid{uid}"
+    key = f"@uid{uid}"   # 用户名里不能有 @, 不会和用户名撞
     if too_many_fails(key):
         return err("尝试次数过多, 请 10 分钟后再试", 429)
     db = get_db()
@@ -284,6 +322,7 @@ def change_password():
         return err("新密码至少 8 位")
     db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(new), uid))
     db.commit()
+    start_session(uid)   # 换登录令牌: 以前的会话(比如被偷的 cookie)作废, 当前设备换上新令牌继续用
     return jsonify({"ok": True})
 
 
@@ -321,7 +360,7 @@ def reset_by_email():
         return err(bad)
     db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(new), row["id"]))
     db.commit()
-    _fail.pop(row["username"].lower(), None)
+    clear_fails(row["username"].lower())
     return login_ok(row["id"], row["username"])
 
 
@@ -429,5 +468,5 @@ def reset_password(uid):
     db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(temp), uid))
     drop_login(uid)   # 他已登录的设备下线
     db.commit()
-    _fail.pop(row["username"].lower(), None)   # 他之前输错被限速的话, 一起解开
+    clear_fails(row["username"].lower())   # 他之前输错被限速的话, 一起解开
     return jsonify({"username": row["username"], "password": temp})

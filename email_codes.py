@@ -5,7 +5,8 @@
 也可以用环境变量 MAIL_USER / MAIL_PASSWORD。没有配置时不能发验证码, 注册方式默认退回邀请码(auth.register_mode)。
 
 验证码 6 位数字, 10 分钟有效, 输错 5 次作废, 只存哈希。为了不被刷:
-同一个邮箱 60 秒内只能发一次、一小时最多 5 次; 全站每天最多 DAILY_MAX 封(Gmail 免费每天约 500 封)。
+同一个邮箱 60 秒内只能发一次、一小时最多 5 次; 同一个 IP 一小时最多 IP_HOURLY_MAX 封、一天最多 IP_DAILY_MAX 封
+(不然一个人换几十个邮箱就能把全站额度刷光); 全站每天最多 DAILY_MAX 封(Gmail 免费每天约 500 封)。
 """
 import hashlib
 import json
@@ -18,7 +19,10 @@ import sys
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 
+from flask import has_request_context
+
 from database import BASE, fmt_time, get_db, now_str
+from helpers import client_ip
 
 CONFIG_FILE = os.path.join(BASE, ".mail_config")
 CODE_MINUTES = 10
@@ -26,6 +30,8 @@ MAX_TRIES = 5
 RESEND_SECONDS = 60
 HOURLY_MAX = 5
 DAILY_MAX = 200
+IP_HOURLY_MAX = 10
+IP_DAILY_MAX = 20     # 国内手机网络很多人共用一个出口 IP, 不能设太小
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PURPOSES = {"register": "注册", "reset": "找回密码", "bind": "绑定邮箱"}
 
@@ -85,6 +91,13 @@ def send_code(email, purpose):
                       (email, fmt_time(now - timedelta(hours=1)))).fetchone()[0]
     if hour >= HOURLY_MAX:
         return "这个邮箱一小时内收了太多验证码，请稍后再试"
+    ip = client_ip() if has_request_context() else None
+    if ip is not None:
+        n_hour, n_day = db.execute(
+            "SELECT COUNT(CASE WHEN sent_at > ? THEN 1 END), COUNT(*) FROM mail_log WHERE ip = ? AND sent_at > ?",
+            (fmt_time(now - timedelta(hours=1)), ip, fmt_time(now - timedelta(days=1)))).fetchone()
+        if n_hour >= IP_HOURLY_MAX or n_day >= IP_DAILY_MAX:
+            return "你这边发的验证码太多了，请稍后再试"
     day = db.execute("SELECT COUNT(*) FROM mail_log WHERE sent_at >= ?", (now_str()[:10],)).fetchone()[0]
     if day >= DAILY_MAX:
         return "今天发的邮件太多了，请明天再试"
@@ -101,7 +114,7 @@ def send_code(email, purpose):
                "ON CONFLICT(email, purpose) DO UPDATE SET code_hash = excluded.code_hash, "
                "expires_at = excluded.expires_at, tries = 0",
                (email, purpose, _hash(email, purpose, code), fmt_time(now + timedelta(minutes=CODE_MINUTES))))
-    db.execute("INSERT INTO mail_log (email, purpose, sent_at) VALUES (?,?,?)", (email, purpose, now_str()))
+    db.execute("INSERT INTO mail_log (email, purpose, sent_at, ip) VALUES (?,?,?,?)", (email, purpose, now_str(), ip))
     db.commit()
     return None
 

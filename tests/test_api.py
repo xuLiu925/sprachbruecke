@@ -139,6 +139,13 @@ c3 = A.app.test_client()
 assert c3.post("/api/login", json={"username": "alice", "password": "wrongwrong"}).status_code == 401
 assert c3.post("/api/login", json={"username": "alice", "password": "12345678"}).status_code == 200
 assert J(c.get("/api/me"))["username"] is None                  # 同一账号在 c3 登录, c 下线
+# 限速按 用户名 + IP: 别人在他那边输错, 换个 IP 照样能登录; 同一个 IP 换着用户名撞密码也会被拦
+ipf = lambda n: {"X-Real-IP": f"10.0.0.{n}"}
+for _ in range(8): c3.post("/api/login", json={"username": "alice", "password": "x"}, headers=ipf(1))
+assert c3.post("/api/login", json={"username": "alice", "password": "12345678"}, headers=ipf(1)).status_code == 429
+assert c3.post("/api/login", json={"username": "alice", "password": "12345678"}, headers=ipf(2)).status_code == 200
+for i in range(A.auth.FAIL_IP_MAX): c3.post("/api/login", json={"username": f"nobody{i}", "password": "x"}, headers=ipf(3))
+assert c3.post("/api/login", json={"username": "alice", "password": "12345678"}, headers=ipf(3)).status_code == 429
 assert c.post("/api/login", json={"username": "alice", "password": "12345678"}).status_code == 200
 for _ in range(8): c3.post("/api/login", json={"username": "carol", "password": "x"})
 assert c3.post("/api/login", json={"username": "carol", "password": "x"}).status_code == 429
@@ -167,7 +174,11 @@ dbi.close()
 # 改密码: 要输对旧密码
 assert ci.post("/api/password", json={"old": "wrongwrong", "new": "abcdefgh"}).status_code == 401
 assert ci.post("/api/password", json={"old": "12345678", "new": "short"}).status_code == 400
+with ci.session_transaction() as s: old_sess = dict(s)
 assert ci.post("/api/password", json={"old": "12345678", "new": "abcdefgh"}).status_code == 200
+cold = A.app.test_client()                                        # 改密码前的 cookie(比如被偷了)作废, 当前设备继续能用
+with cold.session_transaction() as s: s.update(old_sess)
+assert cold.get("/api/stats").status_code == 401 and ci.get("/api/stats").status_code == 200
 login = lambda name, pw: A.app.test_client().post("/api/login", json={"username": name, "password": pw}).status_code
 assert login("dave", "abcdefgh") == 200 and login("dave", "12345678") == 401
 # 管理员重置别人的密码(不能重置自己的)
@@ -274,6 +285,14 @@ dbe.executemany("INSERT INTO mail_log (email, purpose, sent_at) VALUES (?, 'regi
                 [(f"z{i}@x.de", database.now_str()) for i in range(email_codes.DAILY_MAX)])
 dbe.commit()
 assert code_req(A.app.test_client(), "hank", "hank@x.de").status_code == 429
+# 同一个 IP 一小时的上限: 换邮箱也不行, 别的 IP 不受影响
+dbe.execute("DELETE FROM mail_log")
+dbe.executemany("INSERT INTO mail_log (email, purpose, sent_at, ip) VALUES (?, 'register', ?, '10.9.9.9')",
+                [(f"y{i}@x.de", database.now_str()) for i in range(email_codes.IP_HOURLY_MAX)])
+dbe.commit()
+ipreq = lambda ip: A.app.test_client().post("/api/register/code", json={"username": "ipuser", "email": "ipuser@x.de"},
+                                            headers={"X-Real-IP": ip}).status_code
+assert ipreq("10.9.9.9") == 429 and ipreq("10.9.9.8") == 200
 dbe.execute("DELETE FROM mail_log"); dbe.commit(); dbe.close()
 # 邀请链接: 邮箱模式下带有效邀请码就不用邮箱; 码只能用一次
 lcode = J(c.post("/api/invites", json={}))["code"]
