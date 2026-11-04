@@ -881,6 +881,19 @@
     </div>
   </div>
 
+  <!-- 免费次数用完时弹出(core.js 的 showPaywall) -->
+  <div class="sheet hidden" id="paysheet">
+    <div class="sheetbox paybox">
+      <span class="grab" aria-hidden="true"></span>
+      <button class="iconbtn" id="payClose" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <h2>今天的免费次数用完了</h2>
+      <p id="payMsg"></p>
+      <div id="payPlans"></div>
+      <button class="secondary" id="payLater">明天再来</button>
+      <button class="linkbtn" id="payMore">看看免费版和会员有什么不同</button>
+    </div>
+  </div>
+
   <nav class="tabbar" id="tabbar">
     <button data-tab="home">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="m9 15 2 2 4-4"/></svg>今天</button>

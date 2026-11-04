@@ -27,7 +27,7 @@
 | `billing.py` | 免费次数 `LIMITS`、会员、Stripe 付款页、核对付款、webhook、管理员送会员 |
 | `database.py` | `memberships`、`payments`、`usage_daily` 三张新表 |
 | `lessons.py` | `/api/roleplay/due?count=1` 只返回数量（首页用，不算次数） |
-| `static/js/core.js` | 每个请求带 `X-TZ`（时区）；收到 402 时问要不要去看会员；付完款回来调 `checkPaid()` |
+| `static/js/core.js` | 每个请求带 `X-TZ`（时区）；收到 402 时弹出应用内的会员弹窗 `showPaywall()`（`index.html` 的 `#paysheet`：年卡 / 月卡直接去付款、明天再来、看看会员区别；关掉时在二级页面就退回上一页）；付完款回来调 `checkPaid()` |
 | `static/js/home.js` | 「我的」页会员卡片 `showMember()`、`checkPaid()`、管理员“会员”按钮 |
 | `static/js/lessons.js` | 列表用 GET `/api/lessons`，打开课时才 GET `/api/lessons/<id>` 取课文 |
 
@@ -75,6 +75,8 @@
 2. 关掉测试模式，复制正式的 `sk_live_...`，在 Developers → Webhooks 建一个同样的 webhook（地址、两个事件），复制它的 `whsec_...`。
 3. 把两个值写进服务器的 `.stripe_config`，重启服务。**正式密钥不要发给任何人。**
 
+受限密钥（`rk_live_` 开头，选“完整访问权限（敏感操作除外）”）也能用，比完整私钥安全：泄露了也不能提现。
+
 ### 已知限制
 
 - 课程列表里的词表（`glossary`）是公开给登录用户的，单词卡查词要用。
@@ -87,3 +89,5 @@
 - 2026-11-03：已部署，服务器上配置了测试密钥（`.stripe_config`）。用户在线上用测试卡走完一次付款，会员开通成功。
 - 2026-11-03：堵住情景课绕过次数：课文从 `static/lessons.json` 挪到 `content/lessons.json`，改成走 `/api/lessons/<id>`，部署时删掉服务器上旧的静态文件。接口测试通过，还没部署，页面没点过。
 - 2026-11-03：到期提醒。`/api/billing` 加 `expired`；首页提醒卡片和「我的」页倒数（`home.js` 的 `showMemberWarn()`、`MEMBER_SOON` / `MEMBER_WARN`）；提醒邮件 `member_mail.py`，由守护 `tools/watchdog.py` 每小时调一次，发过的记在 `user_settings` 的 `expiry_mail`，邮件日期按北京时间写。到期当天和到期后不发邮件。接口测试通过（假的发信）；本地浏览器看过首页卡片、去续费、知道了、「我的」页倒数。还没部署，没真的发出过到期邮件。
+- 2026-11-04：换成正式收款：受限密钥 + 正式模式 webhook（tongde.pages.dev）。密钥用只读查询验证过；没有真实付款验证，等第一个用户付款时留意会员是否自动开通。
+- 2026-11-04：免费次数用完的提示从浏览器自带的 `confirm()` 换成应用内底部弹窗：显示用完了哪个练习，年卡（标“约 ¥10.7 / 月，一次付清，不自动续费”）、月卡按钮直接建付款页，“明天再来”/ × / 点外面 / Esc 关掉后退回上一页，不留在没有题的空页面。本地浏览器按手机尺寸看过弹窗和“明天再来”；付款按钮没点（本地配置已是正式密钥）。还没部署。

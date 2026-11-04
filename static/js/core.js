@@ -22,10 +22,50 @@ async function api(path, method = "GET", body) {
   if (r.status === 401 && user) { user = null; showLogin(); }
   else if (r.status === 401 && method !== "GET" && !/^\/api\/(login|register|password)/.test(path))
     openLogin("reg", "注册后就能使用这个功能");   // 游客点了要账号的操作(加入学习、报错等)
-  if (r.status === 402 && data.paywall && confirm(data.error + "\n\n现在去看看会员？")) switchTab("me");
+  if (r.status === 402 && data.paywall) showPaywall(data.error);
   if (!r.ok) { const e = new Error(data.error || "请求失败"); e.status = r.status; throw e; }
   return data;
 }
+
+// ---------- 免费次数用完: 底部弹窗, 直接选月卡 / 年卡去付款 ----------
+// 关掉(明天再来、×、点外面、Esc)时如果在二级页面就退回上一页, 免得留在没有题的空页面
+const payOpen = () => !$("paysheet").classList.contains("hidden");
+async function showPaywall(msg) {
+  $("payMsg").textContent = msg;
+  if (payOpen()) return;
+  $("paysheet").classList.remove("hidden");
+  const box = $("payPlans");
+  box.textContent = "";
+  let b;
+  try { b = await api("/api/billing"); } catch (e) { return; }
+  if (!b.enabled) { box.textContent = "收款还没开通。"; return; }
+  for (const p of b.plans.slice().sort((x, y) => (y.id === "year") - (x.id === "year"))) {   // 年卡在上
+    const btn = document.createElement("button");
+    if (p.id !== "year") btn.className = "secondary";
+    btn.textContent = `开通${p.name} ¥${p.price}`;
+    if (p.id === "year") {
+      const note = document.createElement("span");
+      note.className = "paynote";
+      note.textContent = `约 ¥${(p.price / 12).toFixed(1)} / 月，一次付清，不自动续费`;
+      btn.appendChild(note);
+    }
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try { location.href = (await api("/api/billing/checkout", "POST", { plan: p.id })).url; }
+      catch (e) { btn.disabled = false; toast(e.message); }
+    };
+    box.appendChild(btn);
+  }
+}
+function closePaywall(back = true) {
+  if (!payOpen()) return;
+  $("paysheet").classList.add("hidden");
+  if (back && current && !PAGES[current].tab) $("btnBack").click();
+}
+$("payClose").onclick = () => closePaywall();
+$("payLater").onclick = () => closePaywall();
+$("payMore").onclick = () => { closePaywall(false); switchTab("me"); };
+$("paysheet").onclick = e => { if (e.target === $("paysheet")) closePaywall(); };
 
 async function loadStats() {
   stats = await api("/api/stats");
@@ -242,6 +282,10 @@ document.querySelectorAll("#tabbar button").forEach(b => b.onclick = () => switc
 const onKey = {};
 document.addEventListener("keydown", e => {
   if (!$("login").classList.contains("hidden") || e.isComposing || e.altKey || e.metaKey) return;   // 输入法选字时不算
+  if (payOpen()) {                                               // 会员弹窗打开时只认 Esc
+    if (e.key === "Escape") { e.preventDefault(); closePaywall(); }
+    return;
+  }
   if (!$("wsheet").classList.contains("hidden")) {               // 单词卡打开时, 快捷键别影响下面的页面(比如误触评分)
     if (e.key === "Escape") { e.preventDefault(); closeWordSheet(); }
     else if (e.key === "Backspace" && wsStack.length) { e.preventDefault(); wsBack(); }
