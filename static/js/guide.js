@@ -3,22 +3,36 @@
 // 2. 用到时才出现的小提示 tipOnce(key, 文字): 每条只出现一次, 点“知道了”关掉
 // 看过哪些记在服务器(/api/guide), 换设备也不重复弹。游客不弹, 注册后第一次进来再弹
 
+// 导览步骤: page = 要去的页面; open() = 自己打开(示范词详情页); el = 元素 id, 或 find() 找元素(可以是异步的);
+// ready() = 内容加载好了没有; demo = 说明框里放一道示范题; fallback = el 看不见时改介绍的元素
 const TOUR = [
-  { tab: "home", el: "hStart", text: "每天点这里就够了：先复习快忘的词，再学新词。学多少可以在这页调。" },
-  { tab: "home", el: "btnSearch", text: "随时查德语或中文，查到的词能直接加进学习。电脑上按 / 也能打开。" },
-  { tab: "learn", el: "lBookSwitch", text: "选 A1–C1 或专题单词书，按你的水平来。下面还有语法知识点和情景课。" },
-  { tab: "practice", el: "pWrongCard", text: "冠词、复数、动词、句子都在练习页。做错的题自动进错题本，在这里专门练。" },
-  { tab: "me", el: "installBox", text: "装到手机桌面，像 App 一样打开，不用每次找网址。" },
-  { tab: "me", el: "btnTour", text: "这些介绍以后想再看，点这里。祝学习顺利！" },
+  { page: "view", open: () => openView(guideShow.id), ready: () => $("vWord").textContent.includes(guideShow.german),
+    el: "vSpellBtn", text: "拼读：一个字母一个字母读给你听，再读整个词。看到生词也能跟着拼出来。" },
+  { page: "view", el: "vGender", ready: () => $("vGender").textContent.length > 4,
+    text: "词性解释：有规律的告诉你规律；没有规律的，AI 帮你编一句好记的联想，不再死记 der / die / das。" },
+  { page: "view", el: "vParts", ready: () => $("vParts").textContent.includes("构词"),
+    text: "AI 构词解释：长词拆开看，每部分什么意思、合起来为什么是这个词。" },
+  { page: "view", find: showcaseNote,
+    text: "句子讲解：每个词是第几格、为什么这样变，语序和固定搭配都讲清楚，还有同样结构的例句。" },
+  { page: "practice", find: () => [...document.querySelectorAll("#pGroups button")].find(b => b.textContent.includes("der / die / das")),
+    text: "定冠词练习：在句子里练 der / die / das 和四个格，做错的自动进错题本。比如：",
+    demo: { q: "Ich helfe ___ Frau.（die Frau）", opts: "die · der · den", a: "der", why: "helfen 后面用第三格，阴性第三格是 der" } },
+  { page: "lessons", el: "lNew",
+    text: "情景对话：写下你想练的场景（租房、看医生、上班……），AI 写成课文，还能听、做练习、角色扮演。" },
+  { page: "me", el: "installBox", fallback: "btnTour",
+    text: "最后，把通德装到手机桌面，像 App 一样一点就开。以后想再看这些介绍，在这页最下面点“重新看功能介绍”。",
+    fallbackText: "这些介绍以后想再看，点这里。祝学习顺利！" },
 ];
+const TAB_PAGES = ["home", "learn", "practice", "me"];
 
 let guideSeen = null;      // 看过的引导; null = 还没取到
+let guideShow = null;      // 示范词 {id, german, de}
 let tourOn = false;
-let tourStep = 0, tourSteps = [];
+let tourStep = 0, tourSteps = [], tourEl = null;
 
 async function guideLoad() {
   if (guideSeen) return guideSeen;
-  try { guideSeen = (await api("/api/guide")).seen; } catch (e) { guideSeen = null; }
+  try { const r = await api("/api/guide"); guideSeen = r.seen; guideShow = r.showcase; } catch (e) { guideSeen = null; }
   return guideSeen;
 }
 function guideMark(key) {
@@ -42,12 +56,28 @@ async function maybeTour() {
 function visible(el) {
   return el && !el.classList.contains("hidden") && el.offsetParent !== null;
 }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function waitFor(fn, ms) {
+  for (let t = 0; t < ms; t += 150) { try { if (fn()) return true; } catch (e) {} await sleep(150); }
+  return false;
+}
 
-function startTour() {
+// 示范词例句的讲解: 点开“讲解”, 等内容出来(示范例句打开讲解不算 AI 次数)
+async function showcaseNote() {
+  const row = $("vExample").closest(".exrow"), box = row && row.nextElementSibling;
+  const btn = box && box.querySelector("button"), note = box && box.querySelector(".lnote");
+  if (!btn || !note) return null;
+  if (note.classList.contains("hidden")) btn.click();
+  await waitFor(() => note.dataset.loaded || /还没有|不能|错误|失败/.test(note.textContent), 6000);
+  return note.dataset.loaded ? note : null;
+}
+
+async function startTour() {
   if (tourOn) return;
   tourOn = true;
   closeTip();
-  tourSteps = TOUR.slice();
+  await guideLoad();
+  tourSteps = TOUR.filter(s => s.page !== "view" || guideShow);   // 没有示范词就跳过前几步
   tourStep = 0;
   $("tour").classList.remove("hidden");
   showTourStep();
@@ -55,43 +85,73 @@ function startTour() {
 
 function endTour() {
   tourOn = false;
+  tourEl = null;
   $("tour").classList.add("hidden");
   guideMark("tour");
   switchTab("home");
 }
 
-function showTourStep() {
+async function showTourStep() {
   if (!tourOn) return;
   if (tourStep >= tourSteps.length) return endTour();
-  const s = tourSteps[tourStep];
+  const s = tourSteps[tourStep], n = tourStep;
   $("tourBox").style.visibility = $("tourHole").style.visibility = "hidden";   // 放好位置再显示, 不闪
-  if (current !== s.tab) switchTab(s.tab);
-  setTimeout(() => {               // 等页面切换、内容出来
-    const el = $(s.el);
-    if (!visible(el)) { tourSteps.splice(tourStep, 1); return showTourStep(); }   // 比如已经装到桌面了, 没有安装卡片
-    el.scrollIntoView({ block: "center" });
-    const n = tourStep;
-    // 页面内容是异步加载的, 加载完按钮会被挤到别处: 隔一会儿再对一次位置
-    for (const ms of [250, 700, 1500]) setTimeout(() => {
-      if (tourOn && tourStep === n) { if (ms > 250) el.scrollIntoView({ block: "center" }); placeTour(el, s.text); }
-    }, ms);
-  }, 250);
+  if (current !== s.page) {
+    if (s.open) s.open();
+    else if (TAB_PAGES.includes(s.page)) switchTab(s.page);
+    else go(s.page);
+  }
+  await sleep(300);
+  if (s.ready) await waitFor(s.ready, 4000);
+  let el = s.find ? await s.find() : $(s.el), text = s.text;
+  if (!visible(el) && s.fallback) { el = $(s.fallback); text = s.fallbackText; }   // 已经装到桌面了, 没有安装卡片
+  if (!tourOn || tourStep !== n) return;
+  if (!visible(el)) { tourSteps.splice(tourStep, 1); return showTourStep(); }       // 内容没有就跳过这一步
+  tourEl = el; s.shown = text;
+  s.tall = el.getBoundingClientRect().height > innerHeight * 0.5;   // 很高的内容(讲解): 从开头看, 说明框放屏幕底下
+  const scroll = () => {
+    if (!s.tall) return el.scrollIntoView({ block: "center" });
+    el.scrollIntoView({ block: "start" });
+    document.scrollingElement.scrollTop -= 70;   // 让开顶栏
+  };
+  scroll();
+  // 页面内容是异步加载的, 加载完元素会被挤到别处: 隔一会儿再对一次位置
+  for (const ms of [200, 700, 1500]) setTimeout(() => {
+    if (tourOn && tourStep === n) { if (ms > 200) scroll(); placeTour(el, s); }
+  }, ms);
 }
 function replaceTour() {
-  const s = tourOn && tourSteps[tourStep], el = s && $(s.el);
-  if (visible(el) && $("tourBox").style.visibility === "visible") placeTour(el, s.text);
+  if (tourOn && visible(tourEl) && $("tourBox").style.visibility === "visible") placeTour(tourEl, tourSteps[tourStep]);
 }
 
-function placeTour(el, text) {
+function placeTour(el, s) {
   const r = el.getBoundingClientRect(), pad = 6;
-  const hole = $("tourHole");
-  Object.assign(hole.style, { left: r.left - pad + "px", top: r.top - pad + "px",
-                              width: r.width + pad * 2 + "px", height: r.height + pad * 2 + "px" });
-  $("tourText").textContent = text;
+  const hole = $("tourHole"), box = $("tourBox");
+  $("tourText").textContent = s.shown || s.text;
+  const demo = $("tourDemo");
+  demo.textContent = "";
+  demo.classList.toggle("hidden", !s.demo);
+  if (s.demo) {
+    const q = document.createElement("b"); q.textContent = s.demo.q;
+    const o = document.createElement("div"); o.className = "meta left"; o.textContent = "选项：" + s.demo.opts;
+    const a = document.createElement("div"); a.textContent = `答案：${s.demo.a} —— ${s.demo.why}`;
+    demo.append(q, o, a);
+  }
   $("tourNum").textContent = `${tourStep + 1} / ${tourSteps.length}`;
   $("tourNext").textContent = tourStep === tourSteps.length - 1 ? "开始使用" : "下一步";
-  const box = $("tourBox"), below = r.bottom + 12, h = box.offsetHeight || 140;
-  box.style.top = (below + h < innerHeight - 8 ? below : Math.max(8, r.top - h - 12)) + "px";
+  const h = box.offsetHeight || 160;
+  let top = r.top - pad, bottom = r.bottom + pad, boxTop;
+  if (s.tall) {                                  // 只亮能看到的那一段, 说明框贴底
+    boxTop = innerHeight - h - 8;
+    top = Math.max(top, 60);
+    bottom = Math.min(bottom, boxTop - 8);
+  } else {
+    const below = r.bottom + 12, above = r.top - h - 12;
+    boxTop = below + h < innerHeight - 8 ? below : above > 8 ? above : innerHeight - h - 8;
+  }
+  Object.assign(hole.style, { left: r.left - pad + "px", top: top + "px", width: r.width + pad * 2 + "px",
+                              height: Math.max(0, bottom - top) + "px" });
+  box.style.top = boxTop + "px";
   box.style.visibility = hole.style.visibility = "visible";
 }
 
@@ -99,7 +159,7 @@ $("tourNext").onclick = () => { tourStep++; showTourStep(); };
 $("tourSkip").onclick = endTour;
 addEventListener("resize", replaceTour);
 addEventListener("scroll", replaceTour, true);
-$("btnTour").onclick = () => { if (!tourOn) { guideLoad(); startTour(); } };
+$("btnTour").onclick = () => { if (!tourOn) startTour(); };
 
 // ---------- 用到时的小提示 ----------
 let tipKey = null;

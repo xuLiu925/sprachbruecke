@@ -1926,6 +1926,11 @@ for i in range(5):
 assert J(see(0))["note"] == cn                                       # 同一句再看不算
 r = see(5)
 assert r.status_code == 402 and J(r)["paywall"] and J(r)["stay"] and "5 次 AI" in J(r)["error"]
+import guide as GD                                                    # 功能导览的示范例句: 次数用完了也能看, 不算次数
+real_show = GD.showcase
+GD.showcase = lambda: {"id": 1, "german": "x", "de": "Satz Nummer 6 ist hier."}
+assert J(see(6))["note"] == cn
+GD.showcase = real_show
 assert {"name": "AI（讲解、查词、构词、联想记忆）", "used": 5, "limit": 5, "split": False} in J(c.get("/api/billing"))["usage"]
 assert c.post("/api/dict/ai", json={"q": "Zzneuwort"}).status_code == 402
 assert c.post("/api/parts/generate", json={"german": "Zzneuwort"}).status_code == 402

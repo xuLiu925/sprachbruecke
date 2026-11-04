@@ -16,6 +16,7 @@ from custom_lessons import CHINESE, TOKEN, AiError, api_key, call_gemini, extrac
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
 from ai_inputs import official_zh
+from guide import is_showcase_sentence
 from content_filter import AI_MSG, SAFETY_RULE, added
 from lessons import drill_items
 from trial import arg_sentence, guest_open
@@ -167,7 +168,8 @@ def get_note():
     if not de or len(de) > MAX_SENTENCE:
         return err("句子无效")
     uid, note = current_user_id(), load_note(de)
-    if note and uid is not None and not arg_sentence():   # 打开已有的讲解也算一次; 试学的例句不算
+    # 打开已有的讲解也算一次; 试学的例句、功能导览里的示范例句不算
+    if note and uid is not None and not arg_sentence() and not is_showcase_sentence(de):
         blocked = ai_block(uid, "note:" + key_of(de))
         if blocked:
             return blocked

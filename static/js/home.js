@@ -139,6 +139,7 @@ async function showRecommend() {
 
 // ---------- 学习 ----------
 onShow.learn = async () => {
+  tipOnce("tip_search", "右上角的放大镜随时能查德语或中文，查到的词能直接加进学习（电脑上按 /）。");
   buildGrammarGrid();
   const s = await loadStats();
   $("lBookCover").textContent = BOOK_COVERS[s.book] || s.book;
