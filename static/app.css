@@ -261,6 +261,19 @@ label.check input { width:auto; margin:0; }
 .chips { display:flex; gap:6px; overflow-x:auto; margin:2px 0 4px; padding-bottom:2px; }
 .chips button { flex:none; padding:6px 14px; border-radius:16px; background:transparent; color:var(--text);
   border:1px solid var(--line); font-size:14px; }
+/* 功能引导(guide.js): 洞 = 被介绍的按钮, 用很大的阴影把其他地方调暗; 小提示在标签栏上面 */
+.tour { position:fixed; inset:0; z-index:70; }
+.tour-hole { position:fixed; border-radius:14px; box-shadow:0 0 0 9999px rgba(0,0,0,.55); transition:all .25s; pointer-events:none; }
+.tour-box { position:fixed; left:16px; right:16px; max-width:420px; margin:0 auto; background:var(--card); color:var(--text);
+  border-radius:16px; padding:16px; box-shadow:0 8px 30px rgba(0,0,0,.25); }
+.tour-box p { margin:0 0 12px; line-height:1.6; }
+.tour-row { display:flex; align-items:center; gap:12px; }
+.tour-row .meta { flex:1; }
+.tour-row button:not(.linkbtn) { width:auto; padding:8px 18px; }
+.tip { position:fixed; left:12px; right:12px; bottom:calc(var(--bar-h) + 12px); z-index:30; max-width:480px; margin:0 auto;
+  display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:14px; background:var(--accent); color:#fff;
+  box-shadow:0 6px 20px rgba(0,0,0,.2); font-size:14px; line-height:1.5; }
+.tip button.linkbtn { color:#fff; font-weight:600; flex:none; }
 .chips.wrap { flex-wrap:wrap; overflow-x:visible; margin:8px 0; }
 .chips button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
 .item.current { background:var(--accent-soft); }

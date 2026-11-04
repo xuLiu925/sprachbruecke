@@ -422,6 +422,7 @@ function gChoose(value) {
 function gShowAnswer(value) {
   gAnswered = true;
   const q = gQs[gi], ok = value === q.answer;
+  if (!ok && q.word_id) tipOnce("tip_wrong", "做错的题会自动进错题本，在「练习」页最上面能专门练。");
   document.querySelectorAll("#gqOpts button").forEach(b => {
     b.disabled = true;
     if (b.dataset.value === q.answer) b.className = "good";

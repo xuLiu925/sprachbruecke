@@ -710,6 +710,12 @@ saved = J(c.post("/api/custom_lessons", json=draft))["lesson"]
 assert saved["id"].startswith("u") and saved["custom"] and J(c.get("/api/custom_lessons"))["lessons"][0]["id"] == saved["id"]
 assert J(cb.get("/api/custom_lessons"))["lessons"] == []                         # 别人看不到
 assert cb.post("/api/feedback", json={"text": "习近平是独裁者"}).status_code == 400   # 反馈也拦
+# 功能引导: 看过的记在服务器, 换设备也不重复; 游客不能用
+assert J(cb.get("/api/guide"))["seen"] == [] and A.app.test_client().get("/api/guide").status_code == 401
+assert J(cb.post("/api/guide", json={"key": "tour"}))["seen"] == ["tour"]
+assert J(cb.post("/api/guide", json={"key": "tour"}))["seen"] == ["tour"]                # 重复的不加
+assert cb.post("/api/guide", json={"key": "Bad Key!"}).status_code == 400
+assert J(c.get("/api/guide"))["seen"] == []                                             # 每人各自一份
 ri = J(c.get("/api/roleplay/lesson/" + saved["id"]))["items"]
 assert [i["answer"] for i in ri] == ["Ich prüfe den Lieferschein.", "Ich rufe meine Chefin an."]
 assert cb.get("/api/roleplay/lesson/" + saved["id"]).status_code == 404

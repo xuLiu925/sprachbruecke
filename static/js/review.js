@@ -114,6 +114,7 @@ function reveal() {
     show = r.ok ? [2, 3, 4] : [1];   // 拼错了只能记为“忘了”
   }
   const wrong = c.mode === "spell" && !show.includes(2);
+  tipOnce("tip_card", "点“单词卡”能看变格、例句、词性规律和构词（电脑上按 D）。");
   $("btnR1").querySelector("b").textContent = wrong ? "继续" : "忘了";
   $("rI1").textContent = wrong ? "记为忘了，稍后再练" : "再练一次";
   [2, 3, 4].forEach(n => $("rI" + n).textContent = c.intervals ? intervalText(c.intervals[n - 1]) : "");

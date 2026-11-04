@@ -366,6 +366,7 @@
           <b>已掌握</b> = 记忆稳定性 ≥ 21 天，并且拼写答对过。
         </div>
       </details>
+      <button class="secondary big" id="btnTour">重新看功能介绍</button>
       <button class="danger big" id="btnLogout">退出登录</button>
       <p class="meta" style="font-size:12px;margin-top:20px">通德 Sprachbrücke v0.3 · by Liuxu</p>
     </section>
@@ -898,6 +899,23 @@
     </div>
   </div>
 
+  <!-- 功能引导(guide.js): 导览的遮罩和说明框、用到时的小提示 -->
+  <div id="tour" class="tour hidden">
+    <div id="tourHole" class="tour-hole"></div>
+    <div id="tourBox" class="tour-box" role="dialog" aria-live="polite">
+      <p id="tourText"></p>
+      <div class="tour-row">
+        <span id="tourNum" class="meta"></span>
+        <button class="linkbtn" id="tourSkip">跳过</button>
+        <button id="tourNext">下一步</button>
+      </div>
+    </div>
+  </div>
+  <div id="tip" class="tip hidden" role="status">
+    <span id="tipText" class="grow"></span>
+    <button class="linkbtn" id="tipOk">知道了</button>
+  </div>
+
   <nav class="tabbar" id="tabbar">
     <button data-tab="home">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="m9 15 2 2 4-4"/></svg>今天</button>
@@ -931,6 +949,7 @@
 <script src="static/js/parts.js"></script>
 <script src="static/js/spell.js"></script>
 <script src="static/js/search.js"></script>
+<script src="static/js/guide.js"></script>
 <script src="static/js/boot.js"></script>
 </body>
 </html>

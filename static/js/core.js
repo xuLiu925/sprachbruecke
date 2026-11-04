@@ -373,6 +373,7 @@ async function boot() {
   showApp();   // 没登录时是游客页面(route 里换成 welcome)
   if (user) checkPaid();
   installGate();
+  if (user) maybeTour();   // guide.js: 第一次登录的功能导览
   showInstall();   // 游客首页 / 「我的」页的安装卡片
   if (inviteLink) {
     if (user) toast("你已经登录了；要用邀请链接注册新账号，先退出");
