@@ -119,6 +119,11 @@ button.linkbtn { background:none; border:none; color:var(--accent); padding:4px 
 .pdate { display:block; font-size:14px; color:var(--muted); margin:0 2px 2px; }
 .shead { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin:22px 2px 10px; }
 .shead h2 { margin:0; }
+/* 小号描边按钮(如“换一本”): 比文字链接显眼, 一看就能点 */
+button.pillbtn { display:inline-flex; align-items:center; gap:4px; width:auto; padding:5px 12px; border-radius:999px;
+  border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent); font-size:13px; font-weight:600; align-self:center; }
+button.pillbtn svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+button.pillbtn:active { opacity:.7; }
 .shead .meta { font-size:13px; text-align:right; }
 .grow { flex:1; min-width:0; }
 
