@@ -5,22 +5,30 @@
 
 // 导览步骤: page = 要去的页面; open() = 自己打开(示范词详情页); el = 元素 id, 或 find() 找元素(可以是异步的);
 // ready() = 内容加载好了没有; demo = 说明框里放一道示范题; fallback = el 看不见时改介绍的元素
+// where = 说明框顶上的位置标签(这个功能平时从哪里进); 换到另一块功能前先停一步, 亮出它的入口
+const tabBtn = name => () => document.querySelector(`#tabbar button[data-tab="${name}"]`);
 const TOUR = [
+  { page: "learn", el: "lWords", where: "学习 → 全部单词", showcase: true,
+    text: "单词卡在这里：「学习」标签 → 全部单词，点任意一个词就能打开（也可以用顶上的搜索框查词）。下面用示范词 der Anruf 看看单词卡里有什么。" },
   { page: "view", open: () => openView(guideShow.id), ready: () => $("vWord").textContent.includes(guideShow.german),
-    el: "vSpellBtn", text: "拼读：一个字母一个字母读给你听，再读整个词。看到生词也能跟着拼出来。" },
-  { page: "view", el: "vGender", ready: () => $("vGender").textContent.length > 4,
+    el: "vSpellBtn", where: "单词卡", text: "拼读：一个字母一个字母读给你听，再读整个词。看到生词也能跟着拼出来。" },
+  { page: "view", el: "vGender", ready: () => $("vGender").textContent.length > 4, where: "单词卡",
     text: "词性解释：有规律的告诉你规律；没有规律的，AI 帮你编一句好记的联想，不再死记 der / die / das。" },
-  { page: "view", el: "vParts", ready: () => $("vParts").textContent.includes("构词"),
+  { page: "view", el: "vParts", ready: () => $("vParts").textContent.includes("构词"), where: "单词卡",
     text: "AI 构词解释：长词拆开看，每部分什么意思、合起来为什么是这个词。" },
-  { page: "view", find: showcaseNote,
-    text: "句子讲解：每个词是第几格、为什么这样变，语序和固定搭配都讲清楚，还有同样结构的例句。" },
+  { page: "view", find: showcaseNote, where: "单词卡 → 例句旁的“讲解”",
+    text: "句子讲解：每个词是第几格、为什么这样变，语序和固定搭配都讲清楚，还有同样结构的例句。情景课、练习里的句子也能点“讲解”。" },
+  { page: "practice", find: tabBtn("practice"), where: "底部「练习」标签",
+    text: "单词卡就看到这里。接下来是练习：所有练习都在底部的「练习」标签里，按名词、动词、句子分好了组。" },
   { page: "practice", find: () => [...document.querySelectorAll("#pGroups button")].find(b => b.textContent.includes("der / die / das")),
-    text: "定冠词练习：在句子里练 der / die / das 和四个格，做错的自动进错题本。比如：",
+    where: "练习 → 名词", text: "定冠词练习：在句子里练 der / die / das 和四个格，做错的自动进错题本。比如：",
     demo: { q: "Ich helfe ___ Frau.（die Frau）", opts: "die · der · den", a: "der", why: "helfen 后面用第三格，阴性第三格是 der" } },
-  { page: "lessons", el: "lNew",
-    text: "情景对话：写下你想练的场景（租房、看医生、上班……），AI 写成课文，还能听、做练习、角色扮演。" },
-  { page: "me", el: "installBox", fallback: "btnTour",
-    text: "最后，把通德装到手机桌面，像 App 一样一点就开。以后想再看这些介绍，在这页最下面点“重新看功能介绍”。",
+  { page: "learn", el: "lNewLesson", where: "学习 → 情景课",
+    text: "情景对话在「学习」标签往下翻的「情景课」里：点这里写下你想练的场景（租房、看医生、上班……），AI 写成课文，还能听、做练习、角色扮演。" },
+  { page: "me", find: tabBtn("me"), where: "底部「我的」标签",
+    text: "最后是「我的」标签：每日学习量、发音设置、会员、意见反馈都在这里。" },
+  { page: "me", el: "installBox", fallback: "btnTour", where: "我的",
+    text: "把通德装到手机桌面，像 App 一样一点就开。以后想再看这些介绍，在这页最下面点“重新看功能介绍”。",
     fallbackText: "这些介绍以后想再看，点这里。祝学习顺利！" },
 ];
 const TAB_PAGES = ["home", "learn", "practice", "me"];
@@ -77,7 +85,7 @@ async function startTour() {
   tourOn = true;
   closeTip();
   await guideLoad();
-  tourSteps = TOUR.filter(s => s.page !== "view" || guideShow);   // 没有示范词就跳过前几步
+  tourSteps = TOUR.filter(s => (s.page !== "view" && !s.showcase) || guideShow);   // 没有示范词就跳过单词卡这几步
   tourStep = 0;
   $("tour").classList.remove("hidden");
   showTourStep();
@@ -128,6 +136,8 @@ function placeTour(el, s) {
   const r = el.getBoundingClientRect(), pad = 6;
   const hole = $("tourHole"), box = $("tourBox");
   $("tourText").textContent = s.shown || s.text;
+  $("tourWhere").textContent = s.where ? "位置：" + s.where : "";
+  $("tourWhere").classList.toggle("hidden", !s.where);
   const demo = $("tourDemo");
   demo.textContent = "";
   demo.classList.toggle("hidden", !s.demo);
