@@ -22,16 +22,18 @@ async function api(path, method = "GET", body) {
   if (r.status === 401 && user) { user = null; showLogin(); }
   else if (r.status === 401 && method !== "GET" && !/^\/api\/(login|register|password)/.test(path))
     openLogin("reg", "注册后就能使用这个功能");   // 游客点了要账号的操作(加入学习、报错等)
-  if (r.status === 402 && data.paywall) showPaywall(data.error, data.title);
+  if (r.status === 402 && data.paywall) showPaywall(data.error, data.title, !data.stay);
   if (!r.ok) { const e = new Error(data.error || "请求失败"); e.status = r.status; throw e; }
   return data;
 }
 
 // ---------- 免费次数用完: 底部弹窗, 直接选月卡 / 年卡去付款 ----------
-// 关掉(明天再来、×、点外面、Esc)时如果在二级页面就退回上一页, 免得留在没有题的空页面
+// 关掉(明天再来、×、点外面、Esc)时: 练习页没题了就退回上一页; AI、会员功能的提示(后端带 stay)留在原页
 const payOpen = () => !$("paysheet").classList.contains("hidden");
-async function showPaywall(msg, title) {
+let payBack = true;   // 关掉时退回上一页(练习页没题了); AI、会员功能的提示留在原页
+async function showPaywall(msg, title, back = true) {
   $("payMsg").textContent = msg;
+  payBack = back;
   $("payTitle").textContent = title || "今天的免费次数用完了";
   if (payOpen()) return;
   $("paysheet").classList.remove("hidden");
@@ -61,7 +63,7 @@ async function showPaywall(msg, title) {
 function closePaywall(back = true) {
   if (!payOpen()) return;
   $("paysheet").classList.add("hidden");
-  if (back && current && !PAGES[current].tab) $("btnBack").click();
+  if (back && payBack && current && !PAGES[current].tab) $("btnBack").click();
 }
 $("payClose").onclick = () => closePaywall();
 $("payLater").onclick = () => closePaywall();

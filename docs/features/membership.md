@@ -27,7 +27,7 @@
 | `billing.py` | 免费次数 `LIMITS`、会员、Stripe 付款页、核对付款、webhook、管理员送会员 |
 | `database.py` | `memberships`、`payments`、`usage_daily` 三张新表 |
 | `lessons.py` | `/api/roleplay/due?count=1` 只返回数量（首页用，不算次数） |
-| `static/js/core.js` | 每个请求带 `X-TZ`（时区）；收到 402 时弹出应用内的会员弹窗 `showPaywall()`（`index.html` 的 `#paysheet`：年卡 / 月卡直接去付款、明天再来、看看会员区别；关掉时在二级页面就退回上一页）；付完款回来调 `checkPaid()` |
+| `static/js/core.js` | 每个请求带 `X-TZ`（时区）；收到 402 时弹出应用内的会员弹窗 `showPaywall()`（`index.html` 的 `#paysheet`：年卡 / 月卡直接去付款、明天再来、看看会员区别；关掉时在二级页面就退回上一页；AI 和会员功能的提示带 `stay`，关掉后留在原页）；付完款回来调 `checkPaid()` |
 | `static/js/home.js` | 「我的」页会员卡片 `showMember()`、`checkPaid()`、管理员“会员”按钮 |
 | `static/js/lessons.js` | 列表用 GET `/api/lessons`，打开课时才 GET `/api/lessons/<id>` 取课文 |
 

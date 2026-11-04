@@ -198,10 +198,13 @@ def check_lesson(uid, lesson_id):
     return None
 
 
-def paywall(msg, title=None):
+def paywall(msg, title=None, stay=False):
+    """stay = 关掉弹窗后留在当前页面(AI、会员功能: 页面本身还能用); 否则前端退回上一页(练习页没题了)"""
     body = {"error": msg, "paywall": True}
     if title:
         body["title"] = title
+    if stay:
+        body["stay"] = True
     return jsonify(body), 402
 
 
@@ -232,7 +235,7 @@ def ai_block(uid, key, generate=False):
     if unlimited(uid) or used(uid, day, "ai:" + key):
         return None
     if ai_used(uid, day) >= AI_FREE:
-        return paywall(AI_MSG)
+        return paywall(AI_MSG, stay=True)
     return None
 
 
@@ -256,7 +259,7 @@ def member_only(uid, name):
     """会员功能: 会员和管理员返回 None, 免费用户返回 402"""
     if not ENFORCE or unlimited(uid):
         return None
-    return paywall(f"{name}是会员功能。开通会员就能用，AI 讲解和各种练习也都不限次数。", title="这是会员功能")
+    return paywall(f"{name}是会员功能。开通会员就能用，AI 讲解和各种练习也都不限次数。", title="这是会员功能", stay=True)
 
 
 @bp.before_app_request

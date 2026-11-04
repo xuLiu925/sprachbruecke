@@ -295,7 +295,7 @@ assert J(cd.get("/api/billing"))["until"] is None and J(cd.get("/api/billing"))[
 for i in range(3):
     assert cd.get("/api/drill/articles").status_code == 200
 r = cd.get("/api/drill/articles")
-assert r.status_code == 402 and J(r)["paywall"]
+assert r.status_code == 402 and J(r)["paywall"] and "stay" not in J(r)   # 练习页没题了, 关掉弹窗要退回去
 assert J(cd.get("/api/billing"))["usage"] == [{"name": "冠词练习", "used": 3, "limit": 3, "split": False}]
 for i in range(4):
     assert c.get("/api/drill/articles").status_code == 200        # 管理员不限
@@ -1855,7 +1855,7 @@ for i in range(5):
     assert J(see(i))["note"] == cn
 assert J(see(0))["note"] == cn                                       # 同一句再看不算
 r = see(5)
-assert r.status_code == 402 and J(r)["paywall"] and "5 次 AI" in J(r)["error"]
+assert r.status_code == 402 and J(r)["paywall"] and J(r)["stay"] and "5 次 AI" in J(r)["error"]
 assert {"name": "AI（讲解、查词、构词、联想记忆）", "used": 5, "limit": 5, "split": False} in J(c.get("/api/billing"))["usage"]
 assert c.post("/api/dict/ai", json={"q": "Zzneuwort"}).status_code == 402
 assert c.post("/api/parts/generate", json={"german": "Zzneuwort"}).status_code == 402
