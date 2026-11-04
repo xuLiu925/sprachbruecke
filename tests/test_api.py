@@ -237,6 +237,9 @@ ce = A.app.test_client()
 assert J(ce.get("/api/me")) == {"username": None, "register": "email"}
 code_req = lambda cl, name, mail: cl.post("/api/register/code", json={"username": name, "email": mail})
 assert code_req(ce, "fr@nk", "f@x.de").status_code == 400                # 用户名不能有 @
+assert code_req(ce, "fr​ank", "f@x.de").status_code == 400          # 零宽字符、空格、外文字母不行
+assert code_req(ce, "fr ank", "f@x.de").status_code == 400 and code_req(ce, "аlice", "f@x.de").status_code == 400
+assert code_req(ce, "DAVE", "f@x.de").status_code == 409                 # 大小写不同也算重名
 assert code_req(ce, "frank", "not-an-email").status_code == 400
 assert code_req(ce, "dave", "f@x.de").status_code == 409                 # 用户名已存在
 assert code_req(ce, "frank", " Frank@X.de ").status_code == 200 and sent[-1][0] == "frank@x.de"
@@ -300,7 +303,8 @@ lreg = lambda: A.app.test_client().post("/api/register", json={"username": "link
                                                                 "invite": lcode.lower()})
 assert lreg().status_code == 200
 assert J(c.get("/api/invites"))["invites"][0]["used_by"] == "linkuser"
-assert lreg().status_code == 400
+assert A.app.test_client().post("/api/register", json={"username": "linkuser3", "password": "12345678",
+                                                        "invite": lcode}).status_code == 400   # 码用过了
 assert A.app.test_client().post("/api/register", json={"username": "linkuser2", "password": "12345678"}).status_code == 400
 del os.environ["REGISTER_MODE"]
 email_codes.sender = None
@@ -1842,6 +1846,10 @@ TT.GUEST_FETCH_PER_HOUR, TT._guest_fetches[:] = 2, []
 assert [guest.get(f"/api/tts?q=Gastwort{i}").status_code for i in range(3)] == [200, 200, 429]
 assert guest.get("/api/tts?q=Gastwort0").status_code == 200   # 缓存里有的不算次数
 assert guest.get("/api/tts?q=" + tc[0]["german"]).status_code == 200   # 试学的词不受限
+cfk = cl                                              # 登录用户每人每小时也有上限(lessonuser, 普通用户)
+TT.USER_FETCH_PER_HOUR = 2
+assert [cfk.get(f"/api/tts?q=Userwort{i}").status_code for i in range(3)] == [200, 200, 429]
+assert cfk.get("/api/tts?q=Userwort0").status_code == 200
 assert guest.post("/api/trial/save", json={"answers": []}).status_code == 401
 assert guest.get("/api/review/today").status_code == 401
 # 试学的词游客也能看完整功能(单词卡、词性、构词、例句讲解、点词), 别的词还是要登录

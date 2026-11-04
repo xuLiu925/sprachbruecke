@@ -106,13 +106,25 @@ def register_mode():
     return "email" if email_codes.configured() else "invite"
 
 
+# 新注册的用户名只能用英文字母、数字、汉字和 _ . -: 不让用空格、零宽字符、长得像英文的外文字母冒充别人。
+# 以前注册的用户名不受影响(登录不查这个)
+USERNAME_RE = re.compile(r"[A-Za-z0-9_.\-一-鿿]+")
+
+
 def check_username(username):
     """注册时的用户名: 返回错误信息, 没问题返回 None"""
     if not (3 <= len(username) <= 32):
         return "用户名长度需要 3-32 个字符"
     if "@" in username:
         return "用户名里不能有 @"
+    if not USERNAME_RE.fullmatch(username):
+        return "用户名只能用英文字母、数字、汉字和 _ . -"
     return None
+
+
+def username_taken(username):
+    """大小写不同也算同一个(Liuxu 和 liuxu), 免得冒充"""
+    return get_db().execute("SELECT 1 FROM users WHERE lower(username) = lower(?)", (username,)).fetchone() is not None
 
 
 def email_taken(email, uid=None):
@@ -204,8 +216,7 @@ def register_code():
         return err(bad)
     if not email:
         return err("邮箱格式不对")
-    db = get_db()
-    if db.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
+    if username_taken(username):
         return err("用户名已存在", 409)
     if email_taken(email):
         return err("这个邮箱已经注册过了，可以直接登录或找回密码", 409)
@@ -225,8 +236,10 @@ def register():
         return err(bad)
     if len(password) < 8:
         return err("密码至少 8 位")
+    if username_taken(username):
+        return err("用户名已存在", 409)
     db = get_db()
-    count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    count =db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     if count == 0 and os.path.exists(ADMIN_LOCK):
         print("!! 数据库里没有用户, 但有过管理员: 拒绝注册, 请先从备份恢复 vocab.db", flush=True)
         return err("服务器正在维护，暂时不能注册", 503)

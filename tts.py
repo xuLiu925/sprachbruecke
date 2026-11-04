@@ -15,6 +15,7 @@ import urllib.request
 
 from flask import Blueprint, Response, request
 
+from auth import is_admin
 from database import BASE
 from helpers import current_user_id, err
 from trial import allowed_tts
@@ -24,8 +25,25 @@ bp = Blueprint("tts", __name__)
 CACHE_DIR = os.path.join(BASE, "tts_cache")
 MAX_LEN = 200  # 谷歌接口一次最多约 200 字符
 GUEST_FETCH_PER_HOUR = 200
+USER_FETCH_PER_HOUR = 300   # 登录用户每人每小时新取几条(缓存里有的不算); 防止有人刷接口让谷歌封了服务器 IP
 _guest_fetches = []   # 游客新取的时间戳(内存里, 重启清零)
+_user_fetches = {}    # 用户编号 → 新取的时间戳
 _guest_lock = threading.Lock()
+
+
+def user_fetch_ok(uid):
+    """登录用户新取一次: 最近一小时没超限就记一笔并返回 True。管理员不限"""
+    if is_admin(uid):
+        return True
+    now = time.time()
+    with _guest_lock:
+        lst = [t for t in _user_fetches.get(uid, []) if t > now - 3600]
+        if len(lst) >= USER_FETCH_PER_HOUR:
+            _user_fetches[uid] = lst
+            return False
+        lst.append(now)
+        _user_fetches[uid] = lst
+        return True
 
 
 def guest_fetch_ok():
@@ -67,8 +85,11 @@ def tts():
         with open(path, "rb") as f:
             data = f.read()
     else:
-        if current_user_id() is None and not allowed_tts(text) and not guest_fetch_ok():
+        uid = current_user_id()
+        if uid is None and not allowed_tts(text) and not guest_fetch_ok():
             return err("在线发音太忙，登录后再试", 429)   # 前端会退回设备语音
+        if uid is not None and not user_fetch_ok(uid):
+            return err("在线发音用得太多了，过一会儿再试", 429)
         try:
             data = _fetch(text)
         except Exception:
