@@ -157,12 +157,43 @@ def grant(s):
 
 
 # ---------- 免费次数 ----------
+TZ_KEY = "quota_tz"      # user_settings: 免费次数按哪个时区算, 值 = "时区分钟,改的时间戳"
+TZ_CHANGE_SECONDS = 86400
+ARG_DEFAULTS = {"mode": "cloze"}   # 不带参数时接口用的默认值, 计数要和带上默认值时算同一样
+
+
 def today_key():
+    """免费次数算在哪一天(用户本地日期, 凌晨 4 点换日)"""
+    if "quota_day" in g:
+        return g.quota_day
     try:
         tz = min(max(int(request.headers.get("X-TZ") or request.args.get("tz") or 0), -MAX_TZ), MAX_TZ)
     except ValueError:
         tz = 0
-    return local_day(tz)[0]
+    uid = current_user_id()
+    if uid is not None:
+        tz = pinned_tz(uid, tz)
+    g.quota_day = local_day(tz)[0]
+    return g.quota_day
+
+
+def pinned_tz(uid, tz):
+    """用这个用户记下的时区; 时区变了(出国、夏令时)最多 24 小时改一次。
+    不然来回改时区, 同一时刻能凑出两三个不同的“今天”, 多拿几天的次数"""
+    db = get_db()
+    row = db.execute("SELECT value FROM user_settings WHERE user_id = ? AND key = ?", (uid, TZ_KEY)).fetchone()
+    now = int(time.time())
+    if row:
+        try:
+            old, at = (int(x) for x in row["value"].split(","))
+        except ValueError:
+            old, at = None, 0
+        if old is not None and (old == tz or now - at < TZ_CHANGE_SECONDS):
+            return old
+    db.execute("INSERT INTO user_settings (user_id, key, value) VALUES (?, ?, ?) "
+               "ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value", (uid, TZ_KEY, f"{tz},{now}"))
+    db.commit()
+    return tz
 
 
 def used(uid, day, feature):
@@ -186,15 +217,26 @@ def lesson_check(uid, day, lesson_id):
 
 
 def check_lesson(uid, lesson_id):
-    """情景课: 不行返回 402, 第一次打开就记下来(返回 200 时才记)"""
+    """情景课: 不行返回 402。新课先记下来再数今天开了几节(同时开两节新课时不会都放过去),
+    接口最后没返回 200 就删掉这条(count_quota)"""
     if lesson_id.startswith("u"):   # 自建的课
         return None
     day = today_key()
     r = lesson_check(uid, day, lesson_id)
-    if r == "new":
-        g.quota = (uid, day, "lesson:" + lesson_id)
-    elif r != "seen":
+    if r == "seen":
+        return None
+    if r != "new":
         return paywall(r)
+    db, feature = get_db(), "lesson:" + lesson_id
+    db.execute("INSERT OR IGNORE INTO usage_daily (user_id, day, feature, count) VALUES (?,?,?,1)", (uid, day, feature))
+    db.commit()
+    n = db.execute("SELECT COUNT(*) FROM usage_daily WHERE user_id = ? AND day = ? AND feature LIKE 'lesson:%'",
+                   (uid, day)).fetchone()[0]
+    if n > LESSONS_PER_DAY:
+        db.execute("DELETE FROM usage_daily WHERE user_id = ? AND day = ? AND feature = ?", (uid, day, feature))
+        db.commit()
+        return paywall(lesson_check(uid, day, lesson_id))
+    g.quota_refund = ("lesson", uid, day, feature)
     return None
 
 
@@ -280,20 +322,31 @@ def check_quota():
         return check_lesson(uid, lesson.group(1))
     day = today_key()
     name, limit, arg = rule
-    feature = path + (":" + request.args.get(arg, "") if arg else "")
-    if used(uid, day, feature) >= limit:
+    feature = path + (":" + (request.args.get(arg) or ARG_DEFAULTS.get(arg, "")) if arg else "")
+    # 先占一次(没到上限才加 1, 一条语句做完, 同时发几个请求也不会超), 接口最后没返回 200 再退回去
+    db = get_db()
+    cur = db.execute("INSERT INTO usage_daily (user_id, day, feature, count) VALUES (?,?,?,1) "
+                     "ON CONFLICT(user_id, day, feature) DO UPDATE SET count = count + 1 WHERE count < ?",
+                     (uid, day, feature, limit))
+    db.commit()
+    if cur.rowcount == 0:
         return paywall(f"免费版每天能做 {limit} 组{name}，今天的已经用完了。开通会员不限次数。")
-    g.quota = (uid, day, feature)
+    g.quota_refund = ("count", uid, day, feature)
     return None
 
 
 @bp.after_app_request
 def count_quota(resp):
-    q = g.pop("quota", None)
-    if q and resp.status_code == 200:
+    """先占的次数: 接口返回 200 就算用了, 否则退回(报错、参数不对的请求不算)"""
+    q = g.pop("quota_refund", None)
+    if q and resp.status_code != 200:
+        kind, uid, day, feature = q
         db = get_db()
-        db.execute("INSERT INTO usage_daily (user_id, day, feature, count) VALUES (?,?,?,1) "
-                   "ON CONFLICT(user_id, day, feature) DO UPDATE SET count = count + 1", q)
+        if kind == "lesson":
+            db.execute("DELETE FROM usage_daily WHERE user_id = ? AND day = ? AND feature = ?", (uid, day, feature))
+        else:
+            db.execute("UPDATE usage_daily SET count = count - 1 WHERE user_id = ? AND day = ? AND feature = ? "
+                       "AND count > 0", (uid, day, feature))
         db.commit()
     return resp
 

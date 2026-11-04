@@ -133,6 +133,22 @@ app.register_blueprint(tts.bp)
 app.register_blueprint(trial.bp)
 app.register_blueprint(feedback.bp)
 
+# 安全响应头: 不许别的网站把页面嵌进 iframe(点击劫持)、只运行本站的脚本(CSP, 万一有 XSS 也跑不了外来脚本)。
+# style 允许内联: index.html 里有很多 style="..."; 新加外部资源(CDN、字体、图片网址)要先改这里
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+       "media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; "
+       "form-action 'self'; frame-ancestors 'none'")
+
+
+@app.after_request
+def security_headers(resp):
+    resp.headers.setdefault("Content-Security-Policy", CSP)
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return resp
+
+
 def _on_error(sender, exception, **extra):
     """接口报错(500)时给管理员发邮件; 按路由模板分类, /api/words/1 和 /2 算同一种"""
     rule = request.url_rule.rule if request.url_rule else request.path

@@ -320,6 +320,10 @@ for i in range(4):
     assert c.get("/api/drill/articles").status_code == 200        # 管理员不限
 assert cd.get("/api/sentences?mode=cloze").status_code == 200 and cd.get("/api/sentences?mode=cloze").status_code == 200
 assert cd.get("/api/sentences?mode=cloze").status_code == 402 and cd.get("/api/sentences?mode=order").status_code == 200
+assert cd.get("/api/sentences").status_code == 402                       # 不带 mode = cloze, 不能另算一份
+assert cd.get("/api/sentences?mode=cloze", headers={"X-TZ": "-840"}).status_code == 402   # 改时区不能多拿一天
+assert cd.get("/api/grammar/articles?type=indef&scope=bogus").status_code == 400          # 出错的请求不算次数
+assert [cd.get("/api/grammar/articles?type=indef").status_code for _ in range(3)] == [200, 200, 402]
 for i in range(3):
     assert cd.get("/api/roleplay/due?count=1").status_code == 200   # 首页只看数量, 不算
 assert cd.get("/api/roleplay/due").status_code == 200 and cd.get("/api/roleplay/due").status_code == 402
@@ -337,6 +341,10 @@ assert J(cd.get("/api/lessons/a1-1"))["lesson"]["lines"]
 assert cd.get("/api/lessons/a1-3").status_code == 402
 assert cd.get("/api/lessons/nope").status_code in (402, 404)
 assert cd.get("/static/lessons.json").status_code == 404
+# 安全响应头; 有过管理员后留下标记文件(空库时不让陌生人抢先注册成管理员)
+hr = cd.get("/")
+assert "frame-ancestors 'none'" in hr.headers["Content-Security-Policy"] and hr.headers["X-Frame-Options"] == "DENY"
+assert os.path.exists(A.auth.ADMIN_LOCK)
 # PWA: Service Worker 在根目录、不缓存; manifest 和图标都在
 r = cd.get("/sw.js")
 assert r.status_code == 200 and "javascript" in r.content_type and r.headers["Cache-Control"] == "no-cache"

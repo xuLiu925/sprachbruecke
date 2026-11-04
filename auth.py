@@ -21,7 +21,7 @@ from flask import Blueprint, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import email_codes
-from database import fmt_time, get_db, now_str
+from database import DB_PATH, fmt_time, get_db, now_str
 from email_codes import norm_email
 from helpers import client_ip, current_user_id, err, json_body, login_required
 
@@ -120,8 +120,20 @@ def email_taken(email, uid=None):
     return row is not None and row["id"] != uid
 
 
+# 有过管理员的标记文件, 放在数据库文件旁边(vocab.db.admin_lock)。数据库丢了、重新建的空库里,
+# 第一个注册的人会成为管理员 —— 有这个文件时空库不让注册, 要先从备份恢复(或者确认后手动删掉这个文件)
+ADMIN_LOCK = DB_PATH + ".admin_lock"
+
+
 def is_admin(uid):
-    return uid is not None and uid == get_db().execute("SELECT MIN(id) FROM users").fetchone()[0]
+    ok = uid is not None and uid == get_db().execute("SELECT MIN(id) FROM users").fetchone()[0]
+    if ok and not os.path.exists(ADMIN_LOCK):
+        try:
+            with open(ADMIN_LOCK, "w") as f:
+                f.write("这个服务器已经有过管理员。数据库是空的时候, 先从备份恢复 vocab.db; 确实要重新开始再删掉这个文件\n")
+        except OSError:
+            pass
+    return ok
 
 
 def admin_required(fn):
@@ -215,6 +227,9 @@ def register():
         return err("密码至少 8 位")
     db = get_db()
     count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    if count == 0 and os.path.exists(ADMIN_LOCK):
+        print("!! 数据库里没有用户, 但有过管理员: 拒绝注册, 请先从备份恢复 vocab.db", flush=True)
+        return err("服务器正在维护，暂时不能注册", 503)
     mode = register_mode() if count > 0 else "open"
     code = norm_code(data.get("invite"))
     need_invite = mode == "invite" or (mode == "email" and bool(code))   # 邀请链接注册不用邮箱
