@@ -55,7 +55,7 @@ async function loadWords() {
   $("wCount").textContent = q && !r.words.length ? `没有找到“${q}”`
     : (q ? "找到 " : "共 ") + r.words.length + " 个" + (r.words.length >= limit ? `（最多显示 ${limit} 个）` : "");
   box.classList.toggle("hidden", !r.words.length);
-  if (dict && !r.words.length && r.can && r.ai) {     // 查不到: 用户点了才调用 AI
+  if (dict && !r.words.length && r.gen && r.ai) {     // 查不到: 用户点了才调用 AI
     $("wAi").dataset.q = q; $("wAi").disabled = false;
     $("wAi").textContent = `用 AI 查询“${q}”`;
     $("wAi").classList.remove("hidden");

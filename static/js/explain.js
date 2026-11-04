@@ -103,12 +103,14 @@ async function openDrills(box, btn, body) {
   try {
     const r = await api("/api/drills?de=" + encodeURIComponent(body.de));
     if (r.items) return rpOpenItems(r.items);
-    if (!r.can) { box.textContent = "这句还没有替换练习。"; return; }
-    if (!r.ai) return renderFallback(box, body, "还没有配置 API Key。", "/api/drills", g => rpOpenItems(g.items));
+    if (!r.gen) { box.textContent = "这句还没有替换练习。"; return; }
+    if (!r.ai) return r.can ? renderFallback(box, body, "还没有配置 API Key。", "/api/drills", g => rpOpenItems(g.items))
+                            : void (box.textContent = "暂时不能生成，请稍后再试。");
     btn.textContent = "AI 正在出题…";
     rpOpenItems((await api("/api/drills/generate", "POST", body)).items);
   } catch (e) {
-    renderFallback(box, body, e.message, "/api/drills", g => rpOpenItems(g.items));
+    if (isAdmin) renderFallback(box, body, e.message, "/api/drills", g => rpOpenItems(g.items));
+    else box.textContent = e.status === 402 ? "" : e.message;   // 402: 已经弹出会员弹窗
   } finally { btn.disabled = false; btn.textContent = label; }
 }
 
@@ -140,14 +142,17 @@ async function openExplain(box, line, level) {
   const body = { de: line.de, zh: line.zh, level };
   let r;
   try { r = await api("/api/explain?de=" + encodeURIComponent(line.de)); }
-  catch (e) { box.textContent = e.message; return; }
+  catch (e) { box.textContent = e.message; if (e.status === 402) box.classList.add("hidden"); return; }   // 402: 已经弹出会员弹窗
   if (r.note) { box.dataset.loaded = "1"; renderNote(box, r.note, body, r); return; }
-  if (!r.can) { box.textContent = "这句还没有讲解。"; return; }
-  if (!r.ai) { renderFallback(box, body, "还没有配置 API Key。"); return; }
+  if (!r.gen) { box.textContent = "这句还没有讲解。"; return; }
+  if (!r.ai) { if (r.can) renderFallback(box, body, "还没有配置 API Key。"); else box.textContent = "暂时不能生成，请稍后再试。"; return; }
   box.textContent = "AI 正在讲解，大约要 10 秒…";
   try {
     const g = await api("/api/explain/generate", "POST", body);
     box.dataset.loaded = "1";
     renderNote(box, g.note, body, r);
-  } catch (e) { renderFallback(box, body, e.message); }
+  } catch (e) {
+    if (r.can) renderFallback(box, body, e.message);
+    else { box.textContent = e.status === 402 ? "" : e.message; if (e.status === 402) box.classList.add("hidden"); }
+  }
 }

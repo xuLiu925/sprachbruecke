@@ -1,5 +1,5 @@
 // 情景课: 读课文(点词看详情) → 练习 → 用德语写出来。列表(含词表)来自 /api/lessons, 课文打开时才取, 完成记录存本机
-let lessons = null, lessonNow = null, lessonShown = null, wsSeq = 0, wsWord = null, lessonAi = false;
+let lessons = null, lessonNow = null, lessonShown = null, wsSeq = 0, wsWord = null, lessonAi = false, lessonMember = false;
 let wsStack = [], wsNow = null, wsLoads = Promise.resolve();   // 单词卡看过的词, 返回时重新打开
 let wsAsk = null;     // 单词卡要交给 AI 查的 {q, context}
 const LESSON_LEVELS = { A1: "A1 入门", A2: "A2 基础", B1: "B1 进阶" };
@@ -11,7 +11,7 @@ async function loadLessons() {
   if (lessons) return lessons;
   const [r, mine] = await Promise.all([api("/api/lessons"), api("/api/custom_lessons")]);
   lessons = [...mine.lessons, ...r.lessons];
-  lessonAi = mine.ai;
+  lessonAi = mine.ai; lessonMember = mine.member;
   lessonState = { last: r.last, done: r.done || [] };
   // 以前“学完了”存在本机浏览器里: 没上传过的搬到服务器, 然后清掉本机的
   const local = Object.keys(getSetting("lessonDone") || {}).filter(id => !lessonState.done.includes(id));
@@ -295,7 +295,7 @@ async function openWordSheet(token, line, back = false) {
     const saved = (r.words || []).find(x => x.ai_word);    // 以前用 AI 查过
     if (saved) return openGlossaryWord(saved, true, back);
     $("wsMeaning").textContent = "词库里没有这个词";
-    if (r.can && r.ai) {                                   // 点了才调用 AI, 人名这类词不用查
+    if (r.gen && r.ai) {                                   // 点了才调用 AI, 人名这类词不用查
       wsAsk = { q: lemma, context: line.de };
       $("wsAi").disabled = false; $("wsAi").textContent = "用 AI 查询";
       $("wsAi").classList.remove("hidden");

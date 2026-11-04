@@ -12,7 +12,7 @@ import urllib.request
 
 from flask import Blueprint, jsonify, request
 
-from auth import admin_required
+from auth import is_admin
 from database import BASE, get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
 from lessons import ROLE, as_lesson, my_lessons, roleplay_items
@@ -236,7 +236,8 @@ def read_request():
 @bp.route("/api/custom_lessons")
 @login_required
 def list_custom():
-    return jsonify({"lessons": my_lessons(), "ai": bool(api_key())})
+    from billing import unlimited   # billing 间接依赖本模块的使用者, 放这里免得循环导入
+    return jsonify({"lessons": my_lessons(), "ai": bool(api_key()), "member": unlimited(current_user_id())})
 
 
 @bp.route("/api/custom_lessons/prompt", methods=["POST"])
@@ -250,11 +251,19 @@ def prompt_text():
 
 
 @bp.route("/api/custom_lessons/generate", methods=["POST"])
-@admin_required
+@login_required
 def generate():
+    """会员功能, 会员每天 CUSTOM_PER_DAY 次(管理员不限)"""
+    from billing import CUSTOM_PER_DAY, ENFORCE, ai_block, ai_done, member_only, today_key, used
     level, want, e = read_request()
     if e:
         return err(e)
+    uid = current_user_id()
+    blocked = member_only(uid, "AI 生成对话") or ai_block(uid, "lesson", generate=True)
+    if blocked:
+        return blocked
+    if ENFORCE and not is_admin(uid) and used(uid, today_key(), "customgen") >= CUSTOM_PER_DAY:
+        return err(f"AI 生成对话每天最多 {CUSTOM_PER_DAY} 次，明天再来吧", 429)
     try:
         raw = call_gemini(build_prompt(level, want))
     except AiError as ex:
@@ -266,6 +275,12 @@ def generate():
     lesson, e = clean_lesson(data)
     if e:
         return err("AI 写得不完整（" + e + "），请重新生成", 502)
+    ai_done(uid, "lesson", generated=True)
+    if not is_admin(uid):
+        db = get_db()
+        db.execute("INSERT INTO usage_daily (user_id, day, feature, count) VALUES (?,?,'customgen',1) "
+                   "ON CONFLICT(user_id, day, feature) DO UPDATE SET count = count + 1", (uid, today_key()))
+        db.commit()
     return jsonify({"lesson": lesson})
 
 

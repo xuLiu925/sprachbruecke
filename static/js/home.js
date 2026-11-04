@@ -340,7 +340,7 @@ async function showMember() {
   now.textContent = b.admin ? "管理员：所有功能不限次数。"
     : b.until && left <= MEMBER_SOON ? `会员还剩 ${left} 天（${localDate(b.until).text}到期），到期后回到免费版。现在续费会接着往后加，不会浪费剩下的天数。`
     : b.until ? `会员有效期到 ${localDate(b.until).text}，所有练习不限次数。`
-    : (b.expired ? `会员已在 ${localDate(b.expired).text}到期，现在是免费版。` : "") + "免费版：今日学习、词库、查词、语法基础不限；其他练习每天有次数（冠词练习、听写每天 3 组，句子练习每种题型 2 组，语法专项每种 2 组，情景课每天 1 节新课，整句复习每天 1 轮）。";
+    : (b.expired ? `会员已在 ${localDate(b.expired).text}到期，现在是免费版。` : "") + "免费版：今日学习、词库、查词、语法基础不限；其他练习每天有次数（冠词练习、听写每天 3 组，句子练习每种题型 2 组，语法专项每种 2 组，情景课每天 1 节新课，整句复习每天 1 轮；AI 每天 5 次：打开句子讲解、新生成 AI 查词 / 构词 / 联想记忆；替换练习和 AI 生成对话只给会员）。";
   for (const u of b.usage) {
     const li = document.createElement("li");
     li.textContent = u.split ? `${u.name}：今天做了 ${u.used} 组（每种题型 ${u.limit} 组）` : `${u.name}：今天 ${u.used} / ${u.limit} 组`;

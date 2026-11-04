@@ -12,6 +12,7 @@ import re
 from flask import Blueprint, jsonify, request
 
 from auth import admin_required, is_admin
+from billing import ai_block, ai_can_generate, ai_done
 from custom_lessons import CHINESE, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from dictionary import all_glossary
@@ -145,7 +146,9 @@ def reason():
     text_, ending, tail, word = analyze(german, gender)
     out = {"reason": text_ or NO_RULE, "no_rule": text_ is None, "examples": examples_of(word, gender, ending, tail)}
     if text_ is None:
-        out.update(memo=load_memo(word, gender), can=is_admin(current_user_id()), ai=bool(api_key()))
+        uid = current_user_id()
+        out.update(memo=load_memo(word, gender), can=uid is not None and is_admin(uid),
+                   gen=uid is not None and ai_can_generate(uid), ai=bool(api_key()))
     return jsonify(out)
 
 
@@ -174,7 +177,7 @@ def clean_memo(data):
 
 
 @bp.route("/api/gender_memo", methods=["POST"])
-@admin_required
+@login_required
 def memo():
     """生成联想记忆 {german, gender, meaning, again}: 已保存就直接返回, again = 换一个。有规律的词不生成"""
     data = json_body()
@@ -186,10 +189,16 @@ def memo():
     word = german.split(" ")[-1]
     if analyze(word, gender)[0]:
         return err("这个词有规律可循，不用联想")
+    uid = current_user_id()
+    if data.get("again") and not is_admin(uid):   # 换一个只有管理员能用
+        return err("没有权限", 403)
     if not data.get("again"):
         saved = load_memo(word, gender)
         if saved:
             return jsonify({"memo": saved})
+    blocked = ai_block(uid, f"memo:{gender}:{word}", generate=True)
+    if blocked:
+        return blocked
     try:
         raw = call_gemini(build_prompt(word, gender, text(data.get("meaning"), 100)))
     except AiError as ex:
@@ -204,4 +213,5 @@ def memo():
         (word, gender, result, now_str()),
     )
     db.commit()
+    ai_done(uid, f"memo:{gender}:{word}", generated=True)
     return jsonify({"memo": result})

@@ -10,6 +10,7 @@ import re
 from flask import Blueprint, jsonify, request
 
 from auth import admin_required, is_admin
+from billing import ai_block, ai_can_generate, ai_done, member_only
 from custom_lessons import CHINESE, TOKEN, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
@@ -157,8 +158,14 @@ def get_note():
     de = request.args.get("de", "").strip()
     if not de or len(de) > MAX_SENTENCE:
         return err("句子无效")
-    return jsonify({"note": load_note(de), "report": report_reason("note", de),
-                    "can": is_admin(current_user_id()), "ai": bool(api_key())})
+    uid, note = current_user_id(), load_note(de)
+    if note and uid is not None and not arg_sentence():   # 打开已有的讲解也算一次; 试学的例句不算
+        blocked = ai_block(uid, "note:" + key_of(de))
+        if blocked:
+            return blocked
+        ai_done(uid, "note:" + key_of(de))
+    return jsonify({"note": note, "report": report_reason("note", de), "can": uid is not None and is_admin(uid),
+                    "gen": uid is not None and ai_can_generate(uid), "ai": bool(api_key())})
 
 
 @bp.route("/api/explain/prompt", methods=["POST"])
@@ -171,14 +178,19 @@ def prompt_text():
 
 
 @bp.route("/api/explain/generate", methods=["POST"])
-@admin_required
+@login_required
 def generate():
-    """已经有讲解就直接返回, 不再调用 AI"""
+    """已经有讲解就直接返回, 不再调用 AI。免费用户算一次 AI 次数, 会员 / 免费用户都算一条新生成"""
     de, zh, level, e = read_sentence(json_body())
     if e:
         return err(e)
+    uid, k = current_user_id(), "note:" + key_of(de)
     saved = load_note(de)
+    blocked = ai_block(uid, k, generate=not saved)
+    if blocked:
+        return blocked
     if saved:
+        ai_done(uid, k)
         return jsonify({"note": saved})
     try:
         raw = call_gemini(build_prompt(de, zh, level))
@@ -188,6 +200,7 @@ def generate():
     if e:
         return err("AI 讲解不完整（" + e + "），请再试一次", 502)
     save_note(de, note)
+    ai_done(uid, k, generated=True)
     return jsonify({"note": note})
 
 
@@ -301,8 +314,12 @@ def get_drills():
     de = request.args.get("de", "").strip()
     if not de or len(de) > MAX_SENTENCE:
         return err("句子无效")
+    uid = current_user_id()
+    blocked = member_only(uid, "替换练习")
+    if blocked:
+        return blocked
     return jsonify({"items": load_drills(de), "report": report_reason("drill", de),
-                    "can": is_admin(current_user_id()), "ai": bool(api_key())})
+                    "can": is_admin(uid), "gen": ai_can_generate(uid), "ai": bool(api_key())})
 
 
 @bp.route("/api/drills/prompt", methods=["POST"])
@@ -315,15 +332,22 @@ def drill_prompt():
 
 
 @bp.route("/api/drills/generate", methods=["POST"])
-@admin_required
+@login_required
 def drill_generate():
-    """已经有题就直接返回, 不再调用 AI"""
+    """已经有题就直接返回, 不再调用 AI。会员功能"""
     de, zh, level, e = read_sentence(json_body())
     if e:
         return err(e)
+    uid = current_user_id()
+    blocked = member_only(uid, "替换练习")
+    if blocked:
+        return blocked
     saved = load_drills(de)
     if saved:
         return jsonify({"items": saved})
+    blocked = ai_block(uid, "drill:" + key_of(de), generate=True)
+    if blocked:
+        return blocked
     try:
         raw = call_gemini(build_drill_prompt(de, zh, level))
     except AiError as ex:
@@ -331,7 +355,9 @@ def drill_generate():
     drills, e = clean_drills(extract_json(raw), de)
     if e:
         return err("AI 出题不完整（" + e + "），请再试一次", 502)
-    return jsonify({"items": save_drills(de, level, drills)})
+    items = save_drills(de, level, drills)
+    ai_done(uid, "drill:" + key_of(de), generated=True)
+    return jsonify({"items": items})
 
 
 @bp.route("/api/drills/regenerate", methods=["POST"])

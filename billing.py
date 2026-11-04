@@ -198,8 +198,65 @@ def check_lesson(uid, lesson_id):
     return None
 
 
-def paywall(msg):
-    return jsonify({"error": msg, "paywall": True}), 402
+def paywall(msg, title=None):
+    body = {"error": msg, "paywall": True}
+    if title:
+        body["title"] = title
+    return jsonify(body), 402
+
+
+# ---------- AI 次数(文档 docs/features/ai-quota.md) ----------
+# 免费用户: 讲解、AI 查词、构词、联想记忆共用每天 AI_FREE 次, 每样东西当天第一次用才算(usage_daily 的 ai:键 一样一行);
+# 讲解打开就算, 查词 / 构词 / 联想记忆只有新生成才算(已有的随便看, 由各模块决定调不调 ai_block)。
+# 会员不限次数, 但和免费用户一样每天最多新生成 AI_GEN_CAP 条(aigen), 防刷费用。管理员都不限
+AI_FREE = 5
+AI_GEN_CAP = 200
+CUSTOM_PER_DAY = 3     # 会员每天能用 AI 生成几次自建对话
+AI_MSG = (f"免费版每天能用 {AI_FREE} 次 AI（句子讲解、AI 查词、构词解释、联想记忆），今天的已经用完了。"
+          "开通会员不限次数。")
+
+
+def ai_used(uid, day):
+    return get_db().execute("SELECT COUNT(*) FROM usage_daily WHERE user_id = ? AND day = ? AND feature LIKE 'ai:%'",
+                            (uid, day)).fetchone()[0]
+
+
+def ai_block(uid, key, generate=False):
+    """用一次 AI 之前查: 能用返回 None, 否则返回 402(免费次数用完) / 429(今天生成太多) 响应。
+    key = 用的是哪样东西, 如 note:句子编号、parts:词"""
+    if not ENFORCE or is_admin(uid):
+        return None
+    day = today_key()
+    if generate and used(uid, day, "aigen") >= AI_GEN_CAP:
+        return err(f"今天新生成的 AI 内容太多了（每天最多 {AI_GEN_CAP} 条），明天再来吧", 429)
+    if unlimited(uid) or used(uid, day, "ai:" + key):
+        return None
+    if ai_used(uid, day) >= AI_FREE:
+        return paywall(AI_MSG)
+    return None
+
+
+def ai_can_generate(uid):
+    """现在能不能新生成(前端决定显示“生成”还是“还没有”); 免费用户次数用完时也返回 True, 点了再弹会员"""
+    return not unlimited(uid) or ai_block(uid, "?", generate=True) is None
+
+
+def ai_done(uid, key, generated=False):
+    """用成功了再记: 免费用户记 ai:key, 新生成的记 aigen。管理员不记"""
+    if not ENFORCE or is_admin(uid):
+        return
+    day, db = today_key(), get_db()
+    for feature in ([] if unlimited(uid) else ["ai:" + key]) + (["aigen"] if generated else []):
+        db.execute("INSERT INTO usage_daily (user_id, day, feature, count) VALUES (?,?,?,1) "
+                   "ON CONFLICT(user_id, day, feature) DO UPDATE SET count = count + 1", (uid, day, feature))
+    db.commit()
+
+
+def member_only(uid, name):
+    """会员功能: 会员和管理员返回 None, 免费用户返回 402"""
+    if not ENFORCE or unlimited(uid):
+        return None
+    return paywall(f"{name}是会员功能。开通会员就能用，AI 讲解和各种练习也都不限次数。", title="这是会员功能")
 
 
 @bp.before_app_request
@@ -269,6 +326,9 @@ def status():
             n = sum(c for f, c in counts.items() if f == path or f.startswith(path + ":"))
             if n:
                 usage.append({"name": name, "used": n, "limit": limit, "split": bool(arg)})
+        n = sum(1 for f in counts if f.startswith("ai:"))
+        if n:
+            usage.append({"name": "AI（讲解、查词、构词、联想记忆）", "used": n, "limit": AI_FREE, "split": False})
     row = get_db().execute("SELECT until FROM memberships WHERE user_id = ?", (uid,)).fetchone()
     until = member_until(uid)
     # 最近 EXPIRED_SHOW 天内到期的, 页面上提示“会员已到期”

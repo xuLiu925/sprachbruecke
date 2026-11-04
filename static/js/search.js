@@ -77,7 +77,7 @@ async function searchRun() {
   list.classList.toggle("hidden", !r.words.length);
   $("seMsg").textContent = r.words.length ? "" : `没有找到“${q}”`;
   r.words.forEach(w => list.appendChild(wordRow(w, () => searchOpenWord(w))));
-  if (!r.words.length && r.can && r.ai) {    // 查不到: 用户点了才调用 AI
+  if (!r.words.length && r.gen && r.ai) {    // 查不到: 用户点了才调用 AI
     ai.dataset.q = q; ai.disabled = false; ai.textContent = `用 AI 查询“${q}”`;
     ai.classList.remove("hidden");
   }

@@ -32,7 +32,7 @@ async function wordParts(el, german, meaning = "") {
   try { r = await api("/api/parts?german=" + encodeURIComponent(german)); }
   catch (e) { return; }
   if (el.dataset.word !== german) return;
-  const canMake = r.can && r.ai;
+  const canMake = parts => r.ai && (parts ? r.can : r.gen);   // 重新解释只有管理员能用
   const show = (parts, report) => {
     el.textContent = "";
     if (parts && parts.split) {
@@ -49,7 +49,7 @@ async function wordParts(el, german, meaning = "") {
       const note = document.createElement("div"); note.className = "lzh"; note.textContent = "已报错：" + report;
       el.appendChild(note);
     }
-    if (canMake) {
+    if (canMake(parts)) {
       const b = document.createElement("button"); b.className = "mini";
       b.textContent = parts ? "重新解释" : "AI 构词解释";
       b.onclick = async () => {

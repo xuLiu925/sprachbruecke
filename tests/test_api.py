@@ -637,11 +637,13 @@ for bad, msg in (({**good, "level": "C2"}, "级别"), ({**good, "lines": good["l
     assert msg in CL.clean_lesson(bad)[1], msg
 assert CL.extract_json("好的：\n```json\n" + json.dumps(good) + "\n```") == good and CL.extract_json("nope") is None
 os.environ.pop("GEMINI_API_KEY", None)
-assert J(c.get("/api/custom_lessons")) == {"lessons": [], "ai": False}
+assert J(c.get("/api/custom_lessons")) == {"lessons": [], "ai": False, "member": True}
 want = {"level": "A2", "request": "司机来提货发现少了一托"}
 assert c.post("/api/custom_lessons/generate", json={"level": "A2", "request": "x"}).status_code == 400
 assert c.post("/api/custom_lessons/generate", json=want).status_code == 503      # 没有 Key
-assert cb.post("/api/custom_lessons/generate", json=want).status_code == 403     # 只有管理员能用
+billing.ENFORCE = True
+assert cb.post("/api/custom_lessons/generate", json=want).status_code == 402     # 会员功能
+billing.ENFORCE = False
 assert "司机来提货" in J(cb.post("/api/custom_lessons/prompt", json=want))["prompt"]
 real_call = CL.call_gemini
 CL.call_gemini = lambda prompt: "```json\n" + json.dumps(good) + "\n```"
@@ -681,11 +683,11 @@ assert e is None and [w["word"] for w in cn["words"]] == ["dem Hubwagen"] and le
 assert "词" in EX.clean_note({"words": [], "similar": note["similar"]}, sent["de"])[1]
 assert "类似" in EX.clean_note({**note, "similar": []}, sent["de"])[1]
 ask = "/api/explain?de=" + urllib.parse.quote(sent["de"])
-assert J(c.get(ask)) == {"note": None, "report": None, "can": True, "ai": False} and not J(cb.get(ask))["can"]
+assert J(c.get(ask)) == {"note": None, "report": None, "can": True, "gen": True, "ai": False} and not J(cb.get(ask))["can"]
 assert c.post("/api/explain/generate", json={**sent, "level": "C2"}).status_code == 400
 assert c.post("/api/explain/generate", json={**sent, "de": "中文句子"}).status_code == 400
 assert c.post("/api/explain/generate", json=sent).status_code == 503                # 没有 Key
-assert cb.post("/api/explain/generate", json=sent).status_code == 403
+assert cb.post("/api/explain/generate", json=sent).status_code == 503     # 普通用户也能生成(有次数), 没有 Key
 calls = []
 def fake(prompt):
     calls.append(prompt); return "```json\n" + json.dumps(note) + "\n```"
@@ -716,8 +718,8 @@ assert e is None and [d["answer"] for d in cd] == ["Bitte fahren Sie zu Tor zwei
 assert EX.clean_drills({"drills": dr["drills"][:2]}, s3["de"])[1] and EX.clean_drills(None, s3["de"])[1]
 EX.call_gemini = real_call
 ask3 = "/api/drills?de=" + urllib.parse.quote(s3["de"])
-assert J(c.get(ask3)) == {"items": None, "report": None, "can": True, "ai": False}
-assert c.post("/api/drills/generate", json=s3).status_code == 503 and cb.post("/api/drills/generate", json=s3).status_code == 403
+assert J(c.get(ask3)) == {"items": None, "report": None, "can": True, "gen": True, "ai": False}
+assert c.post("/api/drills/generate", json=s3).status_code == 503 and cb.post("/api/drills/generate", json=s3).status_code == 503
 calls = []
 def fake2(prompt):
     calls.append(prompt); return json.dumps(dr)
@@ -773,7 +775,7 @@ import dictionary as DI
 dai = lambda client, q: client.post("/api/dict/ai", json={"q": q})
 meta = J(c.get("/api/dict?q=Kommissionierer"))
 assert meta["words"] == [] and meta["can"] and not meta["ai"] and not J(cb.get("/api/dict?q=x"))["can"]
-assert dai(c, "Kommissionierer").status_code == 503 and dai(cb, "Kommissionierer").status_code == 403
+assert dai(c, "Kommissionierer").status_code == 503 and dai(cb, "Kommissionierer").status_code == 503   # 普通用户也能查(有次数)
 assert dai(c, "").status_code == 400 and dai(c, "a" * 51).status_code == 400
 kom = {"found": True, "german": "Kommissionierer", "gender": "der", "pos": "名词", "plural": "Kommissionierer",
        "meaning": "拣货员", "example": "Der Kommissionierer holt die Ware.\n拣货员去取货。", "evil": "x"}
@@ -1026,7 +1028,7 @@ assert rw("Hund", "der")["no_rule"] and rw("Hund", "der")["examples"] == [] and 
 assert not rw("Hund", "der", cb)["can"] and "memo" not in rw("Zeitung", "die")
 # 第二层: 没有规律的词才生成, 点了才调用, 保存后不重复, 可以换一个
 mm = lambda client, **b: client.post("/api/gender_memo", json={"german": "Hund", "gender": "der", "meaning": "狗", **b})
-assert mm(c).status_code == 503 and mm(cb).status_code == 403
+assert mm(c).status_code == 503 and mm(cb).status_code == 503 and mm(cb, again=True).status_code == 403   # 普通用户能生成, 换一个只有管理员
 assert mm(c, gender="x").status_code == 400 and mm(c, german="Zeitung", gender="die").status_code == 400
 calls = []
 def fake7(prompt):
@@ -1053,8 +1055,8 @@ wp_ok = {"split": True, "literal": "病人的房子 → 医院", "clarity": "cle
                                   {"text": "en", "base": "en", "zh": "", "type": "link"}]},
     {"word": "Tisch", "parts": [{"text": "Ti", "base": "Ti", "zh": "无关", "type": "word"},
                                 {"text": "sch", "base": "sch", "zh": "无关", "type": "word"}]}]}
-assert pg("Krankenhaus") == {"parts": None, "report": None, "can": True, "ai": False}
-assert pp(c).status_code == 503 and pp(cb).status_code == 403
+assert pg("Krankenhaus") == {"parts": None, "report": None, "can": True, "gen": True, "ai": False}
+assert pp(c).status_code == 503 and pp(cb).status_code == 503 and pp(cb, again=True).status_code == 403
 calls = []
 def fake8(prompt):
     calls.append(prompt); return json.dumps(wp_ok)
@@ -1841,4 +1843,35 @@ assert c.post("/api/trial/save", json={"answers": ans}).get_json()["saved"] == l
 assert all(c.get(f"/api/words/{i}").get_json()["status"] != "new" for i in fresh_ids)
 assert c.post("/api/trial/save", json={"answers": ans}).get_json()["saved"] == 0
 assert c.post("/api/trial/save", json={"answers": "x"}).status_code == 400
+# AI 次数(billing.ai_block): trialuser 是普通用户, 每天 5 次; 同一句当天再看不算; 会员不限, 但每天新生成有上限
+billing.ENFORCE = True
+dba = sqlite3.connect(database.DB_PATH)   # 前面换成了 old.db
+tu_id = dba.execute("SELECT id FROM users WHERE username = 'trialuser'").fetchone()[0]
+with A.app.app_context():
+    for i in range(7):
+        EX.save_note(f"Satz Nummer {i} ist hier.", cn)
+see = lambda i: c.get("/api/explain?de=" + urllib.parse.quote(f"Satz Nummer {i} ist hier."))
+for i in range(5):
+    assert J(see(i))["note"] == cn
+assert J(see(0))["note"] == cn                                       # 同一句再看不算
+r = see(5)
+assert r.status_code == 402 and J(r)["paywall"] and "5 次 AI" in J(r)["error"]
+assert {"name": "AI（讲解、查词、构词、联想记忆）", "used": 5, "limit": 5, "split": False} in J(c.get("/api/billing"))["usage"]
+assert c.post("/api/dict/ai", json={"q": "Zzneuwort"}).status_code == 402
+assert c.post("/api/parts/generate", json={"german": "Zzneuwort"}).status_code == 402
+assert c.post("/api/parts/generate", json={"german": "Zzneuwort", "again": True}).status_code == 403   # 重新生成只有管理员
+r = c.get("/api/drills?de=" + urllib.parse.quote("Satz Nummer 0 ist hier."))
+assert r.status_code == 402 and J(r)["title"] == "这是会员功能"
+assert c.post("/api/custom_lessons/generate", json={"level": "A2", "request": "司机来提货"}).status_code == 402
+assert J(c.get("/api/custom_lessons"))["member"] is False
+# 开了会员: 不限次数; 新生成每天最多 AI_GEN_CAP 条
+dba.execute("INSERT OR REPLACE INTO memberships (user_id, until, updated_at) VALUES (?, '2099-01-01 00:00:00', '2026-01-01 00:00:00')", (tu_id,)); dba.commit()
+assert J(see(5))["note"] == cn and J(see(6))["note"] == cn
+assert c.get("/api/drills?de=" + urllib.parse.quote("Satz Nummer 0 ist hier.")).status_code == 200
+day = J(c.get("/api/billing")) and dba.execute("SELECT day FROM usage_daily WHERE user_id = ? LIMIT 1", (tu_id,)).fetchone()[0]
+dba.execute("INSERT INTO usage_daily (user_id, day, feature, count) VALUES (?, ?, 'aigen', ?)", (tu_id, day, billing.AI_GEN_CAP)); dba.commit()
+assert c.post("/api/explain/generate", json={"de": "Ganz neuer Satz hier.", "zh": "新句子。", "level": "A2"}).status_code == 429
+assert not J(c.get("/api/explain?de=" + urllib.parse.quote("Ganz neuer Satz hier.")))["gen"]
+dba.execute("DELETE FROM memberships WHERE user_id = ?", (tu_id,)); dba.commit(); dba.close()
+billing.ENFORCE = False
 print("ALL OK")

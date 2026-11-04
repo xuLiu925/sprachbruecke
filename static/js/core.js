@@ -22,7 +22,7 @@ async function api(path, method = "GET", body) {
   if (r.status === 401 && user) { user = null; showLogin(); }
   else if (r.status === 401 && method !== "GET" && !/^\/api\/(login|register|password)/.test(path))
     openLogin("reg", "注册后就能使用这个功能");   // 游客点了要账号的操作(加入学习、报错等)
-  if (r.status === 402 && data.paywall) showPaywall(data.error);
+  if (r.status === 402 && data.paywall) showPaywall(data.error, data.title);
   if (!r.ok) { const e = new Error(data.error || "请求失败"); e.status = r.status; throw e; }
   return data;
 }
@@ -30,8 +30,9 @@ async function api(path, method = "GET", body) {
 // ---------- 免费次数用完: 底部弹窗, 直接选月卡 / 年卡去付款 ----------
 // 关掉(明天再来、×、点外面、Esc)时如果在二级页面就退回上一页, 免得留在没有题的空页面
 const payOpen = () => !$("paysheet").classList.contains("hidden");
-async function showPaywall(msg) {
+async function showPaywall(msg, title) {
   $("payMsg").textContent = msg;
+  $("payTitle").textContent = title || "今天的免费次数用完了";
   if (payOpen()) return;
   $("paysheet").classList.remove("hidden");
   const box = $("payPlans");
@@ -194,7 +195,7 @@ function genderMemo(el, german, gender, meaning, r) {
       const tip = document.createElement("div"); tip.className = "lzh"; tip.textContent = "这是记忆法，不是语法原因";
       box.append(m, tip);
     }
-    if (!r.can || !r.ai) return;
+    if (!r.ai || !(memo ? r.can : r.gen)) return;   // 换一个只有管理员能用
     const b = document.createElement("button"); b.className = "mini";
     b.textContent = memo ? "换一个" : "AI 帮我记住这个词性";
     b.onclick = async () => {

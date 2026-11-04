@@ -10,6 +10,7 @@ import re
 from flask import Blueprint, jsonify, request
 
 from auth import admin_required, is_admin
+from billing import ai_block, ai_can_generate, ai_done
 from custom_lessons import CHINESE, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from explain import feedback_text
@@ -146,12 +147,13 @@ def get_parts():
     word = normalize(request.args.get("german", ""))
     if not word or len(word) > MAX_WORD:
         return err("参数无效")
-    return jsonify({"parts": load_parts(word), "report": report_reason(word),
-                    "can": is_admin(current_user_id()), "ai": bool(api_key())})
+    uid = current_user_id()
+    return jsonify({"parts": load_parts(word), "report": report_reason(word), "can": uid is not None and is_admin(uid),
+                    "gen": uid is not None and ai_can_generate(uid), "ai": bool(api_key())})
 
 
 @bp.route("/api/parts/generate", methods=["POST"])
-@admin_required
+@login_required
 def generate():
     """{german, meaning, again}: 已保存就直接返回; again = 重新生成, 带上报错内容, 失败时旧内容不动"""
     data = json_body()
@@ -160,10 +162,16 @@ def generate():
     word = normalize(data.get("german"))
     if not word or len(word) > MAX_WORD:
         return err("参数无效")
+    uid = current_user_id()
+    if data.get("again") and not is_admin(uid):   # 重新生成只有管理员能用
+        return err("没有权限", 403)
     if not data.get("again"):
         saved = load_parts(word)
         if saved:
             return jsonify({"parts": saved})
+    blocked = ai_block(uid, "parts:" + word, generate=True)
+    if blocked:
+        return blocked
     try:
         raw = call_gemini(build_prompt(word, text(data.get("meaning"), 100), report_reason(word)))
     except AiError as ex:
@@ -172,6 +180,7 @@ def generate():
     if e:
         return err("AI 解释不合格（" + e + "），请再试一次", 502)
     save_parts(word, parts)
+    ai_done(uid, "parts:" + word, generated=True)
     return jsonify({"parts": parts})
 
 

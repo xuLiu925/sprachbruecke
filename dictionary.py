@@ -16,6 +16,7 @@ from flask import Blueprint, jsonify, request
 
 import lexicon
 from auth import admin_required, is_admin
+from billing import ai_block, ai_can_generate, ai_done
 from custom_lessons import TOKEN, AiError, api_key, call_gemini, extract_json, text
 from database import get_db, now_str
 from helpers import current_user_id, err, json_body, login_required
@@ -204,7 +205,7 @@ def ai_row(word):
 
 
 @bp.route("/api/dict/ai", methods=["POST"])
-@admin_required
+@login_required
 def ai_lookup():
     """用 AI 查一个词 {q, context}: context 是可选的原句, 让释义贴合语境。
     已保存就直接返回。AI 说没有这个词时 word 是 null, 不保存, 以后可以再试"""
@@ -213,14 +214,19 @@ def ai_lookup():
     if not q or len(q) > 50:
         return err("请输入要查的词")
     saved = load_ai_word(q)
-    if saved:
+    if saved:                                   # 有人查过: 直接看, 不算次数
         return jsonify({"word": ai_row(saved)})
+    uid, k = current_user_id(), "dict:" + lookup_key(q)
+    blocked = ai_block(uid, k, generate=True)
+    if blocked:
+        return blocked
     try:
         raw = call_gemini(build_prompt(q, text(data.get("context"), 300)))
     except AiError as ex:
         return err(ex.msg, ex.code)
     parsed = extract_json(raw)
     if parsed is not None and parsed.get("found") is False:
+        ai_done(uid, k, generated=True)          # AI 也查了, 算一次
         return jsonify({"word": None})
     word, e = clean_ai_word(parsed)
     if e:
@@ -229,6 +235,7 @@ def ai_lookup():
     db.execute("INSERT OR REPLACE INTO ai_words (lookup_key, query, data, created_at) VALUES (?,?,?,?)",
                (lookup_key(q), q, json.dumps(word, ensure_ascii=False), now_str()))
     db.commit()
+    ai_done(uid, k, generated=True)
     return jsonify({"word": ai_row(word)})
 
 
@@ -257,4 +264,5 @@ def lookup():
     saved = load_ai_word(q)
     if saved and not_in_words(saved):
         words = [ai_row(saved)] + words[:LIMIT - 1]
-    return jsonify({"words": words, "can": is_admin(current_user_id()), "ai": bool(api_key())})
+    uid = current_user_id()
+    return jsonify({"words": words, "can": is_admin(uid), "gen": ai_can_generate(uid), "ai": bool(api_key())})
