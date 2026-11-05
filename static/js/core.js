@@ -360,6 +360,7 @@ async function saveTrial() {
 
 let registerMode = "invite";   // 后端的注册方式: email(邮箱验证码) / invite(邀请码) / open
 let userEmail = null;
+let userNick = null, userUid = null, nickWait = 0;   // 昵称(显示用)、通德 ID、还要几天才能再改昵称
 // 管理员发的邀请链接 ?invite=码: 注册页显示填好的邀请码, 不用邮箱。平时注册页看不到邀请码
 let inviteLink = new URLSearchParams(location.search).get("invite") || "";
 if (inviteLink) history.replaceState(null, "", location.pathname + location.hash);
@@ -368,6 +369,7 @@ async function boot() {
   try {
     const me = await api("/api/me");
     user = me.username; isAdmin = !!me.admin; userEmail = me.email || null;
+    userNick = me.nickname || me.username; userUid = me.uid || null; nickWait = me.nickname_wait || 0;
     if (me.register) registerMode = me.register;
   } catch (e) { user = null; }
   showApp();   // 没登录时是游客页面(route 里换成 welcome)

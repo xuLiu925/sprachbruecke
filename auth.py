@@ -22,9 +22,10 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import email_codes
 from content_filter import blocked
-from database import DB_PATH, fmt_time, get_db, now_str
+from database import DB_PATH, fmt_time, get_db, new_uid, now_str
 from email_codes import norm_email
 from helpers import client_ip, current_user_id, err, json_body, login_required
+from user_profile import display_name, nickname_wait
 
 bp = Blueprint("auth", __name__)
 
@@ -268,8 +269,8 @@ def register():
             return err(bad)
     try:
         cur = db.execute(
-            "INSERT INTO users (username, password_hash, email) VALUES (?, ?, ?)",
-            (username, generate_password_hash(password), email),
+            "INSERT INTO users (username, password_hash, email, uid) VALUES (?, ?, ?, ?)",
+            (username, generate_password_hash(password), email, new_uid(db)),
         )
     except sqlite3.IntegrityError:
         db.rollback()
@@ -323,13 +324,16 @@ def me():
     uid = current_user_id()
     if uid is None:
         return jsonify({"username": None, "register": register_mode()})
-    row = get_db().execute("SELECT username, email FROM users WHERE id = ?", (uid,)).fetchone()
+    row = get_db().execute("SELECT username, email, uid, nickname, nickname_at FROM users WHERE id = ?",
+                           (uid,)).fetchone()
     if row is None:
         session.clear()
         return jsonify({"username": None, "register": register_mode()})
     # register 登录后也要给: 页面是登录状态打开的, 退出后去注册时要用
+    # username = 登录账号(不能改); nickname = 显示的名字; uid = 通德 ID
     return jsonify({"username": row["username"], "admin": is_admin(uid), "email": row["email"],
-                    "register": register_mode()})
+                    "uid": row["uid"], "nickname": display_name(row),
+                    "nickname_wait": nickname_wait(row["nickname_at"]), "register": register_mode()})
 
 
 @bp.route("/api/password", methods=["POST"])
@@ -414,22 +418,52 @@ def bind_email_code():
 @bp.route("/api/email", methods=["POST"])
 @login_required
 def bind_email():
-    """{email, code}: 验证码对了就绑定"""
+    """{email, code, password}: 密码和验证码都对了就绑定。要密码: 别人拿到已登录的手机,
+    不能把邮箱换成自己的、再用“忘记密码”把账号拿走。换了邮箱给旧邮箱发一封通知"""
     data = json_body()
     if data is None:
         return err("请求格式错误")
+    uid = current_user_id()
     email = norm_email(data.get("email"))
     if not email:
         return err("邮箱格式不对")
-    if email_taken(email, current_user_id()):
+    key = f"@uid{uid}"   # 和改密码共用限速
+    if too_many_fails(key):
+        return err("尝试次数过多, 请 10 分钟后再试", 429)
+    db = get_db()
+    row = db.execute("SELECT password_hash, email FROM users WHERE id = ?", (uid,)).fetchone()
+    if not check_password_hash(row["password_hash"], str(data.get("password", ""))):
+        record_fail(key)
+        return err("登录密码不对", 401)
+    if email == row["email"]:
+        return err("和现在的邮箱一样")
+    if email_taken(email, uid):
         return err("这个邮箱已经被别的账号用了", 409)
     bad = email_codes.check_code(email, "bind", data.get("code"))
     if bad:
         return err(bad)
-    db = get_db()
-    db.execute("UPDATE users SET email = ? WHERE id = ?", (email, current_user_id()))
+    db.execute("UPDATE users SET email = ? WHERE id = ?", (email, uid))
     db.commit()
+    if row["email"]:
+        notify_email_changed(row["email"], email)
     return jsonify({"email": email})
+
+
+def mask_email(email):
+    name, _, domain = email.partition("@")
+    return name[:2] + "***@" + domain
+
+
+def notify_email_changed(old, new):
+    """发不出去不影响换邮箱(原因写进日志)"""
+    if email_codes.sender is None and not email_codes.configured():
+        return
+    body = (f"你的通德账号绑定的邮箱已经改成 {mask_email(new)}，以后登录和找回密码都用新邮箱。\n\n"
+            "如果不是你本人操作，请尽快在「我的」页意见反馈里联系管理员，或直接回复这封邮件。\n\n通德 Sprachbrücke")
+    try:
+        email_codes.send_mail(old, "通德账号的邮箱已更换", body)
+    except Exception as e:
+        print(f"!! 换邮箱通知没发出去: {type(e).__name__}: {e}", flush=True)
 
 
 # ---------- 管理员 ----------
@@ -477,7 +511,7 @@ def delete_invite(code):
 @admin_required
 def list_users():
     rows = get_db().execute(
-        "SELECT u.id, u.username, u.email, (SELECT COUNT(*) FROM progress p WHERE p.user_id = u.id) AS learned, "
+        "SELECT u.id, u.uid, u.username, u.nickname, u.email, (SELECT COUNT(*) FROM progress p WHERE p.user_id = u.id) AS learned, "
         "(SELECT until FROM memberships m WHERE m.user_id = u.id AND m.until > ?) AS member_until "
         "FROM users u ORDER BY u.id", (now_str(),)
     ).fetchall()

@@ -1,6 +1,7 @@
 """数据库: 连接、时间工具、建表和迁移"""
 import json
 import os
+import secrets
 import shutil
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -551,15 +552,29 @@ def share_private_words(db):
                 db.execute("DELETE FROM words WHERE id = ?", (old,))
 
 
+def new_uid(db):
+    """给用户看的通德 ID: 随机 8 位数字, 注册后不变。不用 users.id, 免得从编号看出总共有多少人"""
+    while True:
+        uid = str(10 ** 7 + secrets.randbelow(9 * 10 ** 7))
+        if db.execute("SELECT 1 FROM users WHERE uid = ?", (uid,)).fetchone() is None:
+            return uid
+
+
 def migrate(db):
     """老数据库升级(不删任何数据):
     1. progress 补 FSRS 字段, 并把 Leitner 进度换算过来
     2. words 加 owner_id, 唯一约束改成按「公共 / 每个人」分别唯一
     3. words 加 status, 私有词转成“词库一行 + 用户标签”
-    4. users 加 email(小写; 老账号为空, 在「我的」页绑定)"""
-    if "email" not in {r[1] for r in db.execute("PRAGMA table_info(users)")}:
-        db.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    4. users 加 email(小写; 老账号为空, 在「我的」页绑定)
+    5. users 加 uid(通德 ID, 老账号自动补)、nickname(昵称, 空 = 用用户名)、nickname_at(上次改昵称的时间)"""
+    cols = {r[1] for r in db.execute("PRAGMA table_info(users)")}
+    for name in ("email", "uid", "nickname", "nickname_at"):
+        if name not in cols:
+            db.execute(f"ALTER TABLE users ADD COLUMN {name} TEXT")
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email) WHERE email IS NOT NULL")
+    for (rid,) in db.execute("SELECT id FROM users WHERE uid IS NULL").fetchall():
+        db.execute("UPDATE users SET uid = ? WHERE id = ?", (new_uid(db), rid))
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_uid ON users (uid) WHERE uid IS NOT NULL")
     if "ip" not in {r[1] for r in db.execute("PRAGMA table_info(mail_log)")}:   # 验证码按 IP 限次(2026-11-04)
         db.execute("ALTER TABLE mail_log ADD COLUMN ip TEXT")
     db.execute("CREATE INDEX IF NOT EXISTS idx_mail_log_ip ON mail_log (ip, sent_at)")

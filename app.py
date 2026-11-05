@@ -65,6 +65,7 @@ import sentences
 import tts
 import today
 import trial
+import user_profile
 import vocab
 import word_add
 import word_parts
@@ -134,6 +135,7 @@ app.register_blueprint(tts.bp)
 app.register_blueprint(trial.bp)
 app.register_blueprint(feedback.bp)
 app.register_blueprint(guide.bp)
+app.register_blueprint(user_profile.bp)
 
 # 安全响应头: 不许别的网站把页面嵌进 iframe(点击劫持)、只运行本站的脚本(CSP, 万一有 XSS 也跑不了外来脚本)。
 # style 允许内联: index.html 里有很多 style="..."; 新加外部资源(CDN、字体、图片网址)要先改这里

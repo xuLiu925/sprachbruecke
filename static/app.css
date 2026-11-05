@@ -468,6 +468,7 @@ button.iconbtn { width:40px; height:40px; padding:0; border-radius:999px; backgr
 .mehead b { font-size:18px; }
 .avatar { width:56px; height:56px; flex:none; border-radius:999px; background:var(--accent); color:var(--on-accent);
   display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; }
+.meid { display:block; padding:2px 0 0; font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; }
 .membercard { background:color-mix(in srgb, var(--warm) 7%, var(--card)); border-color:color-mix(in srgb, var(--warm) 25%, var(--card)); }
 .membercard .mtitle { font-size:16px; color:var(--warm-ink); }
 h2.glabel { font-size:14px; font-weight:500; color:var(--muted); margin:22px 6px 8px; }

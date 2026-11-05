@@ -166,7 +166,19 @@ inv = J(c.post("/api/invites", json={}))["code"]
 ci = A.app.test_client()
 assert ci.post("/api/register", json={"username": "dave", "password": "12345678",
                                       "invite": inv.lower().replace("-", " ")}).status_code == 200
-assert J(ci.get("/api/me")) == {"username": "dave", "admin": False, "email": None, "register": "invite"}
+me = J(ci.get("/api/me"))
+assert {k: me[k] for k in ("username", "admin", "email", "register", "nickname", "nickname_wait")} ==     {"username": "dave", "admin": False, "email": None, "register": "invite", "nickname": "dave", "nickname_wait": 0}
+assert len(me["uid"]) == 8 and me["uid"].isdigit() and me["uid"] != J(c.get("/api/me"))["uid"]
+# 昵称: 规则、30 天一次、可以重名; 登录还是用用户名
+nick = lambda n: ci.post("/api/profile/nickname", json={"nickname": n})
+assert nick("x").status_code == 400 and nick("a b").status_code == 400 and nick("通德客服").status_code == 400
+assert nick("dave").status_code == 400                           # 和现在一样
+assert J(nick("alice"))["nickname"] == "alice"                   # 和别人的用户名重名也行
+assert J(ci.get("/api/me"))["nickname"] == "alice" and J(ci.get("/api/me"))["nickname_wait"] == 30
+r = nick("Dave2")
+assert r.status_code == 429 and "30 天" in J(r)["error"]
+assert next(u for u in J(c.get("/api/admin/users"))["users"] if u["username"] == "dave")["nickname"] == "alice"
+assert A.app.test_client().post("/api/profile/nickname", json={"nickname": "abc"}).status_code == 401
 assert reg("erin", inv).status_code == 400                       # 用过了
 assert ci.post("/api/invites", json={}).status_code == 403       # 不是管理员
 assert ci.get("/api/admin/users").status_code == 403
@@ -288,9 +300,20 @@ cd = A.app.test_client()
 assert cd.post("/api/login", json={"username": "dave", "password": tmp}).status_code == 200
 assert cd.post("/api/email/code", json={"email": "frank@x.de"}).status_code == 409   # 别人的邮箱
 assert cd.post("/api/email/code", json={"email": "dave@x.de"}).status_code == 200
-assert cd.post("/api/email", json={"email": "dave@x.de", "code": "000000x"}).status_code == 400
-assert J(cd.post("/api/email", json={"email": "dave@x.de", "code": last_code()}))["email"] == "dave@x.de"
+assert cd.post("/api/email", json={"email": "dave@x.de", "code": last_code()}).status_code == 401     # 没输密码
+assert cd.post("/api/email", json={"email": "dave@x.de", "code": last_code(), "password": "wrong"}).status_code == 401
+assert cd.post("/api/email", json={"email": "dave@x.de", "code": "000000x", "password": tmp}).status_code == 400
+n = len(sent)
+assert J(cd.post("/api/email", json={"email": "dave@x.de", "code": last_code(), "password": tmp}))["email"] == "dave@x.de"
+assert len(sent) == n                                            # 第一次绑定: 没有旧邮箱, 不发通知
 assert next(u for u in J(c.get("/api/admin/users"))["users"] if u["username"] == "dave")["email"] == "dave@x.de"
+# 换邮箱: 给旧邮箱发通知(新邮箱打了码)
+dbe.execute("DELETE FROM mail_log")
+dbe.commit()
+assert cd.post("/api/email/code", json={"email": "dave2@x.de"}).status_code == 200
+n = len(sent)
+assert J(cd.post("/api/email", json={"email": "dave2@x.de", "code": last_code(), "password": tmp}))["email"] == "dave2@x.de"
+assert len(sent) == n + 1 and sent[-1][0] == "dave@x.de" and "da***@x.de" in sent[-1][1]
 # 全站每天的上限
 dbe.execute("DELETE FROM mail_log")
 dbe.executemany("INSERT INTO mail_log (email, purpose, sent_at) VALUES (?, 'register', ?)",
@@ -384,7 +407,7 @@ r = J(cd.post("/api/billing/checkout", json={"plan": "month"}, headers={"Origin"
 sid = calls[-1] and f"cs_test_{len(calls)}"
 assert r["url"] == "https://checkout.stripe.com/x"
 assert calls[-1][2]["success_url"] == "https://ex.workers.dev/?paid={CHECKOUT_SESSION_ID}#me"
-assert calls[-1][2]["line_items[0][price_data][unit_amount]"] == 1800 and calls[-1][2]["customer_email"] == "dave@x.de"
+assert calls[-1][2]["line_items[0][price_data][unit_amount]"] == 1800 and calls[-1][2]["customer_email"] == "dave2@x.de"
 assert c.get("/api/billing/confirm?session_id=" + sid).status_code == 404     # 别人的付款
 assert cd.get("/api/billing/confirm?session_id=bad").status_code == 400
 r = J(cd.get("/api/billing/confirm?session_id=" + sid))

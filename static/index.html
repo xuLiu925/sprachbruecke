@@ -269,7 +269,8 @@
       <h1 class="ptitle">我的</h1>
       <div class="mehead">
         <div id="avatar" class="avatar"></div>
-        <div class="grow"><b id="meName"></b><div class="meta left" id="meStats"></div></div>
+        <div class="grow"><b id="meName"></b><div class="meta left" id="meStats"></div>
+          <button class="linkbtn meid" id="meId" title="点一下复制"></button></div>
       </div>
       <!-- 装到桌面(PWA): 已经从桌面打开时不显示, 内容由 core.js 的 showInstall() 填 -->
       <div class="card hidden" id="installBox">
@@ -316,6 +317,15 @@
 
       <h2 class="glabel">账号</h2>
       <div class="card">
+        <div id="nickBox" style="margin-bottom:10px">
+          <div class="meta left" id="nickNow"></div>
+          <button class="secondary" id="btnNickToggle" style="width:100%;margin-top:6px">修改昵称</button>
+          <div id="nickEdit" class="hidden" style="margin-top:10px">
+            <input id="nickNew" maxlength="16" placeholder="新昵称（2–16 个字）" autocomplete="nickname">
+            <button id="btnNickSave" style="width:100%">保存</button>
+            <div id="nickMsg" class="msg"></div>
+          </div>
+        </div>
         <div id="emailBox" style="margin-bottom:10px">
           <div class="meta left" id="emailNow"></div>
           <button class="secondary" id="btnEmailToggle" style="width:100%;margin-top:6px">绑定邮箱</button>
@@ -323,6 +333,7 @@
             <input id="emNew" type="email" placeholder="邮箱" autocomplete="email">
             <div class="row"><input id="emCode" placeholder="邮箱验证码" inputmode="numeric" autocomplete="one-time-code">
               <button id="btnEmailCode" class="secondary" style="flex:none">发送验证码</button></div>
+            <input id="emPw" type="password" placeholder="当前登录密码（确认是你本人）" autocomplete="current-password">
             <button id="btnEmailSave" style="width:100%">确认</button>
             <div id="emailMsg" class="msg"></div>
           </div>
@@ -358,6 +369,7 @@
         <h2 class="glabel">成员</h2>
         <div class="card">
           <p class="meta left" style="margin-top:0">朋友忘了密码：点“重置密码”，把临时密码告诉他，他登录后自己再改。</p>
+          <input id="userFind" placeholder="按通德 ID、用户名、昵称、邮箱找" autocomplete="off">
           <div id="userList"></div>
         </div>
       </div>

@@ -293,8 +293,7 @@ $("pWrongCard").onclick = () => go("wrong");
 
 // ---------- 我的 ----------
 onShow.me = async () => {
-  $("meName").textContent = user;
-  $("avatar").textContent = (user || "?").slice(0, 1).toUpperCase();
+  showProfile();
   showEmail();
   showMember();
   showInstall();
@@ -453,7 +452,37 @@ async function confirmMeaning(w, draft, ai) {
   loadPending();
 }
 
-// 绑定 / 更换邮箱: 绑定后能用邮箱登录和找回密码
+// 昵称和通德 ID(user_profile.py): 登录账号(用户名)不能改, 昵称 30 天能改一次
+function showProfile() {
+  const name = userNick || user || "?";
+  $("meName").textContent = name;
+  $("avatar").textContent = name.slice(0, 1).toUpperCase();
+  $("meId").textContent = userUid ? `通德 ID：${userUid}` : "";
+  $("meId").classList.toggle("hidden", !userUid);
+  $("nickNow").textContent = `登录账号：${user}（不能改）。昵称 30 天能改一次`
+    + (nickWait ? `，还要等 ${nickWait} 天。` : "。");
+  $("btnNickToggle").disabled = nickWait > 0;
+}
+$("meId").onclick = () => copyText(userUid);
+$("btnNickToggle").onclick = () => {
+  $("nickEdit").classList.toggle("hidden");
+  $("nickNew").value = userNick || "";
+  $("nickMsg").textContent = "";
+};
+$("btnNickSave").onclick = async () => {
+  const nick = $("nickNew").value.trim();
+  if (nick === userNick) { $("nickMsg").textContent = "和现在的昵称一样"; return; }
+  if (!confirm(`把昵称改成“${nick}”？改了以后 30 天内不能再改。`)) return;
+  try {
+    const r = await api("/api/profile/nickname", "POST", { nickname: nick });
+    userNick = r.nickname; nickWait = r.nickname_wait;
+  } catch (e) { $("nickMsg").textContent = e.message; return; }
+  $("nickEdit").classList.add("hidden");
+  showProfile();
+  toast("昵称已修改");
+};
+
+// 绑定 / 更换邮箱: 绑定后能用邮箱登录和找回密码; 要输登录密码(防止别人拿到已登录的手机换掉邮箱)
 function showEmail() {
   $("emailNow").textContent = userEmail ? `邮箱：${userEmail}` : "还没有绑定邮箱，忘了密码时没法自己找回。";
   $("btnEmailToggle").textContent = userEmail ? "更换邮箱" : "绑定邮箱";
@@ -462,9 +491,10 @@ $("btnEmailToggle").onclick = () => { $("emailEdit").classList.toggle("hidden");
 $("btnEmailCode").onclick = () => sendCode($("btnEmailCode"), "/api/email/code", { email: $("emNew").value }, $("emailMsg"));
 $("btnEmailSave").onclick = async () => {
   try {
-    userEmail = (await api("/api/email", "POST", { email: $("emNew").value, code: $("emCode").value })).email;
+    userEmail = (await api("/api/email", "POST",
+      { email: $("emNew").value, code: $("emCode").value, password: $("emPw").value })).email;
   } catch (e) { $("emailMsg").textContent = e.message; return; }
-  ["emNew", "emCode"].forEach(id => $(id).value = "");
+  ["emNew", "emCode", "emPw"].forEach(id => $(id).value = "");
   $("emailEdit").classList.add("hidden");
   showEmail();
   toast("邮箱已绑定");
@@ -500,6 +530,13 @@ async function copyText(s) {
   catch (e) { toast("没能自动复制，请长按选中后复制"); }   // http 网址下浏览器可能不让写剪贴板
 }
 
+// 成员列表按 ID、用户名、昵称、邮箱筛选(只在页面里筛)
+function filterUsers() {
+  const q = $("userFind").value.trim().toLowerCase();
+  $("userList").querySelectorAll(".arow").forEach(r => r.classList.toggle("hidden", !!q && !r.dataset.find.includes(q)));
+}
+$("userFind").oninput = filterUsers;
+
 // 邀请链接: 打开后注册页填好邀请码, 不用邮箱(core.js 的 inviteLink)
 const inviteUrl = code => location.origin + location.pathname + "?invite=" + encodeURIComponent(code);
 
@@ -528,8 +565,11 @@ async function loadAdmin() {
   }
   const ul = $("userList"); ul.textContent = "";
   for (const u of us.users) {
-    const row = adminRow(ul, `${u.username}${u.me ? "（我）" : ""} · 已学 ${u.learned}${u.email ? " · " + u.email : ""}`
-      + (u.member_until ? ` · 会员到 ${localDate(u.member_until).text}` : ""));
+    // 昵称（登录账号）· ID; 昵称没改过就只显示用户名
+    const name = u.nickname && u.nickname !== u.username ? `${u.nickname}（${u.username}）` : u.username;
+    const row = adminRow(ul, `${name}${u.me ? "（我）" : ""} · ID ${u.uid || "-"} · 已学 ${u.learned}`
+      + (u.email ? " · " + u.email : "") + (u.member_until ? ` · 会员到 ${localDate(u.member_until).text}` : ""));
+    row.dataset.find = [u.uid, u.username, u.nickname, u.email].filter(Boolean).join(" ").toLowerCase();
     if (u.me) continue;
     miniBtn(row, "会员", async () => {
       const v = prompt(`给 ${u.username} 加几天会员？（填 0 = 取消会员）`, "30");
@@ -546,6 +586,7 @@ async function loadAdmin() {
       row.after(p);
     });
   }
+  filterUsers();   // 列表刷新后保留搜索框里的筛选
 }
 $("btnInvite").onclick = async () => {
   let r;
