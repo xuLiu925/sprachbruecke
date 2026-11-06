@@ -427,6 +427,12 @@ def checkout():
     }
     if email:
         params["customer_email"] = email
+    # 手机上不给微信支付: Stripe 在手机网页上的微信支付只显示二维码, 同一台手机扫不了(微信也不让扫相册里的付款码)。
+    # 手机上只给银行卡(含 Apple Pay / Google Pay)和支付宝(会跳到支付宝 App); 电脑上照旧用 Stripe 后台开的全部方式
+    ua = request.headers.get("User-Agent", "")
+    if data.get("mobile") is True or re.search(r"Android|iPhone|iPad|iPod|Mobile|TongdeApp/", ua):
+        params["payment_method_types[0]"] = "card"
+        params["payment_method_types[1]"] = "alipay"
     try:
         s = stripe("POST", "checkout/sessions", params)
     except StripeError as e:

@@ -31,6 +31,10 @@ async function api(path, method = "GET", body) {
 // 关掉(明天再来、×、点外面、Esc)时: 练习页没题了就退回上一页; AI、会员功能的提示(后端带 stay)留在原页
 const payOpen = () => !$("paysheet").classList.contains("hidden");
 let payBack = true;   // 关掉时退回上一页(练习页没题了); AI、会员功能的提示留在原页
+// 建付款页的参数: 手机上告诉后端, 不给微信支付(手机网页上只有二维码, 本机扫不了); iPad 的 UA 像电脑, 靠触屏判断
+const checkoutBody = plan => ({ plan,
+  mobile: /Android|iPhone|iPad|iPod|Mobile/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && matchMedia("(pointer: coarse)").matches) });
+
 async function showPaywall(msg, title, back = true) {
   $("payMsg").textContent = msg;
   payBack = back;
@@ -54,7 +58,7 @@ async function showPaywall(msg, title, back = true) {
     }
     btn.onclick = async () => {
       btn.disabled = true;
-      try { location.href = (await api("/api/billing/checkout", "POST", { plan: p.id })).url; }
+      try { location.href = (await api("/api/billing/checkout", "POST", checkoutBody(p.id))).url; }
       catch (e) { btn.disabled = false; toast(e.message); }
     };
     box.appendChild(btn);

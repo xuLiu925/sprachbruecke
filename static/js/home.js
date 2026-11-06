@@ -358,7 +358,7 @@ async function showMember() {
     if (p.id === "month") btn.className = "secondary";
     btn.onclick = async () => {
       btn.disabled = true;
-      try { location.href = (await api("/api/billing/checkout", "POST", { plan: p.id })).url; }
+      try { location.href = (await api("/api/billing/checkout", "POST", checkoutBody(p.id))).url; }
       catch (e) { btn.disabled = false; toast(e.message); }
     };
     plans.appendChild(btn);
