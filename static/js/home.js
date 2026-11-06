@@ -363,6 +363,7 @@ async function showMember() {
     };
     plans.appendChild(btn);
   }
+  payTip(plans);
 }
 
 // 从 Stripe 付款页回来: 核对这笔付款, 再把网址里的编号去掉

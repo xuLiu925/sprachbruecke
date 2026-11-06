@@ -31,9 +31,16 @@ async function api(path, method = "GET", body) {
 // 关掉(明天再来、×、点外面、Esc)时: 练习页没题了就退回上一页; AI、会员功能的提示(后端带 stay)留在原页
 const payOpen = () => !$("paysheet").classList.contains("hidden");
 let payBack = true;   // 关掉时退回上一页(练习页没题了); AI、会员功能的提示留在原页
-// 建付款页的参数: 手机上告诉后端, 不给微信支付(手机网页上只有二维码, 本机扫不了); iPad 的 UA 像电脑, 靠触屏判断
-const checkoutBody = plan => ({ plan,
-  mobile: /Android|iPhone|iPad|iPod|Mobile/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && matchMedia("(pointer: coarse)").matches) });
+// 手机上付款: 微信支付只给二维码, 本机扫不了(也不能扫相册截图), 推荐支付宝。iPad 的 UA 像电脑, 靠触屏判断
+const PAY_MOBILE = /Android|iPhone|iPad|iPod|Mobile/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && matchMedia("(pointer: coarse)").matches);
+const PAY_TIP = "推荐用支付宝。微信支付只能用另一台手机扫码，截图扫不了。";   // 和 billing.py 的 MOBILE_PAY_TIP 一样
+const checkoutBody = plan => ({ plan, mobile: PAY_MOBILE });   // 后端据此在 Stripe 付款按钮旁也放这句
+// 开通按钮下面的提示(只在手机上)
+function payTip(box) {
+  if (!PAY_MOBILE) return;
+  const p = document.createElement("p"); p.className = "paytip"; p.textContent = PAY_TIP;
+  box.appendChild(p);
+}
 
 async function showPaywall(msg, title, back = true) {
   $("payMsg").textContent = msg;
@@ -63,6 +70,7 @@ async function showPaywall(msg, title, back = true) {
     };
     box.appendChild(btn);
   }
+  payTip(box);
 }
 function closePaywall(back = true) {
   if (!payOpen()) return;

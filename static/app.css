@@ -420,6 +420,10 @@ button.lmodel { display:block; width:100%; padding:0; background:none; color:var
 #payPlans button { display:block; width:100%; margin-top:10px; }
 #payPlans .paynote { display:block; font-size:12px; font-weight:400; opacity:.85; margin-top:2px; }
 #payLater { display:block; width:100%; margin-top:10px; }
+/* 手机上开通按钮下面的“推荐支付宝”提示(core.js 的 payTip) */
+.paytip { font-size:13px; line-height:1.5; color:var(--muted); margin:8px 0 0; text-align:center; }
+.row:has(> .paytip) { flex-wrap:wrap; }
+.row > .paytip { flex-basis:100%; margin-top:2px; }
 .paybox button.linkbtn { display:block; margin:10px auto 0; }
 .spell { text-align:center; font-size:20px; letter-spacing:2px; overflow-wrap:anywhere; }
 .spell:not(:empty) { margin:8px 0; }
