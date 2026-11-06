@@ -428,13 +428,21 @@ def checkout():
     if email:
         params["customer_email"] = email
     # 手机上不给微信支付: Stripe 在手机网页上的微信支付只显示二维码, 同一台手机扫不了(微信也不让扫相册里的付款码)。
-    # 手机上只给银行卡(含 Apple Pay / Google Pay)和支付宝(会跳到支付宝 App); 电脑上照旧用 Stripe 后台开的全部方式
+    # 付款方式由 Stripe 后台统一管理(payment_method_types 已不能用, 2026-11-06 线上报 400), 手机上只排除微信支付;
+    # Stripe 不认排除参数时去掉它再建一次, 保证至少能付款
     ua = request.headers.get("User-Agent", "")
-    if data.get("mobile") is True or re.search(r"Android|iPhone|iPad|iPod|Mobile|TongdeApp/", ua):
-        params["payment_method_types[0]"] = "card"
-        params["payment_method_types[1]"] = "alipay"
+    mobile = data.get("mobile") is True or bool(re.search(r"Android|iPhone|iPad|iPod|Mobile|TongdeApp/", ua))
+    if mobile:
+        params["excluded_payment_method_types[0]"] = "wechat_pay"
     try:
-        s = stripe("POST", "checkout/sessions", params)
+        try:
+            s = stripe("POST", "checkout/sessions", params)
+        except StripeError as e:
+            if not mobile or "excluded_payment_method_types" not in str(e):
+                raise
+            print("Stripe 不接受排除微信支付, 改成不排除:", e, flush=True)
+            del params["excluded_payment_method_types[0]"]
+            s = stripe("POST", "checkout/sessions", params)
     except StripeError as e:
         return err(str(e), 502)
     db = get_db()

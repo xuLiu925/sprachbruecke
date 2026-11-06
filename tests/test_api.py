@@ -408,12 +408,21 @@ sid = calls[-1] and f"cs_test_{len(calls)}"
 assert r["url"] == "https://checkout.stripe.com/x"
 assert calls[-1][2]["success_url"] == "https://ex.workers.dev/?paid={CHECKOUT_SESSION_ID}#me"
 assert calls[-1][2]["line_items[0][price_data][unit_amount]"] == 1800 and calls[-1][2]["customer_email"] == "dave2@x.de"
-assert "payment_method_types[0]" not in calls[-1][2]     # 电脑上: 用 Stripe 后台开的全部方式
-# 手机上不给微信支付: 前端说是手机, 或 UA 是手机
+assert not any("payment_method" in k for k in calls[-1][2])     # 电脑上: 用 Stripe 后台开的全部方式
+# 手机上排除微信支付: 前端说是手机, 或 UA 是手机
 cd.post("/api/billing/checkout", json={"plan": "month", "mobile": True})
-assert calls[-1][2]["payment_method_types[0]"] == "card" and calls[-1][2]["payment_method_types[1]"] == "alipay"
+assert calls[-1][2]["excluded_payment_method_types[0]"] == "wechat_pay"
 cd.post("/api/billing/checkout", json={"plan": "month"}, headers={"User-Agent": "Mozilla/5.0 (Linux; Android 14) TongdeApp/1.0"})
-assert "wechat_pay" not in calls[-1][2].values() and calls[-1][2]["payment_method_types[1]"] == "alipay"
+assert calls[-1][2]["excluded_payment_method_types[0]"] == "wechat_pay"
+# Stripe 不认排除参数时去掉再建一次, 还是能付款
+def picky_stripe(method, path, data=None):
+    if data and "excluded_payment_method_types[0]" in data:
+        raise billing.StripeError("Received unknown parameter: excluded_payment_method_types")
+    return fake_stripe(method, path, data)
+billing.stripe = picky_stripe
+r = J(cd.post("/api/billing/checkout", json={"plan": "month", "mobile": True}))
+assert r["url"] and "excluded_payment_method_types[0]" not in calls[-1][2]
+billing.stripe = fake_stripe
 cd.post("/api/billing/checkout", json={"plan": "month"}, headers={"Origin": "https://ex.workers.dev"})
 sid = f"cs_test_{len(calls)}"
 assert c.get("/api/billing/confirm?session_id=" + sid).status_code == 404     # 别人的付款
