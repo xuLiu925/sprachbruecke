@@ -26,8 +26,7 @@
       <li>不占空间，不用应用商店，免费安装</li>
     </ul>
     <button id="gateBtn" class="gate-btn hidden">安装到桌面</button>
-    <div id="gateSteps" class="gate-steps"></div>
-    <button id="gateCopy" class="gate-copy hidden">复制链接</button>
+    <p id="gateSteps" class="gate-line"></p>
     <button id="gateSkip" class="gate-skip">先在网页里用</button>
   </div>
   <div id="gateArrow" class="gate-arrow hidden">↗</div>
@@ -133,7 +132,7 @@
       <!-- 装到桌面的横幅: 手机浏览器、没装、7 天内没关过时显示(core.js 的 showInstall) -->
       <div class="ibar hidden" id="hInstall">
         <img src="static/icons/icon-192.png" alt="">
-        <div class="ibar-t"><b>装到桌面，打开更快</b><span>全屏使用，和普通 App 一样</span></div>
+        <b class="ibar-t">装到桌面，打开更快</b>
         <button id="hInstallBtn">安装</button>
         <button class="iconbtn" id="hInstallX" aria-label="先不装"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
@@ -282,7 +281,7 @@
       <!-- 装到桌面(PWA): 已经从桌面打开时不显示, 内容由 core.js 的 showInstall() 填 -->
       <div class="card hidden" id="installBox">
         <b>装到手机桌面</b>
-        <p class="meta left" style="margin:6px 0 0">桌面上出现“通德”图标，点开全屏使用，和普通 App 一样。免费，不用应用商店。</p>
+        <p class="meta left" style="margin:6px 0 0">全屏打开，和普通 App 一样。</p>
         <button id="btnInstall" style="width:100%;margin-top:10px">看看怎么装</button>
       </div>
       <div class="card membercard" id="memberBox">
@@ -929,13 +928,14 @@
   <div class="sheet hidden" id="isheet">
     <div class="sheetbox isbox">
       <span class="grab" aria-hidden="true"></span>
-      <button class="iconbtn" id="isClose" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-      <h2>装到手机桌面</h2>
-      <div id="isSteps" class="gate-steps"></div>
-      <button class="secondary hidden" id="isCopy">复制链接</button>
+      <p id="isLine" class="gate-line"></p>
       <button id="isOk">知道了</button>
     </div>
   </div>
+
+  <!-- 苹果 Safari: 指着分享按钮的气泡; 微信 / QQ 里: 指右上角的箭头遮罩(core.js 的 showTip) -->
+  <div id="iosTip" class="iostip hidden"><p id="iosTipLine" class="gate-line"></p></div>
+  <div id="appTip" class="apptip hidden"><div class="apptip-arrow">↗</div><p id="appTipLine" class="gate-line"></p></div>
 
   <!-- 功能引导(guide.js): 导览的遮罩和说明框、用到时的小提示 -->
   <div id="tour" class="tour hidden">

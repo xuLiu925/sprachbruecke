@@ -33,7 +33,6 @@ html, body { margin:0; background:var(--bg); color:var(--text); font-family:var(
 .gate-steps:empty { display:none; }
 .gate-steps b { color:var(--accent); }
 .gate-steps ol { margin:6px 0 0; padding-left:20px; }
-.gate-copy { width:100%; margin-top:12px; }
 .gate-skip { display:block; margin:22px auto 0; background:none; border:0; color:var(--muted);
   text-decoration:underline; font-size:14px; cursor:pointer; }
 .gate-arrow { position:fixed; top:calc(env(safe-area-inset-top) + 4px); right:18px; font-size:44px;
@@ -380,18 +379,33 @@ button.lmodel { display:block; width:100%; padding:0; background:none; color:var
 .sheetbox .row { margin-top:12px; }
 #wsClose { position:absolute; top:10px; right:10px; }
 #paysheet { z-index:60; }   /* 比单词卡高: 单词卡里也可能触发 */
-#payClose, #isClose { position:absolute; top:10px; right:10px; }
-.isbox { padding-top:28px; }
-.isbox h2 { margin:4px 40px 14px; font-size:19px; text-align:center; }
-.isbox button { display:block; width:100%; margin-top:12px; }
-.isbox button.iconbtn { width:auto; margin:0; }
+#payClose { position:absolute; top:10px; right:10px; }
+.isbox { padding-top:28px; text-align:center; }
+.isbox button { display:block; width:100%; margin-top:16px; }
+/* 一行安装说明, 菜单 / 分享按钮画成小图标 */
+.gate-line { font-size:17px; line-height:2; margin:0; }
+.gate-line:empty { display:none; }
+.gate-line .ico { display:inline-flex; align-items:center; justify-content:center; min-width:30px; height:30px; padding:0 6px;
+  margin:0 2px; vertical-align:middle; border:1.5px solid currentColor; border-radius:8px; font-weight:700; font-size:18px; }
+.gate-line .ico svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+#gate .gate-line { margin-top:18px; }
+/* 苹果 Safari: 底部气泡指着分享按钮(iPad 分享按钮在右上角) */
+.iostip { position:fixed; z-index:120; left:50%; bottom:calc(env(safe-area-inset-bottom) + 14px); transform:translateX(-50%);
+  background:var(--accent); color:#fff; border-radius:14px; padding:10px 16px; box-shadow:0 8px 24px rgba(0,0,0,.25); white-space:nowrap; }
+.iostip::after { content:""; position:absolute; left:50%; bottom:-9px; margin-left:-9px; border:9px solid transparent; border-bottom:0; border-top-color:var(--accent); }
+.iostip.ipad { bottom:auto; left:auto; right:12px; top:calc(env(safe-area-inset-top) + 14px); transform:none; }
+.iostip.ipad::after { bottom:auto; top:-9px; left:auto; right:24px; border:9px solid transparent; border-top:0; border-bottom-color:var(--accent); }
+/* 微信 / QQ 里: 变暗 + 右上角箭头 */
+.apptip { position:fixed; inset:0; z-index:120; background:rgba(0,0,0,.72); color:#fff; text-align:right;
+  padding:calc(env(safe-area-inset-top) + 4px) 18px 0; }
+.apptip-arrow { font-size:64px; line-height:1; animation:gateBob 1.2s ease-in-out infinite; }
+.apptip .gate-line { margin-top:6px; }
+@media (prefers-reduced-motion:reduce) { .apptip-arrow { animation:none; } }
 /* 「今天」页的装到桌面横幅 */
 .ibar { display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--line);
         border-radius:var(--radius); padding:10px 6px 10px 12px; margin-bottom:14px; }
 .ibar img { width:36px; height:36px; border-radius:9px; flex:none; }
-.ibar-t { flex:1; min-width:0; line-height:1.35; }
-.ibar-t b { display:block; font-size:15px; }
-.ibar-t span { display:block; font-size:12px; color:var(--muted); }
+.ibar-t { flex:1; min-width:0; font-size:15px; }
 .ibar > button:not(.iconbtn) { flex:none; width:auto; padding:7px 14px; font-size:14px; }
 .ibar .iconbtn { flex:none; }
 .paybox { text-align:center; padding-top:28px; }

@@ -391,111 +391,85 @@ window.addEventListener("appinstalled", () => { installEvent = null; installed =
 let installed = false;
 
 // ---------- 装到桌面 ----------
-// 入口: 「今天」页顶部横幅(登录后、手机浏览器、没装、7 天内没关过)、游客首页卡片、「我的」页卡片。
-// 浏览器给了一键安装(beforeinstallprompt)就直接装, 否则弹底部面板显示这个浏览器的步骤。
+// 尽量不用文字: 能一键装就一键; 苹果 Safari 用气泡指分享按钮; 微信 / QQ 里用箭头指右上角;
+// 其他浏览器(国产浏览器、iPhone 上的 Chrome 等)不主动提示, 只在「我的」/ 游客首页卡片里给一行说明。
 // 整页 #gate 只在打开 ?install 链接时显示(发给别人用)。
 const IS_STANDALONE = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
 const IS_TOUCH = matchMedia("(pointer: coarse)").matches;
+const UA = navigator.userAgent;
+const IS_IOS = /iPhone|iPad|iPod/.test(UA) || (UA.includes("Macintosh") && navigator.maxTouchPoints > 1);
+const IS_IPAD = /iPad/.test(UA) || (UA.includes("Macintosh") && navigator.maxTouchPoints > 1);
+const IN_APP = /MicroMessenger|QQ\/|Weibo|DingTalk|AlipayClient/i.test(UA);
+const IOS_OTHER = /CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|YaBrowser|DuckDuckGo|MQQBrowser|baiduboxapp|Quark|UCBrowser/i.test(UA);
+const IOS_OLD = (v => !!v && (+v[1] < 16 || (+v[1] === 16 && +v[2] < 4)))(UA.match(/OS (\d+)_(\d+)/));   // 16.4 以前别的浏览器不能加到主屏幕
 let gateForced = new URLSearchParams(location.search).has("install");
-let installWaited = false;   // 一键安装的机会是加载后才来的, 等一会儿再决定显示手动步骤, 免得先闪一下
+let installWaited = false;   // 一键安装的机会是加载后才来的, 整页等一会儿再决定显示什么, 免得先闪一下
 setTimeout(() => { installWaited = true; installGate(); }, 1500);
 
-// 各浏览器的安装步骤。菜单名和位置都没在真机上验证过, 拿到截图后再改准确
-const BRAND_BROWSERS = [   // [UA 里的标记, 系统设置里浏览器的名字]; 要排在 Chrome 前面判断(它们的 UA 里也有 Chrome)
-  [/HeyTapBrowser|OPPOBrowser|OnePlus.*Browser/i, "浏览器"],
-  [/MiuiBrowser|XiaoMi/i, "浏览器"],
-  [/HuaweiBrowser|HONORBrowser/i, "浏览器"],
-  [/VivoBrowser/i, "浏览器"],
-  [/Quark/i, "夸克"],
-  [/UCBrowser/i, "UC 浏览器"],
-  [/MQQBrowser/i, "QQ 浏览器"],
-  [/baiduboxapp|BaiduBrowser/i, "百度"],
-];
-function installGuide() {
-  const ua = navigator.userAgent;
-  const ios = /iPhone|iPad|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
-  const site = location.host;
-  if (/MicroMessenger|QQ\/|Weibo|DingTalk|AlipayClient/i.test(ua))
-    return { title: "这里装不了，先换到浏览器打开：", copy: true, arrow: true,
-      steps: ["点右上角“···”", ios ? "选“在 Safari 中打开”" : "选“在浏览器打开”", "在浏览器里再点一次“安装”"] };
-  if (ios) {
-    const v = ua.match(/OS (\d+)_(\d+)/);   // iPad 的桌面版 UA 读不到版本, 当新系统
-    const newIOS = !v || +v[1] > 16 || (+v[1] === 16 && +v[2] >= 4);
-    const other = /CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|YaBrowser|DuckDuckGo|MQQBrowser|baiduboxapp|Quark|UCBrowser/i.test(ua);
-    const share = ["点屏幕底部的“分享”按钮（方框加向上箭头）；没看到就先点“···”", "往下找，选“添加到主屏幕”", "点右上角“添加”"];
-    if (!other) return { title: "三步装到桌面：", steps: share };
-    if (newIOS) return { title: "三步装到桌面：", steps: [
-      "点地址栏旁或菜单里的“分享”按钮（方框加向上箭头）", "选“添加到主屏幕”", "点右上角“添加”",
-      `找不到这一项：用 Safari 打开 ${site} 再装`] };
-    return { title: "这个系统版本只能用 Safari 安装：", copy: true,
-      steps: ["点下面“复制链接”", "打开 Safari，粘贴到地址栏打开", ...share] };
+// event = 一键安装; ios = Safari; inapp = 微信 / QQ 等 App 里; other = 其他浏览器
+function installKind() {
+  if (installEvent) return "event";
+  if (IN_APP) return "inapp";
+  if (IS_IOS && !IOS_OTHER) return "ios";
+  return "other";
+}
+// 一行说明, 图标代替文字: share = 苹果分享图标, dots / bars = 菜单按钮
+function installLine(box, kind) {
+  const parts = kind === "inapp" ? ["点右上角 ", "dots", IS_IOS ? " → 在 Safari 中打开" : " → 在浏览器打开"]
+    : IS_IOS || kind === "ios" ? (IOS_OTHER && IOS_OLD ? ["用 Safari 打开本页再装"] : ["点 ", "share", " → 添加到主屏幕"])
+    : ["点菜单 ", "dots", " 或 ", "bars", " → 添加到桌面"];
+  box.textContent = "";
+  for (const p of parts) {
+    if (p === "share") {
+      const s = document.createElement("span"); s.className = "ico";
+      s.innerHTML = '<svg viewBox="0 0 24 24" aria-label="分享"><path d="M12 15V3M8 7l4-4 4 4M6 11H5v10h14V11h-1"/></svg>';
+      box.appendChild(s);
+    } else if (p === "dots" || p === "bars") {
+      const s = document.createElement("span"); s.className = "ico"; s.textContent = p === "dots" ? "⋮" : "≡";
+      box.appendChild(s);
+    } else box.append(p);
   }
-  for (const [re, name] of BRAND_BROWSERS) if (re.test(ua)) return { title: "从浏览器菜单添加：", steps: [
-    "点浏览器菜单（底部“≡”或右上角“⋮”）",
-    "找“添加到桌面”或“添加到主屏幕”，有的放在“工具箱”里",
-    `点了没反应：到手机“设置 → 应用 → ${name} → 权限”，打开“桌面快捷方式”，再试一次`] };
-  if (/SamsungBrowser/i.test(ua)) return { title: "从浏览器菜单添加：", steps: [
-    "点底部“≡”菜单", "选“添加页面至”，再选“主屏幕”"] };
-  if (/Firefox/i.test(ua)) return { title: "从浏览器菜单添加：", steps: [
-    "点右上角“⋮”菜单", "选“安装”或“添加到主屏幕”"] };
-  if (/EdgA|Chrome\//.test(ua)) return { title: "从浏览器菜单安装：", steps: [
-    "点右上角“⋮”菜单", "选“安装应用”或“添加到主屏幕”", "再点“安装”"] };
-  return { title: "从浏览器菜单添加：", copy: true, steps: [
-    "点浏览器菜单（右上角“⋮”或底部“≡”）", "找“添加到桌面”“添加到主屏幕”或“安装应用”",
-    "找不到这一项：复制链接，用 Chrome 或 Edge 打开"] };
-}
-// 把步骤画进 box; 返回这份步骤(调用方决定显不显示复制链接、箭头)
-function renderInstallSteps(box) {
-  const g = installGuide();
-  box.innerHTML = "";
-  const b = document.createElement("b"); b.textContent = g.title; box.appendChild(b);
-  const ol = document.createElement("ol");
-  for (const t of g.steps) { const li = document.createElement("li"); li.textContent = t; ol.appendChild(li); }
-  box.appendChild(ol);
-  return g;
-}
-async function copyInstallLink() {
-  const link = location.origin + "/?install";
-  try { await navigator.clipboard.writeText(link); toast("已复制链接"); }
-  catch (e) { prompt("长按复制这个链接：", link); }
 }
 
-// 点“安装”: 能一键装就装, 否则弹步骤面板
 async function doInstall() {
-  if (!installEvent) return openInstallSheet();
-  installEvent.prompt();
-  const { outcome } = await installEvent.userChoice;
-  if (outcome === "accepted") { installEvent = null; installed = true; toast("已添加到桌面"); }
-  showInstall();
-  installGate();
-}
-function openInstallSheet() {
-  const g = renderInstallSteps($("isSteps"));
-  $("isCopy").classList.toggle("hidden", !g.copy);
+  const kind = installKind();
+  if (kind === "event") {
+    installEvent.prompt();
+    const { outcome } = await installEvent.userChoice;
+    if (outcome === "accepted") { installEvent = null; installed = true; toast("已添加到桌面"); }
+    showInstall();
+    return installGate();
+  }
+  if (kind === "ios") return showTip("iosTip");
+  if (kind === "inapp") return showTip("appTip");
+  installLine($("isLine"), kind);
   $("isheet").classList.remove("hidden");
 }
+// 苹果气泡 / App 里的箭头遮罩: 点哪里都关
+function showTip(id) {
+  const el = $(id);
+  installLine($(id + "Line"), id === "appTip" ? "inapp" : "ios");
+  el.classList.toggle("ipad", IS_IPAD);
+  el.classList.remove("hidden");
+  setTimeout(() => document.addEventListener("click", () => el.classList.add("hidden"), { once: true }), 0);
+}
 const closeInstallSheet = () => $("isheet").classList.add("hidden");
-$("isClose").onclick = closeInstallSheet;
 $("isOk").onclick = closeInstallSheet;
 $("isheet").onclick = e => { if (e.target.id === "isheet") closeInstallSheet(); };
-$("isCopy").onclick = copyInstallLink;
 
 // 整页安装引导: 只在 ?install 链接打开时显示
 function installGate() {
   const gate = $("gate");
   if (IS_STANDALONE || !gateForced) { gate.classList.add("hidden"); return; }
   gate.classList.remove("hidden");
-  const steps = $("gateSteps");
-  let g = null;
-  if (installed) { steps.innerHTML = ""; const b = document.createElement("b"); b.textContent = "已经装好了！回到手机桌面，点“通德”图标打开。"; steps.appendChild(b); }
-  else if (installEvent || !installWaited) steps.innerHTML = "";   // 一键安装只显示按钮; 还在等时先空着
-  else g = renderInstallSteps(steps);
-  $("gateBtn").classList.toggle("hidden", !installEvent || installed);
-  $("gateCopy").classList.toggle("hidden", !g || !g.copy);
-  $("gateArrow").classList.toggle("hidden", !g || !g.arrow);
+  const kind = installKind(), line = $("gateSteps");
+  if (installed) line.textContent = "装好了！回到桌面，点“通德”图标打开。";
+  else if (kind === "event" || !installWaited) line.textContent = "";   // 一键安装只显示按钮; 还在等时先空着
+  else installLine(line, kind);
+  $("gateBtn").classList.toggle("hidden", kind !== "event" || installed);
+  $("gateArrow").classList.toggle("hidden", kind !== "inapp" || installed);
 }
 $("gateBtn").onclick = doInstall;
-$("gateCopy").onclick = copyInstallLink;
 $("gateSkip").onclick = () => {
   gateForced = false;
   const u = new URL(location.href); u.searchParams.delete("install");
@@ -504,7 +478,7 @@ $("gateSkip").onclick = () => {
 };
 installGate();
 
-// 「今天」页横幅: 点 × 后 7 天内不再出现(存本机)
+// 「今天」页横幅: 只给一键安装、苹果 Safari、App 里; 点 × 后 7 天内不再出现(存本机)
 const INSTALL_SNOOZE = "sb_installSnooze";
 function installSnoozed() {
   try { return Date.now() < +(localStorage.getItem(INSTALL_SNOOZE) || 0); } catch (e) { return false; }
@@ -519,11 +493,11 @@ $("btnInstall").onclick = doInstall;
 
 function showInstall() {
   const done = !!IS_STANDALONE || installed;
-  $("hInstall").classList.toggle("hidden", done || !user || !IS_TOUCH || installSnoozed());
+  const kind = installKind();
+  $("hInstall").classList.toggle("hidden", done || !user || !IS_TOUCH || kind === "other" || installSnoozed());
   $("wInstallBox").classList.toggle("hidden", done);
-  $("wInstall").textContent = installEvent ? "安装到桌面" : "看看怎么装";
   $("installBox").classList.toggle("hidden", done || !IS_TOUCH && !installEvent);
-  $("btnInstall").textContent = installEvent ? "安装到桌面" : "看看怎么装";
+  for (const id of ["wInstall", "btnInstall"]) $(id).textContent = kind === "event" ? "安装到桌面" : "看看怎么装";
 }
 
 // 登录页的三块: login / reg / forgot
