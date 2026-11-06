@@ -14,7 +14,7 @@
 </head>
 <body class="no-tabs">
 
-<!-- 安装引导(PWA): 手机浏览器打开、还没装时整页显示; ?install 链接一定显示。core.js 的 installGate() -->
+<!-- 安装引导(PWA): 只在打开 ?install 链接时整页显示。core.js 的 installGate() -->
 <div id="gate" class="gate hidden">
   <div class="gate-in">
     <img src="static/icons/icon-192.png" alt="" class="gate-icon">
@@ -129,6 +129,13 @@
         <span class="streak" id="hStreak" title="连续学习天数">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s5 4.5 5 9a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-5.5 1-7.5z"/></svg>
           <b id="hStreakN">0</b>天</span>
+      </div>
+      <!-- 装到桌面的横幅: 手机浏览器、没装、7 天内没关过时显示(core.js 的 showInstall) -->
+      <div class="ibar hidden" id="hInstall">
+        <img src="static/icons/icon-192.png" alt="">
+        <div class="ibar-t"><b>装到桌面，打开更快</b><span>全屏使用，和普通 App 一样</span></div>
+        <button id="hInstallBtn">安装</button>
+        <button class="iconbtn" id="hInstallX" aria-label="先不装"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
       <!-- 会员快到期 / 刚到期的提醒(home.js 的 showMemberWarn) -->
       <div class="card hidden" id="hMember">
@@ -275,8 +282,8 @@
       <!-- 装到桌面(PWA): 已经从桌面打开时不显示, 内容由 core.js 的 showInstall() 填 -->
       <div class="card hidden" id="installBox">
         <b>装到手机桌面</b>
-        <p class="meta left" id="installTip" style="margin:6px 0 0"></p>
-        <button id="btnInstall" class="hidden" style="width:100%;margin-top:10px">安装到桌面</button>
+        <p class="meta left" style="margin:6px 0 0">桌面上出现“通德”图标，点开全屏使用，和普通 App 一样。免费，不用应用商店。</p>
+        <button id="btnInstall" style="width:100%;margin-top:10px">看看怎么装</button>
       </div>
       <div class="card membercard" id="memberBox">
         <b class="mtitle">会员</b>
@@ -369,7 +376,9 @@
         <h2 class="glabel">成员</h2>
         <div class="card">
           <p class="meta left" style="margin-top:0">朋友忘了密码：点“重置密码”，把临时密码告诉他，他登录后自己再改。</p>
-          <input id="userFind" placeholder="按通德 ID、用户名、昵称、邮箱找" autocomplete="off">
+          <!-- type=search + 只读到点进去为止: 不让浏览器的密码管理器把用户名自动填进来(填了列表只剩自己) -->
+          <input id="userFind" type="search" name="sb-member-filter" readonly placeholder="按通德 ID、用户名、昵称、邮箱找" autocomplete="off">
+          <p id="userCount" class="meta left hidden"></p>
           <div id="userList"></div>
         </div>
       </div>
@@ -913,6 +922,18 @@
       <div id="payPlans"></div>
       <button class="secondary" id="payLater">明天再来</button>
       <button class="linkbtn" id="payMore">看看免费版和会员有什么不同</button>
+    </div>
+  </div>
+
+  <!-- 装到桌面的步骤(浏览器不能一键安装时弹出, core.js 的 openInstallSheet) -->
+  <div class="sheet hidden" id="isheet">
+    <div class="sheetbox isbox">
+      <span class="grab" aria-hidden="true"></span>
+      <button class="iconbtn" id="isClose" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <h2>装到手机桌面</h2>
+      <div id="isSteps" class="gate-steps"></div>
+      <button class="secondary hidden" id="isCopy">复制链接</button>
+      <button id="isOk">知道了</button>
     </div>
   </div>
 

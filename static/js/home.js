@@ -301,7 +301,10 @@ onShow.me = async () => {
   $("meStats").textContent = `已学 ${s.learned} · 已掌握 ${s.mastered}`;
   try { $("optGoal").value = String((await api("/api/today?" + tzQuery())).goal); } catch (e) {}
   $("adminBox").classList.toggle("hidden", !isAdmin);
-  if (isAdmin) { loadAdmin(); loadPending(); loadReports(); }
+  if (isAdmin) {
+    $("userFind").value = "";   // 每次打开都清空: 浏览器万一还是自动填了用户名, 也不会只剩自己
+    loadAdmin(); loadPending(); loadReports();
+  }
 };
 
 const MEMBER_SOON = 7;   // 「我的」页: 还剩几天起显示倒数
@@ -533,9 +536,15 @@ async function copyText(s) {
 // 成员列表按 ID、用户名、昵称、邮箱筛选(只在页面里筛)
 function filterUsers() {
   const q = $("userFind").value.trim().toLowerCase();
-  $("userList").querySelectorAll(".arow").forEach(r => r.classList.toggle("hidden", !!q && !r.dataset.find.includes(q)));
+  const rows = [...$("userList").querySelectorAll(".arow")];
+  let n = 0;
+  rows.forEach(r => { const hit = !q || r.dataset.find.includes(q); r.classList.toggle("hidden", !hit); if (hit) n++; });
+  // 有筛选时写明“找到几个 / 共几个”, 免得以为成员少了
+  $("userCount").textContent = q ? `已筛选：找到 ${n} 个 / 共 ${rows.length} 个` : "";
+  $("userCount").classList.toggle("hidden", !q);
 }
 $("userFind").oninput = filterUsers;
+$("userFind").onfocus = () => $("userFind").removeAttribute("readonly");
 
 // 邀请链接: 打开后注册页填好邀请码, 不用邮箱(core.js 的 inviteLink)
 const inviteUrl = code => location.origin + location.pathname + "?invite=" + encodeURIComponent(code);

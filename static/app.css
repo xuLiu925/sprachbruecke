@@ -380,7 +380,20 @@ button.lmodel { display:block; width:100%; padding:0; background:none; color:var
 .sheetbox .row { margin-top:12px; }
 #wsClose { position:absolute; top:10px; right:10px; }
 #paysheet { z-index:60; }   /* 比单词卡高: 单词卡里也可能触发 */
-#payClose { position:absolute; top:10px; right:10px; }
+#payClose, #isClose { position:absolute; top:10px; right:10px; }
+.isbox { padding-top:28px; }
+.isbox h2 { margin:4px 40px 14px; font-size:19px; text-align:center; }
+.isbox button { display:block; width:100%; margin-top:12px; }
+.isbox button.iconbtn { width:auto; margin:0; }
+/* 「今天」页的装到桌面横幅 */
+.ibar { display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--line);
+        border-radius:var(--radius); padding:10px 6px 10px 12px; margin-bottom:14px; }
+.ibar img { width:36px; height:36px; border-radius:9px; flex:none; }
+.ibar-t { flex:1; min-width:0; line-height:1.35; }
+.ibar-t b { display:block; font-size:15px; }
+.ibar-t span { display:block; font-size:12px; color:var(--muted); }
+.ibar > button:not(.iconbtn) { flex:none; width:auto; padding:7px 14px; font-size:14px; }
+.ibar .iconbtn { flex:none; }
 .paybox { text-align:center; padding-top:28px; }
 .paybox h2 { margin:4px 40px 8px; font-size:19px; }
 .paybox #payMsg { color:var(--muted); line-height:1.6; margin:0 0 16px; }
