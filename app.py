@@ -113,6 +113,15 @@ def service_worker():
     return resp
 
 
+@app.route("/tongde.apk")
+def android_apk():
+    # 安卓 App 安装包(android/build-apk.bat 生成, 不进 git, 随 deploy.bat 上传); 文档 docs/features/android-app.md
+    resp = send_from_directory(app.static_folder, "tongde.apk", as_attachment=True, download_name="tongde.apk",
+                               mimetype="application/vnd.android.package-archive")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 app.register_blueprint(auth.bp)
 app.register_blueprint(billing.bp)   # 在 auth 后面: 先核对登录, 再查免费次数
 app.register_blueprint(vocab.bp)

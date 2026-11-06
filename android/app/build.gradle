@@ -1,0 +1,41 @@
+plugins {
+    id "com.android.application"
+}
+
+// 签名: 密钥文件和密码不进 git。本地读 android/keystore.properties, GitHub Actions 读环境变量
+def ks = new Properties()
+def ksFile = rootProject.file("keystore.properties")
+if (ksFile.exists()) ksFile.withInputStream { ks.load(it) }
+def sec = { String k -> System.getenv("TONGDE_" + k.toUpperCase()) ?: ks.getProperty(k) }
+
+android {
+    namespace "de.sprachbruecke.tongde"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "de.sprachbruecke.tongde"   // 发出去以后不能再改, 改了就是另一个 App
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildFeatures { buildConfig true }
+
+    signingConfigs {
+        release {
+            storeFile rootProject.file(sec("store_file") ?: "release.jks")
+            storeType "pkcs12"
+            storePassword sec("store_pass")
+            keyAlias sec("key_alias") ?: "tongde"
+            keyPassword sec("store_pass")
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+}

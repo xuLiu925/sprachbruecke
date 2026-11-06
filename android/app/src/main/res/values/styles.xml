@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 不用 AndroidX, 只用系统自带主题, 安装包才几十 KB -->
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#1f4e78</item>
+        <item name="android:navigationBarColor">#ffffff</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>

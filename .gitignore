@@ -35,3 +35,12 @@ tunnel_sync.log
 
 # 敏感词表(服务器上, 不公开)
 .blocked_words
+
+# 安卓 App: 签名密钥和密码(丢了就没法给已装的人更新, 要备份), 构建产物
+android/*.jks
+android/keystore.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+static/tongde.apk

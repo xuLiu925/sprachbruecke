@@ -391,14 +391,17 @@ window.addEventListener("appinstalled", () => { installEvent = null; installed =
 let installed = false;
 
 // ---------- 装到桌面 ----------
-// 尽量不用文字: 能一键装就一键; 苹果 Safari 用气泡指分享按钮; 微信 / QQ 里用箭头指右上角;
-// 其他浏览器(国产浏览器、iPhone 上的 Chrome 等)不主动提示, 只在「我的」/ 游客首页卡片里给一行说明。
-// 整页 #gate 只在打开 ?install 链接时显示(发给别人用)。
-const IS_STANDALONE = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+// 尽量不用文字: 能一键装就一键; 安卓其他浏览器直接下载安卓 App(/tongde.apk, 文档 android-app.md);
+// 苹果 Safari 用气泡指分享按钮; 微信 / QQ 里用箭头指右上角;
+// 其他浏览器(iPhone 上的 Chrome 等)不主动提示, 只在「我的」/ 游客首页卡片里给一行说明。
+// 整页 #gate 只在打开 ?install 链接时显示(发给别人用)。安卓 App 里(UA 带 TongdeApp/)一律不提示。
+const IN_TONGDE_APP = /TongdeApp\//.test(navigator.userAgent);
+const IS_STANDALONE = matchMedia("(display-mode: standalone)").matches || navigator.standalone || IN_TONGDE_APP;
 const IS_TOUCH = matchMedia("(pointer: coarse)").matches;
 const UA = navigator.userAgent;
 const IS_IOS = /iPhone|iPad|iPod/.test(UA) || (UA.includes("Macintosh") && navigator.maxTouchPoints > 1);
 const IS_IPAD = /iPad/.test(UA) || (UA.includes("Macintosh") && navigator.maxTouchPoints > 1);
+const IS_ANDROID = /Android/i.test(UA);
 const IN_APP = /MicroMessenger|QQ\/|Weibo|DingTalk|AlipayClient/i.test(UA);
 const IOS_OTHER = /CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|YaBrowser|DuckDuckGo|MQQBrowser|baiduboxapp|Quark|UCBrowser/i.test(UA);
 const IOS_OLD = (v => !!v && (+v[1] < 16 || (+v[1] === 16 && +v[2] < 4)))(UA.match(/OS (\d+)_(\d+)/));   // 16.4 以前别的浏览器不能加到主屏幕
@@ -406,16 +409,18 @@ let gateForced = new URLSearchParams(location.search).has("install");
 let installWaited = false;   // 一键安装的机会是加载后才来的, 整页等一会儿再决定显示什么, 免得先闪一下
 setTimeout(() => { installWaited = true; installGate(); }, 1500);
 
-// event = 一键安装; ios = Safari; inapp = 微信 / QQ 等 App 里; other = 其他浏览器
+// event = 一键安装; apk = 安卓其他浏览器, 下载安卓 App; ios = Safari; inapp = 微信 / QQ 等 App 里; other = 其他浏览器
 function installKind() {
   if (installEvent) return "event";
   if (IN_APP) return "inapp";
+  if (IS_ANDROID) return "apk";
   if (IS_IOS && !IOS_OTHER) return "ios";
   return "other";
 }
 // 一行说明, 图标代替文字: share = 苹果分享图标, dots / bars = 菜单按钮
 function installLine(box, kind) {
-  const parts = kind === "inapp" ? ["点右上角 ", "dots", IS_IOS ? " → 在 Safari 中打开" : " → 在浏览器打开"]
+  const parts = kind === "apk" ? ["下载好后点开安装，手机提醒时选“继续安装”"]
+    : kind === "inapp" ? ["点右上角 ", "dots", IS_IOS ? " → 在 Safari 中打开" : " → 在浏览器打开"]
     : IS_IOS || kind === "ios" ? (IOS_OTHER && IOS_OLD ? ["用 Safari 打开本页再装"] : ["点 ", "share", " → 添加到主屏幕"])
     : ["点菜单 ", "dots", " 或 ", "bars", " → 添加到桌面"];
   box.textContent = "";
@@ -439,6 +444,11 @@ async function doInstall() {
     if (outcome === "accepted") { installEvent = null; installed = true; toast("已添加到桌面"); }
     showInstall();
     return installGate();
+  }
+  if (kind === "apk") {
+    const a = document.createElement("a"); a.href = "/tongde.apk"; a.download = "tongde.apk";
+    document.body.appendChild(a); a.click(); a.remove();
+    if (gateForced) return installLine($("gateSteps"), kind);   // 整页里直接写在按钮下面
   }
   if (kind === "ios") return showTip("iosTip");
   if (kind === "inapp") return showTip("appTip");
@@ -464,9 +474,11 @@ function installGate() {
   gate.classList.remove("hidden");
   const kind = installKind(), line = $("gateSteps");
   if (installed) line.textContent = "装好了！回到桌面，点“通德”图标打开。";
-  else if (kind === "event" || !installWaited) line.textContent = "";   // 一键安装只显示按钮; 还在等时先空着
+  else if (kind === "event" || kind === "apk" || !installWaited) line.textContent = "";   // 一键安装 / 下载 App 只显示按钮; 还在等时先空着
   else installLine(line, kind);
-  $("gateBtn").classList.toggle("hidden", kind !== "event" || installed);
+  const btn = kind === "event" || (kind === "apk" && installWaited);
+  $("gateBtn").textContent = kind === "apk" ? "下载安卓 App" : "安装到桌面";
+  $("gateBtn").classList.toggle("hidden", !btn || installed);
   $("gateArrow").classList.toggle("hidden", kind !== "inapp" || installed);
 }
 $("gateBtn").onclick = doInstall;
@@ -478,7 +490,7 @@ $("gateSkip").onclick = () => {
 };
 installGate();
 
-// 「今天」页横幅: 只给一键安装、苹果 Safari、App 里; 点 × 后 7 天内不再出现(存本机)
+// 「今天」页横幅: 只给一键安装、安卓下载 App、苹果 Safari、App 里; 点 × 后 7 天内不再出现(存本机)
 const INSTALL_SNOOZE = "sb_installSnooze";
 function installSnoozed() {
   try { return Date.now() < +(localStorage.getItem(INSTALL_SNOOZE) || 0); } catch (e) { return false; }
@@ -497,7 +509,8 @@ function showInstall() {
   $("hInstall").classList.toggle("hidden", done || !user || !IS_TOUCH || kind === "other" || installSnoozed());
   $("wInstallBox").classList.toggle("hidden", done);
   $("installBox").classList.toggle("hidden", done || !IS_TOUCH && !installEvent);
-  for (const id of ["wInstall", "btnInstall"]) $(id).textContent = kind === "event" ? "安装到桌面" : "看看怎么装";
+  for (const id of ["wInstall", "btnInstall"])
+    $(id).textContent = kind === "event" ? "安装到桌面" : kind === "apk" ? "下载安卓 App" : "看看怎么装";
 }
 
 // 密码框右边的眼睛: 点一下显示 / 隐藏密码(所有密码框都有)
