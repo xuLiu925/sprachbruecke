@@ -500,6 +500,25 @@ function showInstall() {
   for (const id of ["wInstall", "btnInstall"]) $(id).textContent = kind === "event" ? "安装到桌面" : "看看怎么装";
 }
 
+// 密码框右边的眼睛: 点一下显示 / 隐藏密码(所有密码框都有)
+const EYE_OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6C3.7 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+function setPwVisible(input, show) {
+  input.type = show ? "text" : "password";
+  const b = input.nextElementSibling;
+  b.innerHTML = show ? EYE_SHUT : EYE_OPEN;
+  b.setAttribute("aria-label", show ? "隐藏密码" : "显示密码");
+}
+document.querySelectorAll('input[type="password"]').forEach(input => {
+  const box = document.createElement("span"); box.className = "pwbox";
+  input.replaceWith(box); box.appendChild(input);
+  const b = document.createElement("button"); b.type = "button"; b.className = "pweye";
+  box.appendChild(b);
+  setPwVisible(input, false);
+  b.onclick = () => { setPwVisible(input, input.type === "password"); input.focus(); };
+});
+const hideAllPw = () => document.querySelectorAll(".pwbox input").forEach(i => setPwVisible(i, false));
+
 // 登录页的三块: login / reg / forgot
 function authView(name) {
   $("authLogin").classList.toggle("hidden", name !== "login");
@@ -510,11 +529,13 @@ function authView(name) {
   $("inv").classList.toggle("hidden", !byInvite);
   if (inviteLink && !$("inv").value) $("inv").value = inviteLink;
   $("authMsg").textContent = "";
+  hideAllPw();
 }
 document.querySelectorAll("#login [data-auth]").forEach(b => b.onclick = () => authView(b.dataset.auth));
 
 function loggedIn(r) {
   ["p", "rp", "fp", "inv", "rc", "fc"].forEach(id => $(id).value = "");
+  hideAllPw();
   inviteLink = "";
   user = r.username; isAdmin = !!r.admin;
   if (!location.hash || location.hash === "#welcome" || location.hash === "#review") location.replace("#home");
