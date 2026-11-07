@@ -13,6 +13,20 @@
 <link rel="stylesheet" href="static/app.css">
 </head>
 <body class="no-tabs">
+<!-- 启动画面: HTML 一到就显示(样式写在这里, 不等 app.css), core.js 的 showApp() 准备好页面后淡出。
+     颜色和 manifest.json 的 background_color 一样, 从桌面图标打开时接得上 -->
+<style>
+#splash { position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; background:#1f4e78; color:#fff; font-family:system-ui, sans-serif; transition:opacity .25s; }
+#splash img { width:84px; height:84px; border-radius:20px; }
+#splash b { font-size:22px; letter-spacing:2px; }
+#splash i { width:22px; height:22px; border:3px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%;
+  animation:splashspin .8s linear infinite; margin-top:10px; }
+#splash.out { opacity:0; pointer-events:none; }
+@keyframes splashspin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) { #splash { background:#0f1b26; } }
+</style>
+<div id="splash" aria-label="正在加载"><img src="static/icons/icon-192.png" alt=""><b>通德</b><i></i></div>
 
 <!-- 安装引导(PWA): 只在打开 ?install 链接时整页显示。core.js 的 installGate() -->
 <div id="gate" class="gate hidden">

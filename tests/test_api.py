@@ -401,6 +401,14 @@ assert cd.get("/static/lessons.json").status_code == 404
 hr = cd.get("/")
 assert "frame-ancestors 'none'" in hr.headers["Content-Security-Policy"] and hr.headers["X-Frame-Options"] == "DENY"
 assert os.path.exists(A.auth.ADMIN_LOCK)
+# 静态文件带内容指纹(?v=), 带指纹的缓存一年, 首页本身每次都问服务器
+import re as _re
+hh = hr.get_data(as_text=True)
+assert hr.headers["Cache-Control"] == "no-cache" and 'id="splash"' in hh
+vs = _re.findall(r'static/[\w./-]+\.(?:js|css)\?v=[0-9a-f]{10}', hh)
+assert len(vs) >= 20 and not _re.search(r'static/js/[\w-]+\.js"', hh)
+assert "immutable" in cd.get("/" + vs[0]).headers["Cache-Control"]
+assert "immutable" not in (cd.get("/static/js/core.js").headers.get("Cache-Control") or "")
 # PWA: Service Worker 在根目录、不缓存; manifest 和图标都在
 r = cd.get("/sw.js")
 assert r.status_code == 200 and "javascript" in r.content_type and r.headers["Cache-Control"] == "no-cache"

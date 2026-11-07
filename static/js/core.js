@@ -353,6 +353,14 @@ function showApp() {
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
   route();
+  hideSplash();
+}
+// index.html 的启动画面: 第一次显示页面(或登录框)时淡出, 然后删掉
+function hideSplash() {
+  const sp = $("splash");
+  if (!sp || sp.classList.contains("out")) return;
+  sp.classList.add("out");
+  setTimeout(() => sp.remove(), 300);
 }
 
 // 游客首页的按钮

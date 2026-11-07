@@ -38,7 +38,9 @@
   tts.py         在线德语发音(设备没有德语语音时用)
   vocab_seed.py  示例词和变格 / 变位
 """
+import hashlib
 import os
+import re
 import secrets
 from datetime import timedelta
 
@@ -103,9 +105,56 @@ app.config.update(
 app.teardown_appcontext(close_db)
 
 
+# 静态文件的缓存(文档 docs/features/fast-start.md): index.html 里的 static/xxx.css / .js 换成 static/xxx.js?v=内容指纹,
+# 带 ?v= 的请求让浏览器缓存一年(内容变了指纹就变, 网址跟着变, 不会用到旧文件); index.html 本身每次都问服务器。
+# 这样第二次打开不用再把 20 多个文件挨个向服务器确认一遍(经过隧道每个要零点几秒)
+ASSET_RE = re.compile(r"""(?<=["'])static/[\w./-]+\.(?:js|css)(?=["'])""")
+_fingerprints = {}      # 文件路径 → (修改时间, 指纹)
+_index_cache = {}       # index.html 的修改时间 + 各文件指纹 → 替换好的页面
+
+
+def fingerprint(rel):
+    path = os.path.join(BASE, rel)
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return None
+    hit = _fingerprints.get(rel)
+    if hit and hit[0] == mtime:
+        return hit[1]
+    with open(path, "rb") as f:
+        fp = hashlib.md5(f.read()).hexdigest()[:10]
+    _fingerprints[rel] = (mtime, fp)
+    return fp
+
+
+def versioned_index():
+    path = os.path.join(app.static_folder, "index.html")
+    with open(path, encoding="utf-8") as f:
+        html = f.read()
+    assets = sorted(set(ASSET_RE.findall(html)))
+    key = (os.path.getmtime(path), tuple(fingerprint(a) for a in assets))
+    if key not in _index_cache:
+        def repl(m):
+            fp = fingerprint(m.group(0))
+            return f"{m.group(0)}?v={fp}" if fp else m.group(0)
+        _index_cache.clear()
+        _index_cache[key] = ASSET_RE.sub(repl, html)
+    return _index_cache[key]
+
+
 @app.route("/")
 def index():
-    return send_from_directory(app.static_folder, "index.html")
+    resp = app.response_class(versioned_index(), mimetype="text/html")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@app.after_request
+def cache_assets(resp):
+    if request.path.startswith("/static/") and request.args.get("v") and resp.status_code == 200:
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resp
 
 
 @app.route("/sw.js")
