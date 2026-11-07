@@ -307,10 +307,7 @@ onShow.me = async () => {
   $("meStats").textContent = `已学 ${s.learned} · 已掌握 ${s.mastered}`;
   try { $("optGoal").value = String((await api("/api/today?" + tzQuery())).goal); } catch (e) {}
   $("adminBox").classList.toggle("hidden", !isAdmin);
-  if (isAdmin) {
-    $("userFind").value = "";   // 每次打开都清空: 浏览器万一还是自动填了用户名, 也不会只剩自己
-    loadAdmin(); loadPending(); loadReports();
-  }
+  if (isAdmin) showAdminEntry();   // admin.js
 };
 
 const MEMBER_SOON = 7;   // 「我的」页: 还剩几天起显示倒数
@@ -391,76 +388,7 @@ $("btnFeedback").onclick = async () => {
   try { await api("/api/feedback", "POST", { text }); } catch (e) { return toast(e.message); }
   $("fbText").value = "";
   toast("已提交，谢谢！");
-  if (isAdmin) loadReports();
 };
-
-// 管理员: 意见反馈和各处的报错放在一起, 处理完点“已处理”
-async function loadReports() {
-  let r;
-  try { r = await api("/api/admin/feedback"); } catch (e) { return toast(e.message); }
-  const box = $("reportList"); box.textContent = "";
-  if (!r.items.length) box.textContent = "没有新的反馈和报错";
-  for (const x of r.items) {
-    const row = adminRow(box, "");
-    const t = row.firstChild;
-    const head = document.createElement("div"); head.className = "meta left"; head.style.fontSize = "13px";
-    head.textContent = `${x.kind_name} · ${x.user || "（已删除的用户）"} · ${localDate(x.created_at).text}`;
-    t.appendChild(head);
-    if (x.target) {
-      const tg = document.createElement("div"); tg.textContent = x.target; t.appendChild(tg);
-    } else if (x.type === "report") {
-      const tg = document.createElement("div"); tg.className = "meta left"; tg.textContent = "（内容已被删掉或重新生成）";
-      t.appendChild(tg);
-    }
-    const reason = document.createElement("div"); reason.className = "lzh"; reason.textContent = x.reason;
-    t.appendChild(reason);
-    if (x.word_id) miniBtn(row, "单词卡", () => openWordId(x.word_id, x.target));
-    miniBtn(row, "已处理", async () => {
-      const body = x.type === "feedback" ? { type: "feedback", id: x.id } : { type: "report", kind: x.kind, key: x.key };
-      try { await api("/api/admin/feedback/done", "POST", body); } catch (e) { return toast(e.message); }
-      loadReports();
-    });
-  }
-}
-
-// 用户加的、词典里没有的词: 通过后所有人都能查到, 拒绝后还留在加过的人的学习计划里
-async function loadPending() {
-  let r;
-  try { r = await api("/api/admin/pending"); } catch (e) { return toast(e.message); }
-  const box = $("pendingList"); box.textContent = "";
-  if (!r.words.length) box.textContent = "没有待审核的词";
-  for (const w of r.words) {
-    const row = document.createElement("div"); row.className = "lline nwordhead";
-    const t = document.createElement("span");
-    const head = document.createElement("b"); wordInto(head, w);
-    const note = document.createElement("div"); note.className = "lzh";
-    note.textContent = [`${w.users} 人加过`, w.compound ? `可能是复合词：${w.compound}` : "",
-                        w.kind === "no_meaning" ? "缺公共释义" : ""].filter(Boolean).join(" · ");
-    t.append(head, "  " + w.meaning, note);
-    const act = document.createElement("span"); act.style.flex = "none";
-    const button = (label, fn) => {
-      const b = document.createElement("button"); b.className = "mini"; b.textContent = label;
-      b.onclick = async () => { try { await fn(); } catch (e) { toast(e.message); } };
-      act.appendChild(b);
-    };
-    if (w.kind === "pending") {
-      for (const [label, status] of [["通过", "public"], ["拒绝", "rejected"]]) {
-        button(label, async () => { await api("/api/admin/pending/" + w.id, "POST", { status }); loadPending(); });
-      }
-    } else {
-      button("写释义", () => confirmMeaning(w, "", false));
-      if (r.ai) button("AI 草稿", async () => confirmMeaning(w, (await api(`/api/admin/words/${w.id}/draft`, "POST", {})).meaning, true));
-    }
-    row.append(t, act); box.appendChild(row);
-  }
-}
-// 公共释义要管理员确认才写入, AI 的草稿也一样
-async function confirmMeaning(w, draft, ai) {
-  const meaning = (prompt(`「${w.german}」的中文释义：`, draft) || "").trim();
-  if (!meaning) return;
-  await api(`/api/admin/words/${w.id}/meaning`, "POST", { meaning, ai });
-  loadPending();
-}
 
 // 昵称和通德 ID(user_profile.py): 登录账号(用户名)不能改, 昵称 30 天能改一次
 function showProfile() {
@@ -523,7 +451,7 @@ $("btnPwSave").onclick = async () => {
   } catch (e) { msg.textContent = e.message; }
 };
 
-// ---------- 管理员: 邀请码、成员 ----------
+// ---------- 小工具: 管理后台(admin.js)也用 ----------
 function adminRow(box, text, cls) {
   const row = document.createElement("div"); row.className = "arow";
   const t = document.createElement("div"); t.className = "grow"; t.append(text);
@@ -540,76 +468,6 @@ async function copyText(s) {
   catch (e) { toast("没能自动复制，请长按选中后复制"); }   // http 网址下浏览器可能不让写剪贴板
 }
 
-// 成员列表按 ID、用户名、昵称、邮箱筛选(只在页面里筛)
-function filterUsers() {
-  const q = $("userFind").value.trim().toLowerCase();
-  const rows = [...$("userList").querySelectorAll(".arow")];
-  let n = 0;
-  rows.forEach(r => { const hit = !q || r.dataset.find.includes(q); r.classList.toggle("hidden", !hit); if (hit) n++; });
-  // 有筛选时写明“找到几个 / 共几个”, 免得以为成员少了
-  $("userCount").textContent = q ? `已筛选：找到 ${n} 个 / 共 ${rows.length} 个` : "";
-  $("userCount").classList.toggle("hidden", !q);
-}
-$("userFind").oninput = filterUsers;
-$("userFind").onfocus = () => $("userFind").removeAttribute("readonly");
-
-// 邀请链接: 打开后注册页填好邀请码, 不用邮箱(core.js 的 inviteLink)
-const inviteUrl = code => location.origin + location.pathname + "?invite=" + encodeURIComponent(code);
-
-async function loadAdmin() {
-  let inv, us;
-  try { [inv, us] = await Promise.all([api("/api/invites"), api("/api/admin/users")]); }
-  catch (e) { return toast(e.message); }
-  $("inviteDays").textContent = inv.days;
-  const box = $("inviteList"); box.textContent = "";
-  for (const i of inv.invites) {
-    const row = adminRow(box, "");
-    const t = row.firstChild;
-    const code = document.createElement("div"); code.className = "code"; code.textContent = i.code;
-    const st = document.createElement("div"); st.className = "meta left"; st.style.fontSize = "13px";
-    st.textContent = i.status === "used" ? `已被 ${i.used_by || "（已删除的用户）"} 使用`
-                   : i.status === "expired" ? "已过期" : `${localDate(i.expires_at).text}前有效`;
-    t.append(code, st);
-    if (i.status === "unused") {
-      miniBtn(row, "复制链接", () => copyText(inviteUrl(i.code)));
-      miniBtn(row, "作废", async () => {
-        if (!confirm(`作废邀请码 ${i.code}？`)) return;
-        try { await api("/api/invites/" + i.code, "DELETE"); } catch (e) { return toast(e.message); }
-        loadAdmin();
-      });
-    }
-  }
-  const ul = $("userList"); ul.textContent = "";
-  for (const u of us.users) {
-    // 昵称（登录账号）· ID; 昵称没改过就只显示用户名
-    const name = u.nickname && u.nickname !== u.username ? `${u.nickname}（${u.username}）` : u.username;
-    const row = adminRow(ul, `${name}${u.me ? "（我）" : ""} · ID ${u.uid || "-"} · 已学 ${u.learned}`
-      + (u.email ? " · " + u.email : "") + (u.member_until ? ` · 会员到 ${localDate(u.member_until).text}` : ""));
-    row.dataset.find = [u.uid, u.username, u.nickname, u.email].filter(Boolean).join(" ").toLowerCase();
-    if (u.me) continue;
-    miniBtn(row, "会员", async () => {
-      const v = prompt(`给 ${u.username} 加几天会员？（填 0 = 取消会员）`, "30");
-      if (v === null) return;
-      try { await api(`/api/admin/users/${u.id}/membership`, "POST", { days: Number(v) }); } catch (e) { return toast(e.message); }
-      loadAdmin();
-    });
-    miniBtn(row, "重置密码", async () => {
-      if (!confirm(`把 ${u.username} 的密码重置成一个临时密码？他原来的密码会失效。`)) return;
-      let r;
-      try { r = await api(`/api/admin/users/${u.id}/reset_password`, "POST", {}); } catch (e) { return toast(e.message); }
-      const p = document.createElement("div"); p.className = "msg left";
-      p.textContent = `${r.username} 的临时密码：${r.password}（请转告他，登录后在“我的”里改密码）`;
-      row.after(p);
-    });
-  }
-  filterUsers();   // 列表刷新后保留搜索框里的筛选
-}
-$("btnInvite").onclick = async () => {
-  let r;
-  try { r = await api("/api/invites", "POST", {}); } catch (e) { return toast(e.message); }
-  await loadAdmin();
-  copyText(inviteUrl(r.code));
-};
 $("optArticle").checked = needArticle();
 $("optArticle").onchange = () => {
   try { localStorage.setItem("sb_needArticle", $("optArticle").checked ? "1" : "0"); } catch (e) {}

@@ -44,6 +44,11 @@ FAIL_KEYS_MAX = 5000      # 记录的键超过这么多时清掉过期的, 免�
 INVITE_DAYS = 7                                   # 邀请码几天后过期
 CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"    # 去掉了容易看错的 I L O 0 1
 LOGIN_KEY = "login_token"                         # user_settings 里存当前登录令牌的键
+BAN_KEY = "banned"                                # user_settings: 管理员停用了这个账号, 值 = 原因(admin.py)
+SEEN_KEY = "last_seen"                            # user_settings: 最近一次用的时间(UTC), 管理后台看活跃
+SEEN_EVERY = 600                                  # 同一个人最多每 10 分钟写一次 last_seen, 少写数据库
+BAN_MSG = "这个账号已被停用，有疑问请联系管理员"
+_seen = {}                                        # uid → 上次写 last_seen 的时间(内存里, 重启清零)
 # 不用登录的接口: 会话过期时照常处理, 不返回“已在别的设备登录”
 NO_LOGIN_PATHS = {"/api/me", "/api/login", "/api/register", "/api/register/code",
                   "/api/password/forgot", "/api/password/reset"}
@@ -164,7 +169,15 @@ def admin_required(fn):
     return wrapper
 
 
+def banned(uid):
+    return get_db().execute("SELECT 1 FROM user_settings WHERE user_id = ? AND key = ?",
+                            (uid, BAN_KEY)).fetchone() is not None
+
+
 def login_ok(uid, username):
+    # 被停用的账号: 密码对了也不让登录(先核对密码再说, 不让别人试出哪个账号被停用)
+    if banned(uid):
+        return err(BAN_MSG, 403)
     start_session(uid)
     return jsonify({"username": username, "admin": is_admin(uid)})
 
@@ -194,10 +207,21 @@ def check_login():
     uid = session.get("uid")
     if uid is None:
         return None
-    row = get_db().execute("SELECT value FROM user_settings WHERE user_id = ? AND key = ?",
-                           (uid, LOGIN_KEY)).fetchone()
-    stored = row["value"] if row else None
-    if session.get("tok") == stored:
+    db = get_db()
+    vals = dict(db.execute("SELECT key, value FROM user_settings WHERE user_id = ? AND key IN (?, ?)",
+                           (uid, LOGIN_KEY, BAN_KEY)).fetchall())
+    if BAN_KEY in vals:     # 登录中被停用: 马上下线
+        session.clear()
+        if request.path.startswith("/api/") and request.path not in NO_LOGIN_PATHS:
+            return err(BAN_MSG, 403)
+        return None
+    if session.get("tok") == vals.get(LOGIN_KEY):
+        t = time.time()
+        if t - _seen.get(uid, 0) > SEEN_EVERY:
+            _seen[uid] = t
+            db.execute("INSERT INTO user_settings (user_id, key, value) VALUES (?, ?, ?) "
+                       "ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value", (uid, SEEN_KEY, now_str()))
+            db.commit()
         return None
     session.clear()
     if request.path.startswith("/api/") and request.path not in NO_LOGIN_PATHS:
@@ -269,8 +293,8 @@ def register():
             return err(bad)
     try:
         cur = db.execute(
-            "INSERT INTO users (username, password_hash, email, uid) VALUES (?, ?, ?, ?)",
-            (username, generate_password_hash(password), email, new_uid(db)),
+            "INSERT INTO users (username, password_hash, email, uid, created_at) VALUES (?, ?, ?, ?, ?)",
+            (username, generate_password_hash(password), email, new_uid(db), now_str()),
         )
     except sqlite3.IntegrityError:
         db.rollback()
@@ -505,18 +529,6 @@ def delete_invite(code):
     n = db.execute("DELETE FROM invites WHERE code = ? AND used_at IS NULL", (norm_code(code),)).rowcount
     db.commit()
     return jsonify({"deleted": n})
-
-
-@bp.route("/api/admin/users")
-@admin_required
-def list_users():
-    rows = get_db().execute(
-        "SELECT u.id, u.uid, u.username, u.nickname, u.email, (SELECT COUNT(*) FROM progress p WHERE p.user_id = u.id) AS learned, "
-        "(SELECT until FROM memberships m WHERE m.user_id = u.id AND m.until > ?) AS member_until "
-        "FROM users u ORDER BY u.id", (now_str(),)
-    ).fetchall()
-    me_id = current_user_id()
-    return jsonify({"users": [{**dict(r), "me": r["id"] == me_id} for r in rows]})
 
 
 @bp.route("/api/admin/users/<int:uid>/reset_password", methods=["POST"])

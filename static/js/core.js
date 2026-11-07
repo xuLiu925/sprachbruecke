@@ -253,7 +253,9 @@ const PAGES = {
   import:   { title: "批量导入", parent: "words" },
   books:    { title: "选择单词书", parent: "learn" },
   welcome:  { title: "通德" },
-  wrong:    { title: "错题本", parent: "practice" },                             // 游客首页
+  wrong:    { title: "错题本", parent: "practice" },
+  admin:    { title: "管理后台", parent: "me" },                                  // 只有管理员(admin.js)
+  auser:    { title: "用户", parent: "admin" },                                   // 标题在页面里换成用户名                             // 游客首页
 };
 // 没登录也能看的页面(游客的 home 换成 welcome); 其他页面要先登录。试学在 review.js
 const GUEST_PAGES = ["welcome", "review", "grammar", "gtopic", "gquiz"];

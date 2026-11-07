@@ -361,25 +361,10 @@
         <button id="btnFeedback" style="width:100%">提交</button>
       </div>
 
+      <!-- 管理员才显示: 进管理后台(admin.js) -->
       <div id="adminBox" class="hidden">
-        <h2 class="glabel">反馈和报错（只有管理员能看到）</h2>
-        <div class="card" id="reportList"></div>
-        <h2 class="glabel">待审核单词（只有管理员能看到）</h2>
-        <div class="card" id="pendingList"></div>
-        <h2 class="glabel">邀请朋友（只有管理员能看到）</h2>
-        <div class="card">
-          <p class="meta left" style="margin-top:0">生成后自动复制邀请链接，发给对方（或自己用来建测试账号）。打开链接注册不用邮箱；普通注册页看不到邀请码。每个链接只能用一次，<span id="inviteDays">7</span> 天后过期。用邀请链接注册的账号没有邮箱，忘了密码要你来重置。</p>
-          <button id="btnInvite" style="width:100%">生成邀请链接</button>
-          <div id="inviteList"></div>
-        </div>
-        <h2 class="glabel">成员</h2>
-        <div class="card">
-          <p class="meta left" style="margin-top:0">朋友忘了密码：点“重置密码”，把临时密码告诉他，他登录后自己再改。</p>
-          <!-- type=search + 只读到点进去为止: 不让浏览器的密码管理器把用户名自动填进来(填了列表只剩自己) -->
-          <input id="userFind" type="search" name="sb-member-filter" readonly placeholder="按通德 ID、用户名、昵称、邮箱找" autocomplete="off">
-          <p id="userCount" class="meta left hidden"></p>
-          <div id="userList"></div>
-        </div>
+        <h2 class="glabel">管理</h2>
+        <div class="card list" id="adminEntry"></div>
       </div>
 
       <details class="card howto">
@@ -394,6 +379,62 @@
       <button class="secondary big" id="btnTour">重新看功能介绍</button>
       <button class="danger big" id="btnLogout">退出登录</button>
       <p class="meta" style="font-size:12px;margin-top:20px">通德 Sprachbrücke v0.3 · by Liuxu</p>
+    </section>
+
+    <!-- ===== 管理后台(只有管理员, admin.js) ===== -->
+    <section class="page" data-page="admin">
+      <div class="chips wrap" id="admTabs">
+        <button data-tab="overview" class="on">概览</button><button data-tab="users">用户</button><button data-tab="content">内容</button>
+      </div>
+      <div data-pane="overview">
+        <div id="admOverview"></div>
+        <p class="meta left" style="font-size:12px">活跃 = 这段时间打开过软件（2026-11-08 起才开始记）；“今天”的学习按最近 24 小时算。</p>
+      </div>
+      <div data-pane="users" class="hidden">
+        <div class="card">
+          <!-- type=search + 只读到点进去为止: 不让浏览器的密码管理器把用户名自动填进来 -->
+          <input id="userFind" type="search" name="sb-member-filter" readonly placeholder="按通德 ID、用户名、昵称、邮箱搜索" autocomplete="off">
+          <div class="chips wrap" id="userFilter">
+            <button data-f="" class="on">全部</button><button data-f="member">会员</button><button data-f="banned">已停用</button>
+          </div>
+          <p id="userCount" class="meta left"></p>
+          <div id="userList"></div>
+          <button class="secondary hidden" id="userMore" style="width:100%">再加载 50 个</button>
+        </div>
+      </div>
+      <div data-pane="content" class="hidden">
+        <h2 class="glabel">反馈和报错</h2>
+        <div class="card" id="reportList"></div>
+        <h2 class="glabel">待审核单词</h2>
+        <div class="card" id="pendingList"></div>
+        <h2 class="glabel">语法题库</h2>
+        <div class="card list" id="admBanks"></div>
+        <h2 class="glabel">邀请朋友</h2>
+        <div class="card">
+          <p class="meta left" style="margin-top:0">生成后自动复制邀请链接，发给对方（或自己用来建测试账号）。打开链接注册不用邮箱；普通注册页看不到邀请码。每个链接只能用一次，<span id="inviteDays">7</span> 天后过期。用邀请链接注册的账号没有邮箱，忘了密码要你来重置。</p>
+          <button id="btnInvite" style="width:100%">生成邀请链接</button>
+          <div id="inviteList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 管理后台: 一个用户的详情 ===== -->
+    <section class="page" data-page="auser">
+      <div class="card" id="auInfo"></div>
+      <div class="card">
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button class="secondary" id="auMember">送会员</button>
+          <button class="secondary" id="auReset">重置密码</button>
+          <button class="danger" id="auBan">停用账号</button>
+        </div>
+        <p id="auMsg" class="msg left"></p>
+      </div>
+      <h2 class="glabel">学习</h2>
+      <div class="card" id="auStudy"></div>
+      <h2 class="glabel">付款记录</h2>
+      <div class="card" id="auPay"></div>
+      <h2 class="glabel" id="auUsageTitle">免费次数用量</h2>
+      <div class="card" id="auUsage"></div>
     </section>
 
     <!-- ===== 今日学习 ===== -->
@@ -1009,6 +1050,7 @@
 <script src="static/js/spell.js"></script>
 <script src="static/js/search.js"></script>
 <script src="static/js/guide.js"></script>
+<script src="static/js/admin.js"></script>
 <script src="static/js/boot.js"></script>
 </body>
 </html>

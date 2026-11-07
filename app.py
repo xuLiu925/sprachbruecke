@@ -47,6 +47,7 @@ from flask import Flask, got_request_exception, request, send_from_directory
 import alerts
 import auth
 import billing
+import admin
 import custom_lessons
 import dictionary
 import explain
@@ -146,6 +147,7 @@ app.register_blueprint(word_parts.bp)
 app.register_blueprint(tts.bp)
 app.register_blueprint(trial.bp)
 app.register_blueprint(feedback.bp)
+app.register_blueprint(admin.bp)
 app.register_blueprint(guide.bp)
 app.register_blueprint(user_profile.bp)
 

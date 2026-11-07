@@ -613,9 +613,10 @@ def migrate(db):
     2. words 加 owner_id, 唯一约束改成按「公共 / 每个人」分别唯一
     3. words 加 status, 私有词转成“词库一行 + 用户标签”
     4. users 加 email(小写; 老账号为空, 在「我的」页绑定)
-    5. users 加 uid(通德 ID, 老账号自动补)、nickname(昵称, 空 = 用用户名)、nickname_at(上次改昵称的时间)"""
+    5. users 加 uid(通德 ID, 老账号自动补)、nickname(昵称, 空 = 用用户名)、nickname_at(上次改昵称的时间)、
+       created_at(注册时间, 2026-11-08 起才记, 老账号为空)"""
     cols = {r[1] for r in db.execute("PRAGMA table_info(users)")}
-    for name in ("email", "uid", "nickname", "nickname_at"):
+    for name in ("email", "uid", "nickname", "nickname_at", "created_at"):
         if name not in cols:
             db.execute(f"ALTER TABLE users ADD COLUMN {name} TEXT")
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email) WHERE email IS NOT NULL")

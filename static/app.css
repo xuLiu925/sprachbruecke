@@ -262,6 +262,14 @@ button.wplus { flex:none; width:46px; padding:0; font-size:22px; line-height:1; 
 /* 我的 → 邀请码 / 成员列表的一行 */
 .arow { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); }
 .arow:last-child { border-bottom:none; }
+.arow.clickable { cursor:pointer; }
+/* 管理后台的数字格子 */
+.admgrid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; }
+.admgrid > * { display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:12px; border-radius:12px;
+  background:var(--card); border:1px solid var(--line); color:var(--text); text-align:left; }
+.admgrid b { font-size:20px; font-family:var(--font-latin); overflow-wrap:anywhere; }
+.admgrid small { font-size:12px; color:var(--muted); }
+@media (min-width:600px) { .admgrid { grid-template-columns:repeat(4, minmax(0,1fr)); } }
 .arow .grow { flex:1; min-width:0; text-align:left; overflow-wrap:anywhere; }
 .arow .code { font-family:ui-monospace, Consolas, monospace; font-weight:700; font-size:17px; user-select:all; }
 .flashrow { display:flex; align-items:center; gap:8px; margin:0 4px 8px; }

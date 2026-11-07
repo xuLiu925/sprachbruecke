@@ -221,6 +221,26 @@ assert d2.get("/api/stats").status_code == 401
 assert d2.post("/api/login", json={"username": "dave", "password": tmp}).status_code == 200
 assert d2.post("/api/logout", json={}).status_code == 200 and d2.get("/api/stats").status_code == 401
 assert J(c.get("/api/me"))["username"] is not None             # 管理员没受影响
+# 管理后台(admin.py): 概览、搜索、详情、停用 / 恢复账号
+ov = J(c.get("/api/admin/overview"))
+assert ov["users"]["total"] >= 2 and ov["users"]["new_7d"] >= 1 and "ai_generated" in ov["today"]
+assert [u["username"] for u in J(c.get("/api/admin/users?q=DAV"))["users"]] == ["dave"]
+dv = J(c.get(f"/api/admin/users/{did}"))
+assert dv["username"] == "dave" and dv["created_at"] and dv["payments"] == [] and not dv["banned"]
+assert c.get("/api/admin/users/99999").status_code == 404
+assert c.post(f"/api/admin/users/{me_id}/ban", json={"banned": True}).status_code == 400
+d3 = A.app.test_client()
+assert d3.post("/api/login", json={"username": "dave", "password": tmp}).status_code == 200
+assert d3.get("/api/stats").status_code == 200 and J(c.get(f"/api/admin/users/{did}"))["last_seen"]
+assert d3.get("/api/admin/overview").status_code == 403 and d3.post(f"/api/admin/users/{did}/ban", json={}).status_code == 403
+assert J(c.post(f"/api/admin/users/{did}/ban", json={"banned": True, "reason": "测试"}))["banned"]
+r = d3.get("/api/stats")
+assert r.status_code == 403 and "停用" in J(r)["error"] and J(d3.get("/api/me"))["username"] is None
+assert login("dave", tmp) == 403 and login("dave", "wrongpass") == 401
+assert [u["username"] for u in J(c.get("/api/admin/users?filter=banned"))["users"]] == ["dave"]
+assert J(c.get(f"/api/admin/users/{did}"))["banned"] == "测试" and J(c.get("/api/admin/overview"))["users"]["banned"] == 1
+assert J(c.post(f"/api/admin/users/{did}/ban", json={"banned": False}))["banned"] is False
+assert login("dave", tmp) == 200 and J(c.get("/api/admin/users?filter=banned"))["users"] == []
 # 意见反馈和报错汇总: 谁都能写反馈; 只有管理员能看; 已处理后不再显示(报错删掉, 反馈记处理时间)
 cf = A.app.test_client()
 assert cf.post("/api/feedback", json={"text": "x"}).status_code == 401
