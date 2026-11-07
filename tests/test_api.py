@@ -103,8 +103,8 @@ VO.PAGE = 100
 d = J(c.get("/api/drill/articles"))["words"]
 assert len(d) == 12 and all(x["gender"] in ("der", "die", "das") for x in d)
 # 听写: 学过的词不到 5 个时, 按当前单词书(这里是全部)的顺序出
-d = J(c.get("/api/drill/dictation"))["words"]
-assert len(d) == 15 and d[0]["german"] == "Tisch" and set(d[0]) == {"id", "german", "gender", "pos", "meaning", "example"}
+d = J(c.get("/api/dictation?scope=all"))["words"]
+assert len(d) == 15 and len({x["id"] for x in d}) == 15 and {"id", "german", "gender", "pos", "meaning", "example"} <= set(d[0])
 
 # 添加 / 批量导入 / 重复 / 非法性别
 x = J(c.post("/api/words", json={"german": "Tür", "gender": "die", "plural": "Türen", "meaning": "门"})); assert x["added"] == 1
@@ -568,7 +568,7 @@ assert J(c.get("/api/stats"))["learned"] == learned0
 # 删掉的词不出现在复习新词、冠词练习、听写里
 newbefore = [x["german"] for x in J(c.get("/api/review/today"))["cards"] if x["is_new"]]
 c.delete(f"/api/words/{ids[newbefore[0]]}")
-everything = [x["german"] for x in J(c.get("/api/review/today"))["cards"]] +     [x["german"] for x in J(c.get("/api/drill/articles"))["words"]] + [x["german"] for x in J(c.get("/api/drill/dictation"))["words"]]
+everything = [x["german"] for x in J(c.get("/api/review/today"))["cards"]] +     [x["german"] for x in J(c.get("/api/drill/articles"))["words"]] + [x["german"] for x in J(c.get("/api/dictation?scope=all"))["words"]]
 assert newbefore[0] not in everything and newbefore[0] in [x["german"] for x in J(cb.get("/api/review/today"))["cards"]]
 c.post(f"/api/words/{ids[newbefore[0]]}/unhide")
 
@@ -1048,6 +1048,35 @@ pm = J(cb.get("/api/plural/words?scope=wrong"))["words"][0]
 assert pm["manual"] and J(cb.get("/api/plural/books"))["wrong"] == 1
 assert cb.delete(f"/api/plural/list/{pm['id']}").status_code == 200
 assert J(cb.get("/api/plural/books"))["wrong"] == 0
+
+# 听写: 练习范围、FSRS 记录、错题本(dictation.py)
+assert A.app.test_client().get("/api/dictation").status_code == 401 and cb.get("/api/dictation?scope=x").status_code == 400
+assert cb.get("/api/dictation?scope=all&n=a").status_code == 400
+dtb = J(cb.get("/api/dictation/books"))
+assert dtb["books"][-1]["book"] == "all" and dtb["wrong"] == 0 and dtb["books"][-1]["nouns"] > 0
+dtq = J(cb.get("/api/dictation?scope=all&n=8&tz=0"))["words"]
+assert len(dtq) == 8 and len({x["id"] for x in dtq}) == 8
+dtw = dtq[0]["id"]
+assert cb.post("/api/dictation/result", json={"word_id": dtw, "ok": "x"}).status_code == 400
+assert cb.post("/api/dictation/result", json={"word_id": 99999999, "ok": True}).status_code == 404
+assert cb.post("/api/dictation/result", json={"word_id": dtw, "ok": False}).status_code == 200
+assert J(cb.get("/api/dictation/books"))["wrong"] == 1
+assert [x["id"] for x in J(cb.get("/api/dictation?scope=wrong"))["words"]] == [dtw]
+dtl = J(cb.get("/api/dictation/words?scope=wrong"))
+assert dtl["total"] == 1 and dtl["words"][0]["wrong"] == 1 and not dtl["words"][0]["manual"]
+assert cb.get("/api/dictation/words?scope=x").status_code == 400
+dtr = db.execute("SELECT next_review, weak FROM dict_practice WHERE word_id = ?", (dtw,)).fetchone()
+assert dtr[1] == 1 and dtr[0] > database.now_str()                 # 写错最早明天再出
+assert cb.post("/api/dictation/result", json={"word_id": dtw, "ok": True}).status_code == 200
+assert J(cb.get("/api/dictation/books"))["wrong"] == 1                      # 稳定性没到 7 天, 还在错题本
+assert cb.delete(f"/api/dictation/list/{dtw}").status_code == 200 and J(cb.get("/api/dictation/books"))["wrong"] == 0
+assert cb.post("/api/dictation/list", json={"text": " "}).status_code == 400
+dta = J(cb.post("/api/dictation/list", json={"text": f"{dtq[1]['german']}, Gibtsnichtxyz"}))
+assert dta["added"] == 1 and dta["missing"] == ["Gibtsnichtxyz"]
+assert J(cb.post("/api/dictation/list", json={"word_id": dtq[1]["id"]}))["skipped"] == 1
+assert [x["id"] for x in J(cb.get("/api/dictation?scope=wrong"))["words"]] == [dtq[1]["id"]]
+assert J(cb.get("/api/dictation/words?scope=wrong"))["words"][0]["manual"]
+cb.delete(f"/api/dictation/list/{dtq[1]['id']}")
 
 # 语法题库: 初始题启动时导入; 管理员能 AI 出草稿、保存、修改、停用; 系统检查题目格式
 import grammar as GR, grammar_seed

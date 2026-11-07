@@ -249,7 +249,7 @@ function exampleExplain(el, text, level = "B1") {
 }
 
 // 这些页面离开再回来会重新出题, 所以单词卡里不放“详情”, 免得丢掉正在做的这一组
-const wsCanLeave = () => !["review", "drill", "dictation", "squiz", "gquiz"].includes(current);
+const wsCanLeave = () => !["review", "drill", "dquiz", "squiz", "gquiz"].includes(current);
 
 async function openWordSheet(token, line, back = false) {
   if (!back) wsEnter({ token, line, label: token });

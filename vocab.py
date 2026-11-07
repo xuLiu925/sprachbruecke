@@ -252,21 +252,6 @@ def drill_articles():
     return jsonify({"words": [dict(r) for r in rows]})
 
 
-@bp.route("/api/drill/dictation")
-@login_required
-def drill_dictation():
-    """听写题: 学过的词里随机 20 个; 学过的不到 5 个时, 用当前单词书里最常用的 20 个。只是练习, 不影响复习计划"""
-    cols = "w.id, w.german, w.gender, w.pos, w.meaning, w.example"
-    rows = query(
-        f"SELECT {cols} FROM my_words w JOIN progress p ON p.word_id = w.id AND p.user_id = :uid "
-        "ORDER BY RANDOM() LIMIT 20",
-    ).fetchall()
-    if len(rows) < 5:
-        book_join, book_args, order = book_filter(current_book(current_user_id()))
-        rows = query(f"SELECT {cols} FROM my_words w {book_join} ORDER BY {order} LIMIT 20", **book_args).fetchall()
-    return jsonify({"words": [dict(r) for r in rows]})
-
-
 # ---------- 单词 ----------
 def clean_word(d):
     if not isinstance(d, dict):

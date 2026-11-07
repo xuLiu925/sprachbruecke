@@ -591,3 +591,9 @@ button.card.resume { display:flex; flex-direction:column; gap:10px; width:100%; 
 /* 选择单词书: 当前那本 */
 .item.current .chev { color:var(--accent); font-weight:700; font-size:18px; }
 .item .bar i { background:var(--accent); }
+
+/* 听写写错时: 你写的 / 正确写法, 对不上的字母标出来 */
+.ddiff { font-family:var(--font-latin); font-size:18px; line-height:1.7; margin:6px 0; }
+.ddiff .lbl { font-family:var(--font); font-size:13px; color:var(--muted, #888); margin-right:6px; }
+.ddiff .bad { color:var(--die-ink); background:var(--die-soft); border-radius:3px; text-decoration:underline; }
+.ddiff .miss { color:var(--das-ink); background:var(--das-soft); border-radius:3px; font-weight:700; }

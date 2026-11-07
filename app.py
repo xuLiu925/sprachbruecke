@@ -26,6 +26,7 @@
   dictionary.py  查词(德语、变化形式、中文)
   form_drills.py 词形练习(变格、动词变位)
   plural_quiz.py 复数练习(规律判断、练习记录、错题本)
+  dictation.py   听写(练习范围、FSRS 排期、错题本)
   grammar.py     语法题库(出题、AI 出草稿、管理); 初始题在 grammar_seed.py
   gender_hint.py 词性解释(规则判断, 不用 AI)
   word_parts.py  构词解释(AI 生成, 按词保存一次)
@@ -58,6 +59,7 @@ import lessons
 import noun_quiz
 import article_quiz
 import plural_quiz
+import dictation
 import verb_quiz
 import perfekt_quiz  # noqa: F401  导入时登记到 verb_quiz.KINDS
 import verb_usage  # noqa: F401  同上
@@ -134,6 +136,7 @@ app.register_blueprint(explain.bp)
 app.register_blueprint(dictionary.bp)
 app.register_blueprint(form_drills.bp)
 app.register_blueprint(plural_quiz.bp)
+app.register_blueprint(dictation.bp)
 app.register_blueprint(noun_quiz.bp)     # 要在 grammar 前面: /api/grammar/nouns 不能被当成知识点
 app.register_blueprint(article_quiz.bp)  # 同上: /api/grammar/articles
 app.register_blueprint(verb_quiz.bp)     # 同上: /api/grammar/verbs

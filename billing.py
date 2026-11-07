@@ -41,7 +41,7 @@ PLANS = {   # amount 以分为单位
 # 路径 → (名字, 每天几组, 按哪个参数分开算)
 LIMITS = {
     "/api/drill/articles": ("冠词练习", 3, None),
-    "/api/drill/dictation": ("听写", 3, None),
+    "/api/dictation": ("听写", 3, None),
     "/api/sentences": ("句子练习", 2, "mode"),
     "/api/grammar/nouns": ("定冠词练习", 2, None),
     "/api/grammar/articles": ("冠词变格练习", 2, "type"),

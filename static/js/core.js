@@ -234,6 +234,7 @@ const PAGES = {
   review:   { title: "今日学习", parent: "home" },
   drill:    { title: "冠词练习", parent: "practice" },
   dictation: { title: "听写", parent: "practice" },
+  dquiz:    { title: "听写", parent: "dictation" },
   grammar:  { title: "语法基础", parent: "learn" },
   gtopic:   { title: "语法", parent: "grammar" },      // 标题在页面里换成知识点名字
   gquiz:    { title: "语法练习", parent: "gtopic" },

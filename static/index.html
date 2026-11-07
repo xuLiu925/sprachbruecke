@@ -487,7 +487,15 @@
 
     <!-- ===== 听写 ===== -->
     <section class="page" data-page="dictation">
-      <p class="meta">听发音写出单词（名词带冠词）。只是额外练习，不影响复习计划。</p>
+      <p class="meta left">听发音写出单词（名词按设置带冠词）。写错的词本组最后再考一次，并进听写错题本；按记忆情况安排下次什么时候再考，不影响今日学习。</p>
+      <div class="card">
+        <div class="meta left">练习范围</div>
+        <div id="dsScope" style="margin-top:6px"></div>
+      </div>
+      <button class="big" id="dsStart">开始听写</button>
+    </section>
+
+    <section class="page" data-page="dquiz">
       <div class="card" id="dictBox">
         <div class="tag" id="dictProgress"></div>
         <div class="row" style="margin:12px 0">
@@ -503,16 +511,21 @@
         <button id="dictCheck" style="width:100%;margin-top:8px">检查</button>
         <div class="answer hidden" id="dictAnswer">
           <p id="dictResult" style="font-weight:600"></p>
+          <div class="ddiff hidden" id="dictDiff"></div>
           <div class="word" id="dictWord"></div>
           <p id="dictMeaning" style="font-size:18px"></p>
           <p id="dictExample" class="meta"></p>
-          <button id="dictNext" style="width:100%">下一个</button>
+          <div class="row">
+            <button id="dictCard" class="secondary">单词卡</button>
+            <button id="dictNext">下一个</button>
+          </div>
         </div>
-        <p class="kbd-hint"><kbd>回车</kbd> 检查 / 下一个 · <kbd>Ctrl</kbd>+<kbd>回车</kbd> 再听一遍 · <kbd>Esc</kbd> 返回</p>
+        <p class="kbd-hint"><kbd>回车</kbd> 检查 / 下一个 · <kbd>Ctrl</kbd>+<kbd>回车</kbd> 再听一遍 · <kbd>D</kbd> 单词卡（答完后） · <kbd>Esc</kbd> 返回</p>
       </div>
       <div class="card hidden" id="dictDone" style="text-align:center">
         <p style="font-size:20px" id="dictScore"></p>
         <div class="meta left" id="dictWrong" style="line-height:1.8"></div>
+        <p class="meta" id="dictDoneTip">写错的词已经加进听写错题本。</p>
         <button id="dictAgain" style="width:100%;margin-top:12px">再来一组</button>
       </div>
       <button id="dictBack" class="mini hidden">‹ 上一个</button>

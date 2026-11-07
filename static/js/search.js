@@ -3,7 +3,7 @@
 const SEARCH_RECENT = 10;
 // 做题的页面: [题目区, 答完才出现的区域], 题目显示着而答案没出现 = 正在答题, 不能搜索
 const SEARCH_LOCKS = {
-  review: ["cardBox", "answer"], drill: ["drillBtns", "drillInfo"], dictation: ["dictBox", "dictAnswer"],
+  review: ["cardBox", "answer"], drill: ["drillBtns", "drillInfo"], dquiz: ["dictBox", "dictAnswer"],
   squiz: ["sqBox", "sqAnswer"], gquiz: ["gqBox", "gqFeedback"], roleplay: ["rpBox", "rpReveal"],
 };
 const isShown = id => !$(id).classList.contains("hidden");

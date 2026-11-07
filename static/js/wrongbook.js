@@ -1,4 +1,4 @@
-// 错题本: 定冠词、复数、现在时、完成时、动词搭配的错题放在一页。
+// 错题本: 定冠词、复数、现在时、完成时、动词搭配、听写的错题放在一页。
 // 每类: 错题数、前几个词、“练一组”(用这类练习的错题本范围出题)、“全部”(gnouns.js 的单词列表页)
 // 数据都来自各练习现有的接口: {api}/books 的 wrong, {api}/words?scope=wrong
 const WRONG_KINDS = [
@@ -12,12 +12,15 @@ const WRONG_KINDS = [
     list: () => PERFEKT_LIST, topic: "perf-bank" },
   { name: "动词搭配", sub: "介词和格", tile: { text: "auf" }, api: "/api/grammar/usage",
     list: () => USAGE_LIST, topic: "verb-usage" },
+  { name: "听写", sub: "听发音写单词", tile: { text: "听" }, api: "/api/dictation",
+    list: () => DICT_LIST, dict: true },
 ];
 const WRONG_PREVIEW = 8;   // 每类先显示几个词
 
 // 用错题本出一组题: 只改这一次的范围, 不改各练习页记住的范围
 function wrongStart(k) {
   if (k.plural) return pStart("wrong");
+  if (k.dict) return dStart("wrong");
   gTopic = GRAMMAR_TOPICS.find(t => t.id === k.topic);
   gScopeNow = "wrong";
   go("gquiz");
@@ -27,6 +30,7 @@ function wrongStart(k) {
 function wrongOpenList(k, books) {
   const items = scopeItems(books);
   if (k.plural) pScopes = items;
+  else if (k.dict) dScopes = items;
   else { gScopeList = items; gTopic = GRAMMAR_TOPICS.find(t => t.id === k.topic); }   // 列表页的“练习”按钮要知道是哪类
   gnOpen("wrong", k.list());
 }
