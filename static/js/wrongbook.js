@@ -1,4 +1,4 @@
-// 错题本: 定冠词、复数、现在时、完成时、动词搭配、听写的错题放在一页。
+// 错题本: 定冠词、复数、现在时、完成时、动词搭配、听写、句子练习(三种题型, 没有错题时不显示)的错题放在一页。
 // 每类: 错题数、前几个词、“练一组”(用这类练习的错题本范围出题)、“全部”(gnouns.js 的单词列表页)
 // 数据都来自各练习现有的接口: {api}/books 的 wrong, {api}/words?scope=wrong
 const WRONG_KINDS = [
@@ -14,6 +14,8 @@ const WRONG_KINDS = [
     list: () => USAGE_LIST, topic: "verb-usage" },
   { name: "听写", sub: "听发音写单词", tile: { text: "听" }, api: "/api/dictation",
     list: () => DICT_LIST, dict: true },
+  ...Object.entries(S_MODES).map(([mode, m]) => ({ name: m.name, sub: "句子练习", tile: m.ico, api: "/api/sentences/" + mode,
+    list: () => S_LISTS[mode], sent: mode, hideEmpty: true })),
 ];
 const WRONG_PREVIEW = 8;   // 每类先显示几个词
 
@@ -21,6 +23,7 @@ const WRONG_PREVIEW = 8;   // 每类先显示几个词
 function wrongStart(k) {
   if (k.plural) return pStart("wrong");
   if (k.dict) return dStart("wrong");
+  if (k.sent) { sMode = k.sent; return sGo("wrong"); }
   gTopic = GRAMMAR_TOPICS.find(t => t.id === k.topic);
   gScopeNow = "wrong";
   go("gquiz");
@@ -31,6 +34,7 @@ function wrongOpenList(k, books) {
   const items = scopeItems(books);
   if (k.plural) pScopes = items;
   else if (k.dict) dScopes = items;
+  else if (k.sent) { sScopes = items; sMode = k.sent; }
   else { gScopeList = items; gTopic = GRAMMAR_TOPICS.find(t => t.id === k.topic); }   // 列表页的“练习”按钮要知道是哪类
   gnOpen("wrong", k.list());
 }
@@ -45,6 +49,7 @@ onShow.wrong = async () => {
     const b = books[i];
     const n = b ? b.wrong : 0;
     total += n;
+    if (k.hideEmpty && !n) return;
     const card = document.createElement("div"); card.className = "card wrongkind";
     const head = document.createElement("div"); head.className = "wronghead";
     const tile = document.createElement("span"); tile.className = "tile44 " + (k.tile.cls || ""); tile.textContent = k.tile.text;

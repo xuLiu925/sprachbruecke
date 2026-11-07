@@ -238,10 +238,10 @@ const PRACTICE_GROUPS = [
     { tile: { text: "ich" }, name: "变位表练习", sub: "不同人称的现在时", to: () => openForms("verbs", "动词变位"), admin: true },
   ] },
   { title: "句子", sub: "用学过的词造句", items: [
-    { tile: { text: "__" }, name: "句子练习", sub: "填空、连词成句、中译德", to: () => go("sentence") },
+    { tile: { text: "__" }, name: "句子练习", sub: "填空、连词成句、中译德", to: () => go("sentence"), wrong: "sent" },
   ] },
   { title: "听说", sub: "耳朵和嘴巴", items: [
-    { tile: { text: "听" }, name: "听写", sub: "听发音写单词", to: () => go("dictation") },
+    { tile: { text: "听" }, name: "听写", sub: "听发音写单词", to: () => go("dictation"), wrong: "dict" },
     { tile: { text: "说" }, name: "整句复习", sub: "情景对话里的句子，限时开口说", to: () => rpOpen(null), due: "rp" },
   ] },
 ];
@@ -268,9 +268,10 @@ const practiceItems = {}, adminRows = [];
 onShow.practice = async () => {
   adminRows.forEach(r => r.classList.toggle("hidden", !isAdmin));
   const get = url => api(url).catch(() => null);
-  const [noun, plural, verb, perf, usage, rp] = await Promise.all([
+  const [noun, plural, verb, perf, usage, rp, dict, ...sent] = await Promise.all([
     get("/api/grammar/nouns/books"), get("/api/plural/books"), get("/api/grammar/verbs/books"),
-    get("/api/grammar/perfekt/books"), get("/api/grammar/usage/books"), get("/api/roleplay/due?count=1")]);
+    get("/api/grammar/perfekt/books"), get("/api/grammar/usage/books"), get("/api/roleplay/due?count=1"),
+    get("/api/dictation/books"), ...Object.keys(S_MODES).map(m => get(`/api/sentences/${m}/books`))]);
   const w = b => b ? b.wrong : 0;
   const n = { noun: w(noun), plural: w(plural), verb: w(verb) };
   for (const k of ["noun", "plural", "verb"]) setBadge(practiceItems[k], n[k] ? "错题 " + n[k] : "");
@@ -278,9 +279,14 @@ onShow.practice = async () => {
   setBadge(practiceItems.usage, w(usage) ? "错题 " + w(usage) : "");
   setBadge(practiceItems.rp, rp && rp.count ? "到期 " + rp.count : "");
   n.verbAll = n.verb + w(perf) + w(usage);   // 错题本卡片上的“动词” = 现在时 + 完成时 + 搭配
-  $("pWrongSum").textContent = n.noun + n.plural + n.verbAll;
+  n.dict = w(dict);
+  n.sent = sent.reduce((t, b) => t + w(b), 0);    // 句子练习三种题型加起来
+  setBadge(practiceItems.dict, n.dict ? "错题 " + n.dict : "");
+  setBadge(practiceItems.sent, n.sent ? "错题 " + n.sent : "");
+  n.other = n.dict + n.sent;                      // 错题本卡片上的“其他” = 听写 + 句子
+  $("pWrongSum").textContent = n.noun + n.plural + n.verbAll + n.other;
   const box = $("pWrong"); box.textContent = "";
-  for (const [k, label] of [["noun", "冠词"], ["plural", "复数"], ["verbAll", "动词"]]) {
+  for (const [k, label] of [["noun", "冠词"], ["plural", "复数"], ["verbAll", "动词"], ["other", "听写·句子"]]) {
     const b = document.createElement("button");
     const num = document.createElement("b"); num.textContent = n[k];
     const t = document.createElement("small"); t.textContent = label;

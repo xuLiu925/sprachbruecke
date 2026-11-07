@@ -620,6 +620,25 @@ c.post("/api/words", json={"german": "lesen", "pos": "动词", "meaning": "读",
 q = J(c.get("/api/sentences?mode=cloze"))["questions"]
 assert len(q) == 1 and q[0]["blank"]["answer"] == "lese" and q[0]["tokens"] == ["Ich", "lese", "gern", "Bücher"]
 assert J(cb.get("/api/sentences?mode=cloze"))["questions"] == []  # 别人的私有词不出现
+# 练习范围、记录、错题本: 每种题型分开
+lw = q[0]["word_id"]
+assert c.get("/api/sentences?mode=cloze&scope=x").status_code == 400 and c.get("/api/sentences/x/books").status_code == 404
+sb = J(c.get("/api/sentences/cloze/books"))
+assert sb["books"][-1]["book"] == "all" and sb["books"][-1]["nouns"] >= 1 and sb["wrong"] == 0
+assert c.post("/api/sentences/cloze/result", json={"word_id": lw, "ok": 1}).status_code == 400
+assert c.post("/api/sentences/cloze/result", json={"word_id": 99999999, "ok": True}).status_code == 404
+assert c.post("/api/sentences/cloze/result", json={"word_id": lw, "ok": False}).status_code == 200
+assert J(c.get("/api/sentences/cloze/books"))["wrong"] == 1 and J(c.get("/api/sentences/order/books"))["wrong"] == 0
+assert [x["word_id"] for x in J(c.get("/api/sentences?mode=cloze&scope=wrong"))["questions"]] == [lw]
+assert J(c.get("/api/sentences?mode=order&scope=wrong"))["questions"] == []
+assert len(J(c.get("/api/sentences?mode=cloze&scope=all&tz=0"))["questions"]) == 1  # 没到期的也拿来补满
+assert len(J(c.get("/api/sentences?mode=order&scope=all&tz=0"))["questions"]) == 1  # 别的题型照常出
+sw = J(c.get("/api/sentences/cloze/words?scope=wrong"))
+assert sw["total"] == 1 and sw["words"][0]["wrong"] == 1 and not sw["words"][0]["manual"]
+assert c.delete(f"/api/sentences/cloze/list/{lw}").status_code == 200 and J(c.get("/api/sentences/cloze/books"))["wrong"] == 0
+assert J(c.post("/api/sentences/translate/list", json={"text": "lesen, Gibtsnichtxyz"}))["missing"] == ["Gibtsnichtxyz"]
+assert J(c.get("/api/sentences/translate/books"))["wrong"] == 1 and J(c.get("/api/sentences/translate/words?scope=wrong"))["words"][0]["manual"]
+c.delete(f"/api/sentences/translate/list/{lw}")
 c.delete(f"/api/words/{q[0]['word_id']}")
 assert J(c.get("/api/sentences?mode=order"))["questions"] == []   # 删掉的词不出现
 

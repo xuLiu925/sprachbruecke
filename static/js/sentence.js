@@ -1,4 +1,5 @@
-// 句子练习: 填空 / 排序 / 中译德(不影响复习计划)
+// 句子练习: 填空 / 排序 / 中译德(不影响今日学习)。入口页 #sentence 选题型和练习范围, 答题页 #squiz
+// 后端 sentences.py 按词 + 题型用 FSRS 排期, 每种题型一本错题本; 答错的本组最后再练一次, 只记第一次作答
 const S_MODES = {
   cloze:     { ico: { text: "__" }, name: "句子填空", sub: "看中文，填出句子里缺的词（要写对变位和变格）" },
   order:     { ico: { text: "1·2" }, name: "连词成句", sub: "把打乱的词排成正确的句子，练语序" },
@@ -9,18 +10,53 @@ let sAnswers = [];    // sAnswers[i] = { ok, input, picked, msg }; ok 为 null =
 let sPool = [], sPicked = [];   // 排序题: 打乱后的顺序、已选的(都是 tokens 的下标)
 let sPreset = null;   // 情景课自带的题目 {mode, name, questions}; null = 向服务器要题。rules = 复数练习(规律提示、记录作答)
 
+// ---------- 入口页: 题型 + 练习范围 ----------
+let sScopes = [], sScopeNow = "", sScopeRun = "";
+const sModeItems = {};
 for (const [mode, m] of Object.entries(S_MODES)) {
-  $("sList").appendChild(listItem(m.ico, m.name, m.sub, () => { sMode = mode; sPreset = null; go("squiz"); }));
+  const it = listItem(m.ico, m.name, m.sub, () => sPickMode(mode));
+  sModeItems[mode] = it;
+  $("sList").appendChild(it);
 }
+// 错题本页、单词列表页用: 每种题型一份, api 里带题型
+const S_LISTS = Object.fromEntries(Object.keys(S_MODES).map(mode => [mode, {
+  api: "/api/sentences/" + mode, scopes: () => sScopes, unit: "词", sample: "例如：Palette, abholen, schnell",
+  start(scope) { sMode = mode; sScopeNow = scope; setSetting("sScope", scope); sGo(scope); },
+}]));
+function sGo(scope) { sPreset = null; sScopeRun = scope; go("squiz"); }
+
+async function sLoadScopes() {
+  for (const [mode, it] of Object.entries(sModeItems)) it.classList.toggle("current", mode === sMode);
+  let r;
+  try { r = await api(`/api/sentences/${sMode}/books`); } catch (e) { return toast(e.message); }
+  sScopes = scopeItems(r);
+  const saved = getSetting("sScope");
+  sScopeNow = sScopes.some(x => x.id === saved) ? saved : r.current;
+  sShowScopes();
+}
+function sShowScopes() {
+  scopeInto($("sScope"), sScopes, sScopeNow, id => { sScopeNow = id; setSetting("sScope", id); sShowScopes(); },
+            id => gnOpen(id, S_LISTS[sMode]));
+}
+function sPickMode(mode) { sMode = mode; setSetting("sMode", mode); sLoadScopes(); }
+onShow.sentence = () => {
+  const saved = getSetting("sMode");
+  if (S_MODES[saved]) sMode = saved;
+  sLoadScopes();
+};
+$("sStartBtn").onclick = () => { if (sScopeNow) sGo(sScopeNow); };
 
 async function sStart() {
   if (sPreset) sMode = sPreset.mode;
+  else if (!sScopeRun && S_MODES[getSetting("sMode")]) sMode = getSetting("sMode");   // 直接刷新答题页
   $("title").textContent = sPreset ? sPreset.name : S_MODES[sMode].name;
   $("sqBox").classList.add("hidden");
   $("sqDone").classList.add("hidden");
   if (sPreset && sPreset.questions) sq = sPreset.questions;
   else try {
-    sq = (await api(sPreset ? sPreset.url : "/api/sentences?mode=" + sMode)).questions;   // 词形练习每组重新要题
+    const scope = sScopeRun || getSetting("sScope") || "";         // 直接刷新答题页时用上次的范围
+    sq = (await api(sPreset ? sPreset.url                           // 词形练习每组重新要题
+      : `/api/sentences?mode=${sMode}&scope=${encodeURIComponent(scope)}&${tzQuery()}`)).questions;
   } catch (e) { toast(e.message); return; }
   si = 0; sAnswers = [];
   sRender();
@@ -133,9 +169,17 @@ function sCheck() {
   sSubmit(q, a);
 }
 
+// 对错定下来以后(自评的题等用户选了): 记一次作答, 答错的排到本组最后再练一次。情景课、词形练习等 sPreset 的题不记
+function sDecided(q, ok) {
+  if (sPreset || q.retry || !q.word_id) return;
+  api(`/api/sentences/${sMode}/result`, "POST", { word_id: q.word_id, ok }).catch(() => {});
+  if (!ok) sq.push({ ...q, retry: true });
+}
+
 function sSubmit(q, a) {
   sAnswers[si] = a;
   if (sPreset && sPreset.onAnswer && !q.retry) sPreset.onAnswer(q, a.ok);
+  if (a.ok !== null) sDecided(q, a.ok);
   sRuleHint();
   $("sqIn").readOnly = sMode !== "order";
   $("sqIn").blur();                 // 离开输入框, 快捷键才生效
@@ -176,6 +220,7 @@ function sSelf(ok) {
   const a = sAnswers[si];
   if (!a || a.ok !== null) return;
   a.ok = ok;
+  sDecided(sq[si], ok);
   sShow(sq[si], a);
 }
 $("sqSelfYes").onclick = () => sSelf(true);
@@ -196,7 +241,9 @@ function sFinish() {
       box.appendChild(line);
     }
   } else if (sq.length) box.textContent = "全部答对了";
-  else box.textContent = sPreset ? (sPreset.empty || "这一课没有这种题。") : "这种题需要带中文翻译的例句，换一本单词书试试。";
+  else box.textContent = sPreset ? (sPreset.empty || "这一课没有这种题。")
+    : sScopeRun === "wrong" ? "错题本是空的，换个范围继续练。" : "这种题需要带中文翻译的例句，换一本单词书试试。";
+  if (wrong.length && !sPreset) box.append(document.createElement("div"), "答错的词已经加进这种题型的错题本。");
 }
 
 // 回车 检查 / 下一题(在输入框里也有效)

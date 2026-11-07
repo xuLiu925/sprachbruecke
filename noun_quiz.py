@@ -221,9 +221,14 @@ def memory_rating(ok, number, hinted, kind, article=False):
     return None if kind == "case" else 1
 
 
-def update_practice(db, uid, word_id, rating, table="noun_practice"):
-    """table: 动词练习也用这套规则, 记在 verb_practice"""
-    row = db.execute(f"SELECT * FROM {table} WHERE user_id = ? AND word_id = ?", (uid, word_id)).fetchone()
+def update_practice(db, uid, word_id, rating, table="noun_practice", keys=None):
+    """table: 动词练习、听写、句子练习也用这套规则, 各记各的表。
+    keys = 除 user_id / word_id 外的主键列, 如句子练习的 {"mode": "cloze"}"""
+    keys = keys or {}
+    names = list(keys)
+    where = "".join(f" AND {k} = ?" for k in names)
+    row = db.execute(f"SELECT * FROM {table} WHERE user_id = ? AND word_id = ?{where}",
+                     (uid, word_id, *keys.values())).fetchone()
     p = dict(row) if row else {"seen": 0, "wrong": 0, "streak": 0, "stability": None, "difficulty": None,
                                "last_review": None, "next_review": None, "weak": 0}
     now = datetime.now(timezone.utc)
@@ -242,13 +247,14 @@ def update_practice(db, uid, word_id, rating, table="noun_practice"):
             p["weak"] = 1
         elif p["stability"] >= WEAK_DONE_S:
             p["weak"] = 0
+    cols = "".join(f", {k}" for k in names)
     db.execute(
-        f"INSERT INTO {table} (user_id, word_id, seen, wrong, streak, last_at, stability, difficulty, "
-        "last_review, next_review, weak) VALUES (?,?,1,?,?,?,?,?,?,?,?) "
-        "ON CONFLICT(user_id, word_id) DO UPDATE SET seen = seen + 1, wrong = excluded.wrong, streak = excluded.streak, "
+        f"INSERT INTO {table} (user_id, word_id{cols}, seen, wrong, streak, last_at, stability, difficulty, "
+        f"last_review, next_review, weak) VALUES (?,?{',?' * len(names)},1,?,?,?,?,?,?,?,?) "
+        f"ON CONFLICT(user_id, word_id{cols}) DO UPDATE SET seen = seen + 1, wrong = excluded.wrong, streak = excluded.streak, "
         "last_at = excluded.last_at, stability = excluded.stability, difficulty = excluded.difficulty, "
         "last_review = excluded.last_review, next_review = excluded.next_review, weak = excluded.weak",
-        (uid, word_id, p["wrong"], p["streak"], fmt_time(now), p["stability"], p["difficulty"], p["last_review"],
+        (uid, word_id, *keys.values(), p["wrong"], p["streak"], fmt_time(now), p["stability"], p["difficulty"], p["last_review"],
          p["next_review"], p["weak"]),
     )
 

@@ -412,6 +412,30 @@ CREATE TABLE IF NOT EXISTS dict_list (
     added_at TEXT NOT NULL,
     PRIMARY KEY (user_id, word_id)
 );
+-- 句子练习记录(按词 + 题型: cloze 填空 / order 连词成句 / translate 中译德), 其他字段含义同 noun_practice。见 sentences.py
+CREATE TABLE IF NOT EXISTS sent_practice (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    mode TEXT NOT NULL,
+    seen INTEGER NOT NULL DEFAULT 0,
+    wrong INTEGER NOT NULL DEFAULT 0,
+    streak INTEGER NOT NULL DEFAULT 0,
+    last_at TEXT NOT NULL,
+    stability REAL,
+    difficulty REAL,
+    last_review TEXT,
+    next_review TEXT,
+    weak INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, word_id, mode)
+);
+-- 手动加进句子错题本的词(每种题型各一本)
+CREATE TABLE IF NOT EXISTS sent_list (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    mode TEXT NOT NULL,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, word_id, mode)
+);
 -- 完成时练习记录, 字段含义同 verb_practice。作答明细也在 verb_answers(tense = 'perfekt', kind = aux / part / person)
 CREATE TABLE IF NOT EXISTS perfekt_practice (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -516,7 +540,7 @@ def rebuild_words(db):
 
 USER_WORD_TABLES = ("progress", "review_log", "study_queue", "noun_practice", "noun_list", "plural_practice",
                     "plural_list", "verb_practice", "verb_answers", "verb_list", "perfekt_practice", "perfekt_list", "usage_practice", "usage_list",
-                    "dict_practice", "dict_list",
+                    "dict_practice", "dict_list", "sent_practice", "sent_list",
                     "user_hidden_words", "user_word_edits")
 
 

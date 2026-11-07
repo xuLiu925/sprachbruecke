@@ -201,7 +201,7 @@ button.gcell { display:flex; flex-direction:column; align-items:flex-start; gap:
 /* ---------- 练习 ---------- */
 .wronghead { display:flex; align-items:center; gap:10px; }
 .wronghead > b { font-size:17px; }
-.wrong3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-top:14px; }
+.wrong3 { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; margin-top:14px; }
 .wrong3 button { display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:10px 12px;
   background:var(--bg); color:var(--text); border-radius:12px; }
 .wrong3 button b { font-size:18px; }
