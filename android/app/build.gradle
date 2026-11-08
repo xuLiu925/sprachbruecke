@@ -16,8 +16,8 @@ android {
         applicationId "de.sprachbruecke.tongde"   // 发出去以后不能再改, 改了就是另一个 App
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2        // 1.1 (2026-11-08): 启动背景改成蓝色 + 图标
+        versionName "1.1"
     }
 
     buildFeatures { buildConfig true }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 不用 AndroidX, 只用系统自带主题, 安装包才几十 KB; Android 12 以上深色模式用这份 -->
+    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#0f1b26</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:windowBackground">@drawable/splash</item>
+        <item name="android:windowSplashScreenBackground">#0f1b26</item>
+    </style>
+</resources>

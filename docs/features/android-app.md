@@ -18,6 +18,7 @@
 |---|---|
 | `android/` | 安卓壳项目，不用 AndroidX、不用 Capacitor，只用系统自带的 `WebView` 和主题，所以安装包很小。`applicationId` = `de.sprachbruecke.tongde`（发出去以后不能改，改了就是另一个 App） |
 | `android/app/src/main/java/.../MainActivity.java` | 打开 `https://tongde.pages.dev/`；User-Agent 末尾加 `TongdeApp/版本`（网页据此不显示安装提示）；`http/https` 链接都在 App 里打开（包括 Stripe 付款页）；`intent://`、`alipays://`、`weixin://`、`mailto:` 等交给对应 App，没装就提示，`intent://` 有 `browser_fallback_url` 时退回网页；下载链接交给浏览器；主页面打不开时显示“连不上服务器 / 重试”；返回键先在网页里后退；切到后台时把 cookie 写盘（不用重新登录） |
+| `android/app/src/main/res/` | 启动背景 `drawable/splash.xml`（蓝底 `#1f4e78` + 图标，深色模式 `drawable-night/` 用 `#0f1b26`），在 `values*/styles.xml` 里当 `windowBackground`；安卓 12 以上系统自己画启动画面，底色由 `values-v31/` 的 `windowSplashScreenBackground` 定，不设会是白色。WebView 背景透明，网页画出来之前露出启动背景，接着是网页自己的启动画面（`index.html` 的 `#splash`，同色），从点开到页面出来不闪白 |
 | `android/app/build.gradle` | minSdk 24（安卓 7）、targetSdk 34、compileSdk 34，AGP 8.5.2。签名读 `android/keystore.properties`（或环境变量 `TONGDE_STORE_PASS` 等） |
 | `android/build-apk.bat` | 电脑上双击打包：低优先级、单进程跑 Gradle，结果复制到 `static/tongde.apk` |
 | `app.py` 的 `/tongde.apk` | 下载安装包（`application/vnd.android.package-archive`，不缓存）。安装包不进 git，随 `deploy.bat` 打包的 `static/` 一起上传 |
@@ -38,3 +39,4 @@
 ## 变更记录
 
 - 2026-11-06：第一版。自己写的 WebView 壳（没用 Capacitor，省掉 npm 依赖，安装包 12 KB），本机打包签名，放在服务器 `/tongde.apk`；安卓上浏览器不能一键安装时，安装提示改成直接下载 App。
+- 2026-11-08：1.1（versionCode 2）。启动背景从白色改成蓝底 + 图标，WebView 透明，和网页的启动画面接上，打开时不再白屏。签名和 1.0 相同，可以覆盖安装；已装的 App 不会自己更新，要重新下载 `/tongde.apk`。真手机上没看过。

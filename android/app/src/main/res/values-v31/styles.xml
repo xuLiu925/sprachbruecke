@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 不用 AndroidX, 只用系统自带主题, 安装包才几十 KB; Android 12 以上用这份 -->
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#1f4e78</item>
+        <item name="android:navigationBarColor">#ffffff</item>
+        <item name="android:windowBackground">@drawable/splash</item>
+        <!-- Android 12 起系统自己画启动画面(图标 + 底色), 底色不设会是白色 -->
+        <item name="android:windowSplashScreenBackground">#1f4e78</item>
+    </style>
+</resources>

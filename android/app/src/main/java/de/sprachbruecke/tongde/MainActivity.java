@@ -3,6 +3,7 @@ package de.sprachbruecke.tongde;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.CookieManager;
@@ -16,7 +17,7 @@ import android.widget.Toast;
 
 /**
  * 通德安卓 App: 全屏 WebView 打开网站, 网站更新后这里自动是新版。
- * 只有改这个壳(网址、跳转规则、图标)时才要重新打包。
+ * 只有改这个壳(网址、跳转规则、图标、启动背景)时才要重新打包, 记得把 build.gradle 的 versionCode 加 1。
  * - 网页里的 https 链接都在 App 里打开(包括 Stripe 付款页)
  * - alipays:// weixin:// intent:// mailto: 等交给手机上对应的 App
  * - User-Agent 末尾加 "TongdeApp/版本", 网页据此不显示“装到桌面”
@@ -29,6 +30,9 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         web = new WebView(this);
+        // 透明: 网页画出来之前露出窗口的启动背景(res/drawable/splash.xml, 蓝底 + 图标), 不闪白;
+        // 网页一到就显示同色的启动画面(index.html 的 #splash), 接得上
+        web.setBackgroundColor(Color.TRANSPARENT);
         setContentView(web);
 
         WebSettings s = web.getSettings();
