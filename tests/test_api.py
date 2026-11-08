@@ -409,6 +409,9 @@ vs = _re.findall(r'static/[\w./-]+\.(?:js|css)\?v=[0-9a-f]{10}', hh)
 assert len(vs) >= 20 and not _re.search(r'static/js/[\w-]+\.js"', hh)
 assert "immutable" in cd.get("/" + vs[0]).headers["Cache-Control"]
 assert "immutable" not in (cd.get("/static/js/core.js").headers.get("Cache-Control") or "")
+# 安卓 App 的最新版本(static/tongde.json, 打包时生成; 没有时 version 为 null), 不用登录
+av = J(A.app.test_client().get("/api/app/version"))
+assert av["url"] == "/tongde.apk" and "notes" in av and (av["version"] is None or isinstance(av["code"], int))
 # PWA: Service Worker 在根目录、不缓存; manifest 和图标都在
 r = cd.get("/sw.js")
 assert r.status_code == 200 and "javascript" in r.content_type and r.headers["Cache-Control"] == "no-cache"

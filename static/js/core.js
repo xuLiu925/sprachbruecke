@@ -399,6 +399,7 @@ async function boot() {
   if (user) checkPaid();
   installGate();
   if (user) maybeTour();   // guide.js: 第一次登录的功能导览
+  checkAppUpdate();   // 只在安卓 App 里: 有新版本时首页显示横幅
   showInstall();   // 游客首页 / 「我的」页的安装卡片
   if (inviteLink) {
     if (user) toast("你已经登录了；要用邀请链接注册新账号，先退出");
@@ -525,6 +526,51 @@ $("hInstallX").onclick = () => {
 };
 $("wInstall").onclick = doInstall;
 $("btnInstall").onclick = doInstall;
+
+// ---------- 安卓 App 更新(文档 docs/features/android-app.md) ----------
+// App 的 User-Agent 末尾是 TongdeApp/版本; /api/app/version 给最新版本(打包时 tools/apk_version.py 写的)。
+// 更新 = 打开 /tongde.apk, App 把下载交给浏览器, 下载完用户点开覆盖安装(签名相同, 数据和登录都在)。
+// 首页横幅点 × 后这个版本 7 天内不再提示; 「我的」页底部随时能手动检查
+const APP_VER = (navigator.userAgent.match(/TongdeApp\/([\d.]+)/) || [])[1] || "";
+const UPDATE_SNOOZE = "sb_appUpdateSkip";
+function verNewer(a, b) {   // a 比 b 新?
+  const x = a.split(".").map(Number), y = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  }
+  return false;
+}
+let appLatest = null;
+async function checkAppUpdate(manual) {
+  if (!IN_TONGDE_APP) return;
+  try { appLatest = await api("/api/app/version"); } catch (e) { if (manual) toast(e.message); return; }
+  const newer = !!appLatest.version && verNewer(appLatest.version, APP_VER || "0");
+  let skip = null;
+  try { skip = JSON.parse(localStorage.getItem(UPDATE_SNOOZE) || "null"); } catch (e) {}
+  const snoozed = skip && skip.v === appLatest.version && Date.now() < skip.until;
+  $("hUpdate").classList.toggle("hidden", !newer || snoozed || !user);
+  if (newer) {
+    $("hUpdateT").textContent = `App 有新版本 ${appLatest.version}`;
+    $("hUpdateN").textContent = appLatest.notes || "";
+  }
+  if (manual) {
+    if (!newer) return toast(`已经是最新版（${APP_VER || "?"}）`);
+    const notes = appLatest.notes ? "：\n" + appLatest.notes : "";
+    if (confirm(`有新版本 ${appLatest.version}${notes}\n\n现在下载更新吗？`)) doAppUpdate();
+  }
+}
+function doAppUpdate() {
+  toast("正在用浏览器下载，下载完点开安装包覆盖安装就行，数据和登录都会保留");
+  location.href = (appLatest && appLatest.url) || "/tongde.apk";
+}
+$("hUpdateBtn").onclick = doAppUpdate;
+$("hUpdateX").onclick = () => {
+  try { localStorage.setItem(UPDATE_SNOOZE, JSON.stringify({ v: appLatest.version, until: Date.now() + 7 * 86400000 })); } catch (e) {}
+  $("hUpdate").classList.add("hidden");
+};
+$("btnAppUpdate").onclick = () => checkAppUpdate(true);
+$("appVer").classList.toggle("hidden", !IN_TONGDE_APP);
+$("appVerT").textContent = "App 版本 " + (APP_VER || "?");
 
 function showInstall() {
   const done = !!IS_STANDALONE || installed;

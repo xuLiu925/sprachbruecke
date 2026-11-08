@@ -39,12 +39,13 @@
   vocab_seed.py  示例词和变格 / 变位
 """
 import hashlib
+import json
 import os
 import re
 import secrets
 from datetime import timedelta
 
-from flask import Flask, got_request_exception, request, send_from_directory
+from flask import Flask, got_request_exception, jsonify, request, send_from_directory
 
 import alerts
 import auth
@@ -170,6 +171,21 @@ def android_apk():
     # 安卓 App 安装包(android/build-apk.bat 生成, 不进 git, 随 deploy.bat 上传); 文档 docs/features/android-app.md
     resp = send_from_directory(app.static_folder, "tongde.apk", as_attachment=True, download_name="tongde.apk",
                                mimetype="application/vnd.android.package-archive")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@app.route("/api/app/version")
+def android_version():
+    """安卓 App 的最新版本 {version, code, notes}(tools/apk_version.py 打包时写 static/tongde.json);
+    没有这个文件时 version 为 null。App 里的网页拿它和自己 User-Agent 里的 TongdeApp/版本 比, 有新版就提示更新"""
+    try:
+        with open(os.path.join(app.static_folder, "tongde.json"), encoding="utf-8") as f:
+            info = json.load(f)
+    except (OSError, ValueError):
+        info = {}
+    resp = jsonify({"version": info.get("version"), "code": info.get("code"), "notes": info.get("notes") or "",
+                    "url": "/tongde.apk"})
     resp.headers["Cache-Control"] = "no-cache"
     return resp
 

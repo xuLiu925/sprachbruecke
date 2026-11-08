@@ -44,3 +44,4 @@ android/build/
 android/app/build/
 android/local.properties
 static/tongde.apk
+static/tongde.json

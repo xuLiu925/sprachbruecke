@@ -150,6 +150,13 @@
         <button id="hInstallBtn">安装</button>
         <button class="iconbtn" id="hInstallX" aria-label="先不装"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
+      <!-- 安卓 App 有新版本(只在 App 里显示, core.js 的 checkAppUpdate) -->
+      <div class="ibar hidden" id="hUpdate">
+        <img src="static/icons/icon-192.png" alt="">
+        <span class="ibar-t"><b id="hUpdateT">App 有新版本</b><small class="meta left" id="hUpdateN" style="display:block;margin:0"></small></span>
+        <button id="hUpdateBtn">更新</button>
+        <button class="iconbtn" id="hUpdateX" aria-label="以后再说"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
       <!-- 会员快到期 / 刚到期的提醒(home.js 的 showMemberWarn) -->
       <div class="card hidden" id="hMember">
         <div class="meta left" id="hMemberText" style="margin:0"></div>
@@ -393,6 +400,8 @@
       <button class="secondary big" id="btnTour">重新看功能介绍</button>
       <button class="danger big" id="btnLogout">退出登录</button>
       <p class="meta" style="font-size:12px;margin-top:20px">通德 Sprachbrücke v0.3 · by Liuxu</p>
+      <!-- 只在安卓 App 里显示: 当前版本 + 检查更新 -->
+      <p class="meta hidden" id="appVer" style="font-size:12px;margin-top:4px"><span id="appVerT"></span> · <button class="linkbtn" id="btnAppUpdate" style="font-size:12px">检查更新</button></p>
     </section>
 
     <!-- ===== 管理后台(只有管理员, admin.js) ===== -->

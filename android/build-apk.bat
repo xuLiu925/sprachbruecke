@@ -8,4 +8,6 @@ cd /d "%~dp0"
 start "" /low /wait /b cmd /c "D:\android-sdk\gradle-8.7\bin\gradle.bat --no-daemon --max-workers=1 -q assembleRelease"
 if not exist app\build\outputs\apk\release\app-release.apk (echo == BUILD FAILED & exit /b 1)
 copy /y app\build\outputs\apk\release\app-release.apk ..\static\tongde.apk >nul
+rem Version info for the in-app update prompt: static\tongde.json, read by /api/app/version
+..\.venv\Scripts\python.exe ..\tools\apk_version.py || (echo == VERSION FILE FAILED & exit /b 1)
 echo == OK: static\tongde.apk
