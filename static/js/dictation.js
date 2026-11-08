@@ -91,8 +91,9 @@ function dictLcs(a, b) {
   return [ka, kb];
 }
 // 写错时: “你写的”里多出来 / 写错的字母标红, “正确”里漏掉的字母标绿
-function dictDiff(input, want) {
-  const box = $("dictDiff"); box.textContent = "";
+// 句子练习的听音填空也用(box = 它自己的显示位置)
+function dictDiff(input, want, box = $("dictDiff")) {
+  box.textContent = "";
   const a = input.trim().replace(/\s+/g, " "), [ka, kb] = dictLcs([...a], [...want]);
   const line = (label, chars, keep, cls) => {
     const d = document.createElement("div");

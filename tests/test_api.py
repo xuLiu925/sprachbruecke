@@ -670,6 +670,12 @@ assert c.delete(f"/api/sentences/cloze/list/{lw}").status_code == 200 and J(c.ge
 assert J(c.post("/api/sentences/translate/list", json={"text": "lesen, Gibtsnichtxyz"}))["missing"] == ["Gibtsnichtxyz"]
 assert J(c.get("/api/sentences/translate/books"))["wrong"] == 1 and J(c.get("/api/sentences/translate/words?scope=wrong"))["words"][0]["manual"]
 c.delete(f"/api/sentences/translate/list/{lw}")
+# 听音填空(listen): 和填空一样要找得到空, 记录和错题本单独一份
+ql = J(c.get("/api/sentences?mode=listen&scope=all&tz=0"))["questions"]
+assert len(ql) == 1 and ql[0]["blank"]["answer"] == "lese" and ql[0]["zh"] == "我喜欢看书。"
+assert c.post("/api/sentences/listen/result", json={"word_id": lw, "ok": False}).status_code == 200
+assert J(c.get("/api/sentences/listen/books"))["wrong"] == 1 and J(c.get("/api/sentences/cloze/books"))["wrong"] == 0
+c.delete(f"/api/sentences/listen/list/{lw}")
 c.delete(f"/api/words/{q[0]['word_id']}")
 assert J(c.get("/api/sentences?mode=order"))["questions"] == []   # 删掉的词不出现
 

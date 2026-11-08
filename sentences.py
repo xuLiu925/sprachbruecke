@@ -1,11 +1,11 @@
-"""句子模块: 用词库里的例句出题(填空 / 排序 / 中译德)。只是练习, 不影响复习计划
+"""句子模块: 用词库里的例句出题(填空 / 排序 / 中译德 / 听音填空)。只是练习, 不影响复习计划
 
 例句来自 words.example 和 word_details.examples, 格式是「德语\\n中文」, 没有中文翻译的不用。
 都从 MY_WORDS 取词(vocab.query), 所以用户改过的例句算数, 删掉的词不出现。
 
 2026-11-07 起结构照听写(dictation.py): 练习范围(单词书 / 错题本)、按词 + 题型用 FSRS 排期(sent_practice)、
 错题本(答错过的 + 手动加的 sent_list), 每种题型分开记。每次从这个词的例句里随机挑一句, 不固定同一句。
-填空系统判对错; 连词成句、中译德和例句不同时由用户自评, 自评结果照样记。不影响今日学习。
+填空、听音填空系统判对错; 连词成句、中译德和例句不同时由用户自评, 自评结果照样记。不影响今日学习。
 """
 import json
 import random
@@ -23,7 +23,7 @@ from vocab import BOOKS, book_filter, current_book, query
 
 bp = Blueprint("sentences", __name__)
 
-MODES = {"cloze", "order", "translate"}
+MODES = {"cloze", "order", "translate", "listen"}   # listen = 听音填空(2026-11-08): 只放声音, 写出空里的词
 SCOPES = BOOKS + ["wrong"]
 ROUND_SIZE = 10       # 一组几题
 POOL_SIZE = 300       # 一次看多少个词(不是每个词都有能用的例句)
@@ -100,7 +100,7 @@ def make_questions(rows, mode, seen):
                 continue
             de, zh, tokens = parsed
             blank = find_blank(de, word_shapes(r["german"], r["pos"], r["plural"], r["forms"]))
-            if mode == "cloze" and blank is None:
+            if mode in ("cloze", "listen") and blank is None:
                 continue
             seen.add(de)
             out.append({"word_id": r["id"], "german": r["german"], "gender": r["gender"], "meaning": r["meaning"],
@@ -122,7 +122,7 @@ COLS = "w.id, w.german, w.pos, w.gender, w.plural, w.meaning, w.example, w.forms
 @bp.route("/api/sentences")
 @login_required
 def sentences():
-    """一组句子题 ?mode=cloze|order|translate&scope=单词书或 wrong: 每个词一题。
+    """一组句子题 ?mode=cloze|order|translate|listen&scope=单词书或 wrong: 每个词一题。
     到期的(最容易忘的优先) > 没练过的(今日学习学过的优先, 再按词频) > 未到期里最容易忘的。不带 scope 用当前单词书"""
     mode = request.args.get("mode", "cloze")
     if mode not in MODES:

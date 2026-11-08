@@ -238,10 +238,12 @@ const PRACTICE_GROUPS = [
     { tile: { text: "ich" }, name: "变位表练习", sub: "不同人称的现在时", to: () => openForms("verbs", "动词变位"), admin: true },
   ] },
   { title: "句子", sub: "用学过的词造句", items: [
-    { tile: { text: "__" }, name: "句子练习", sub: "填空、连词成句、中译德", to: () => go("sentence"), wrong: "sent" },
+    { tile: { text: "__" }, name: "句子练习", sub: "填空、连词成句、中译德、听音填空", to: () => go("sentence"), wrong: "sent" },
   ] },
   { title: "听说", sub: "耳朵和嘴巴", items: [
     { tile: { text: "听" }, name: "听写", sub: "听发音写单词", to: () => go("dictation"), wrong: "dict" },
+    // 句子练习的听音填空题型: 直接选好题型进句子练习入口页
+    { tile: { text: "句" }, name: "句子听力", sub: "听整句，写出空里的词", to: () => { setSetting("sMode", "listen"); go("sentence"); } },
     { tile: { text: "说" }, name: "整句复习", sub: "情景对话里的句子，限时开口说", to: () => rpOpen(null), due: "rp" },
   ] },
 ];
@@ -280,7 +282,7 @@ onShow.practice = async () => {
   setBadge(practiceItems.rp, rp && rp.count ? "到期 " + rp.count : "");
   n.verbAll = n.verb + w(perf) + w(usage);   // 错题本卡片上的“动词” = 现在时 + 完成时 + 搭配
   n.dict = w(dict);
-  n.sent = sent.reduce((t, b) => t + w(b), 0);    // 句子练习三种题型加起来
+  n.sent = sent.reduce((t, b) => t + w(b), 0);    // 句子练习四种题型加起来
   setBadge(practiceItems.dict, n.dict ? "错题 " + n.dict : "");
   setBadge(practiceItems.sent, n.sent ? "错题 " + n.sent : "");
   n.other = n.dict + n.sent;                      // 错题本卡片上的“其他” = 听写 + 句子

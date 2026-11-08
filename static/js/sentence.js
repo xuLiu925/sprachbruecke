@@ -4,7 +4,11 @@ const S_MODES = {
   cloze:     { ico: { text: "__" }, name: "句子填空", sub: "看中文，填出句子里缺的词（要写对变位和变格）" },
   order:     { ico: { text: "1·2" }, name: "连词成句", sub: "把打乱的词排成正确的句子，练语序" },
   translate: { ico: { text: "中→德" }, name: "中译德", sub: "看中文写出整句德语，再和例句对照" },
+  listen:    { ico: { text: "听" }, name: "听音填空", sub: "听整句德语，写出空里的词（答完再看中文）" },
 };
+// 填空和听音填空: 题目是挖了一个空的句子, 系统判对错; 听音填空先放声音、不显示中文和提示
+const sBlankMode = () => sMode === "cloze" || sMode === "listen";
+const sPlay = rate => { if (si < sq.length) speakDe(sq[si].de, false, rate); };
 let sMode = "cloze", sq = [], si = 0;
 let sAnswers = [];    // sAnswers[i] = { ok, input, picked, msg }; ok 为 null = 等用户自己判断
 let sPool = [], sPicked = [];   // 排序题: 打乱后的顺序、已选的(都是 tokens 的下标)
@@ -84,14 +88,15 @@ function sRender() {
   $("sqRuleRow").classList.toggle("hidden", !(sPreset && sPreset.rules));
   $("sqRuleOn").checked = getSetting("pHints");
   sRuleHint();
-  $("sqZh").textContent = q.zh;
-  const cloze = sMode === "cloze", order = sMode === "order";
+  const listen = sMode === "listen", cloze = sBlankMode(), order = sMode === "order";
+  // 听音填空: 答完才显示中文(sShow 里换), 答题前只给一句说明
+  $("sqZh").textContent = listen && !a ? "听句子，写出空里的词" : q.zh;
   $("sqCloze").classList.toggle("hidden", !cloze);
-  $("sqHint").classList.toggle("hidden", !cloze);
-  if (cloze) {
-    $("sqCloze").textContent = q.blank.before + "_____" + q.blank.after;
-    $("sqHint").textContent = `提示：${wordText(q)}（${q.meaning}）`;
-  }
+  $("sqHint").classList.toggle("hidden", sMode !== "cloze");
+  $("sqListen").classList.toggle("hidden", !listen || !!a);
+  if (cloze) $("sqCloze").textContent = q.blank.before + "_____" + q.blank.after;
+  if (sMode === "cloze") $("sqHint").textContent = `提示：${wordText(q)}（${q.meaning}）`;
+  if (listen && !a) sPlay();
   $("sqTyping").classList.toggle("hidden", order);
   $("sqOrder").classList.toggle("hidden", !order);
   $("sqAnswer").classList.add("hidden");
@@ -157,10 +162,10 @@ function sCheck() {
   } else {
     const input = $("sqIn").value;
     if (!input.trim()) return $("sqIn").focus();
-    if (sMode === "cloze") {
+    if (sBlankMode()) {
       const results = (q.accept || [q.blank.answer]).map(x => checkSpell({ german: x, gender: "" }, input));
       const r = results.find(x => x.ok) || results[0];     // 有的词两种写法都对
-      a = { ok: r.ok, input, msg: r.msg };
+      a = { ok: r.ok, input, msg: r.msg, want: q.blank ? q.blank.answer : "" };
     } else {
       const same = sPlain(input) === sPlain(q.de);
       a = { ok: same ? true : null, input, msg: same ? "✓ 和例句一样" : "请和例句对照：" };
@@ -185,7 +190,7 @@ function sSubmit(q, a) {
   $("sqIn").blur();                 // 离开输入框, 快捷键才生效
   if (sMode === "order") sRenderChips();
   sShow(q, a);
-  if (getSetting("autoExample")) speakDe(q.de);
+  if (getSetting("autoExample") && sMode !== "listen") speakDe(q.de);   // 听音填空刚听过, 不再自动读
 }
 
 // 不会: 直接看答案, 算答错, 结尾进“再看一遍”
@@ -200,6 +205,10 @@ $("sqNext").onclick = sCheck;
 function sShow(q, a) {
   $("sqResult").textContent = a.msg;
   $("sqResult").className = a.ok === false ? "msg" : a.ok ? "ok" : "";
+  // 听音填空写错了: 和听写一样标出错的字母; 中文这时才显示
+  const diff = sMode === "listen" && a.ok === false && a.input && a.input.trim() && a.want;
+  if (diff) dictDiff(a.input, a.want, $("sqDiff")); else $("sqDiff").classList.add("hidden");
+  if (sMode === "listen") { $("sqZh").textContent = q.zh; $("sqListen").classList.add("hidden"); }
   exampleInto($("sqDe"), q.de, null);
   // 词形练习的答案只是一个词组, 不用讲解
   exampleExplain($("sqDe"), sPreset && sPreset.url ? "" : `${q.de}\n${q.zh}`);
@@ -225,7 +234,9 @@ function sSelf(ok) {
 }
 $("sqSelfYes").onclick = () => sSelf(true);
 $("sqSelfNo").onclick = () => sSelf(false);
-$("sqSay").onclick = () => { if (si < sq.length) speakDe(sq[si].de); };
+$("sqSay").onclick = () => sPlay();
+$("sqPlay").onclick = () => { sPlay(); $("sqIn").focus(); };
+$("sqSlow").onclick = () => { sPlay(0.6); $("sqIn").focus(); };
 $("sqBack").onclick = () => { if (si > 0) { si--; sRender(); } };   // 只回看, 不能改答案
 
 function sFinish() {
@@ -248,8 +259,11 @@ function sFinish() {
 
 // 回车 检查 / 下一题(在输入框里也有效)
 $("sqIn").onkeydown = e => {
-  if (e.key === "?" && sMode === "cloze" && !e.isComposing) {     // 填空题里问号不是答案, 中译德要能打问号
+  if (e.key === "?" && sBlankMode() && !e.isComposing) {     // 填空题里问号不是答案, 中译德要能打问号
     e.preventDefault(); e.stopPropagation(); sGiveUp(); return;
+  }
+  if (e.key === "Enter" && e.ctrlKey && sMode === "listen") {      // Ctrl+回车 再听一遍(和听写一样)
+    e.preventDefault(); e.stopPropagation(); sPlay(); return;
   }
   if (e.key !== "Enter" || e.isComposing) return;
   e.preventDefault(); e.stopPropagation(); sCheck();
@@ -260,7 +274,7 @@ onKey.squiz = (e, typing) => {
   if (e.key === "?" && !a) { sGiveUp(); return true; }
   if (e.key === "Enter" || e.key === " ") { sCheck(); return true; }
   if (pending && (e.key === "1" || e.key === "2")) { sSelf(e.key === "1"); return true; }
-  if (a && e.key.toLowerCase() === "p") { $("sqSay").click(); return true; }
+  if ((a || sMode === "listen") && e.key.toLowerCase() === "p") { sPlay(); return true; }   // 听音填空答题前也能再听
   if (sMode !== "order" || a) return false;
   if (e.key === "Backspace" && sPicked.length) { sPicked.pop(); sRenderChips(); return true; }
   const left = sPool.filter(n => !sPicked.includes(n)), n = parseInt(e.key, 10);   // 数字键 = 选剩下的第几个词
