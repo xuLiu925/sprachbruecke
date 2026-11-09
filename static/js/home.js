@@ -58,6 +58,7 @@ onShow.home = async () => {
   const now = new Date();
   $("hDate").textContent = `${now.getMonth() + 1} 月 ${now.getDate()} 日 · 周${WEEKDAYS[now.getDay()]}`;
   showMemberWarn();
+  showPathCard("h");   // path.js: 学习路径的下一步
   const [s, t] = await Promise.all([loadStats(), api("/api/today?" + tzQuery())]);
   $("hStreakN").textContent = t.streak;
   $("hStreak").classList.toggle("off", !t.streak);
@@ -141,6 +142,7 @@ async function showRecommend() {
 onShow.learn = async () => {
   tipOnce("tip_search", "右上角的放大镜随时能查德语或中文，查到的词能直接加进学习（电脑上按 /）。");
   buildGrammarGrid();
+  showPathCard("l");
   const s = await loadStats();
   $("lBookCover").textContent = BOOK_COVERS[s.book] || s.book;
   $("lBookName").textContent = BOOK_NAMES[s.book];

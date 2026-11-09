@@ -182,6 +182,16 @@
         <button class="hero-btn" id="hStart">开始今天的学习</button>
       </div>
 
+      <!-- 学习路径: 现在在哪一级、下一步做什么(path.js) -->
+      <div id="hPathBox" class="hidden">
+        <h2>学习路径</h2>
+        <button class="card resume" id="hPath">
+          <span class="resumehead"><span class="rtag" id="hPathTag"></span><span class="meta" id="hPathPct"></span></span>
+          <b id="hPathNext"></b>
+          <span class="bar"><i id="hPathBar"></i></span>
+        </button>
+      </div>
+
       <!-- 接着上次: 最近打开的情景课, 学完了就是同一级的下一课(home.js 的 showResume) -->
       <div id="hResumeBox" class="hidden">
         <h2>接着上次</h2>
@@ -211,6 +221,13 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4.5 4.5"/></svg>
         查德语或中文，比如 abholen、仓库
       </button>
+
+      <h2>学习路径</h2>
+      <button class="card resume" id="lPath">
+          <span class="resumehead"><span class="rtag" id="lPathTag"></span><span class="meta" id="lPathPct"></span></span>
+          <b id="lPathNext"></b>
+          <span class="bar"><i id="lPathBar"></i></span>
+        </button>
 
       <div class="shead"><h2>单词书</h2><button class="pillbtn" id="lBookSwitch"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>换一本</button></div>
       <div class="card bookcard">
@@ -283,6 +300,36 @@
     </section>
 
     <!-- ===== 选择单词书 ===== -->
+    <!-- ===== 学习路径(path.js) ===== -->
+    <section class="page" data-page="path">
+      <div class="chips wrap" id="paLevels"></div>
+      <div class="card">
+        <div class="resumehead"><b id="paTitle" style="font-size:18px"></b><span class="meta" id="paPct"></span></div>
+        <div class="bar" style="margin:10px 0"><i id="paBar" style="background:var(--accent)"></i></div>
+        <p class="meta left" id="paNextLabel" style="margin:0 0 8px">下一步</p>
+        <button class="big" id="paNext"></button>
+      </div>
+      <h2 class="glabel">单词</h2>
+      <div class="card">
+        <div class="resumehead"><b id="paWordsT"></b><span class="meta" id="paWordsN"></span></div>
+        <div class="bar" style="margin:10px 0"><i id="paWordsBar" style="background:var(--accent)"></i></div>
+        <p class="meta left hidden" id="paBookNote" style="margin:0 0 8px"></p>
+        <button class="secondary" id="paWordsGo" style="width:100%"></button>
+      </div>
+      <div id="paGrammarBox">
+        <h2 class="glabel" id="paGrammarT">语法</h2>
+        <div class="card list" id="paGrammar"></div>
+      </div>
+      <div id="paLessonBox">
+        <h2 class="glabel" id="paLessonT">情景课</h2>
+        <div class="card list" id="paLessons"></div>
+      </div>
+      <p class="meta left hidden" id="paSoon"></p>
+      <h2 class="glabel">巩固练习（不计进度，随时练）</h2>
+      <div class="card list" id="paExtra"></div>
+      <p class="meta left" style="font-size:12px">完成标准：这一级的单词学过 80%，每个语法知识点有一组得分 80% 以上，情景课学完。知识点分到哪一级、先后顺序是按常见 A1–B1 教材整理的，仅供参考。</p>
+    </section>
+
     <section class="page" data-page="books">
       <div class="list" id="bookList"></div>
       <p class="meta left" style="line-height:1.6">
@@ -1080,6 +1127,7 @@
 <script src="static/js/search.js"></script>
 <script src="static/js/guide.js"></script>
 <script src="static/js/admin.js"></script>
+<script src="static/js/path.js"></script>
 <script src="static/js/boot.js"></script>
 </body>
 </html>

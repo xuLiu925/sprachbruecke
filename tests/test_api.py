@@ -2001,6 +2001,19 @@ tl = J(cl.get("/api/lessons"))
 assert tl["last"] == l1 and tl["done"] == [l0, l1]
 assert cl.post("/api/lessons/progress", json={"done": "x"}).status_code == 400
 assert A.app.test_client().post("/api/lessons/progress", json={"last": l0}).status_code == 401
+# 学习路径(learn_path.py): 每级的单词、语法、情景课; 语法成绩只留最好的, 不认识的知识点和坏数据跳过
+pa = J(cl.get("/api/path"))
+assert [x["level"] for x in pa["levels"]] == ["A1", "A2", "B1", "B2", "C1"] and pa["current"] == "A1"
+pa1 = pa["levels"][0]
+assert pa1["grammar"][0] == {"id": "art-def", "best": None, "done": False}
+assert sum(x["done"] for x in pa1["lessons"]) == sum(1 for x in pa1["lessons"] if x["id"] in (l0, l1))
+assert cl.post("/api/path/grammar", json={"items": "x"}).status_code == 400
+bp_ = J(cl.post("/api/path/grammar", json={"items": [["art-def", 7, 10], ["nope", 1, 1], ["neg", True, 1], ["time", 5, 3]]}))
+assert bp_["best"] == {"art-def": [7, 10]}
+assert J(cl.post("/api/path/grammar", json={"items": [["art-def", 9, 10], ["art-def", 1, 10]]}))["best"]["art-def"] == [9, 10]
+pa1b = J(cl.get("/api/path"))["levels"][0]
+assert pa1b["grammar"][0]["done"] and pa1b["percent"] > pa1["percent"]
+assert A.app.test_client().get("/api/path").status_code == 401
 
 # 试学: 游客能拿到 10 张卡、只能读试学的词; 登录后导入, 已学过的词和不在试学里的词跳过, 重复导入不再记
 guest = A.app.test_client()

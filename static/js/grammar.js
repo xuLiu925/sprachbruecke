@@ -492,6 +492,7 @@ function gDone() {
   if (!best || gScore / total > best[0] / best[1]) {
     try { localStorage.setItem("sb_gbest_" + gTopic.id, JSON.stringify([gScore, total])); } catch (e) {}
   }
+  pathSaveGrammar(gTopic.id, gScore, total);   // path.js: 存到服务器(学习路径看它算完成), 服务器只留最好的
   $("gqDoneMsg").textContent = gScore === total ? "全对了" : gWeakCell() + "错的地方回到速查表再看一眼，再练一次。";
 }
 $("gqAgain").onclick = () => onShow.gquiz();
