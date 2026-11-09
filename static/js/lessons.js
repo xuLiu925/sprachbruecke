@@ -163,11 +163,31 @@ $("lCloze").onclick = () => { sPreset = { mode: "cloze", name: "本课填空", q
 $("lOrder").onclick = () => { sPreset = { mode: "order", name: "本课连词成句", questions: lessonOrder(lessonNow) }; go("squiz"); };
 
 // ---------- 点词: 底部弹出单词卡 ----------
-function closeWordSheet() {
+// 打开时多一条浏览器历史(state.ws), 所以手机返回键先回上一张卡, 没有上一张就关掉卡片, 不会离开当前页面
+const wsOpen = () => !$("wsheet").classList.contains("hidden");
+function wsShow() {
+  if (!wsOpen()) history.pushState({ ...(history.state || {}), ws: true }, "");
+  $("wsheet").classList.remove("hidden");
+}
+// 只是藏起来, 不动浏览器历史: 换页、返回键已经退掉那条历史时用
+function wsHide() {
   $("wsheet").classList.add("hidden"); wsWord = null; wsSeq++; wsMoreReset();
   wsStack = []; wsNow = null; wsBackShow();
   spellReset($("wsSpell"));
 }
+// 用户关掉(×、点空白、Esc): 顺便退掉打开时多的那条历史
+function closeWordSheet() {
+  if (!wsOpen()) return;
+  wsHide();
+  if (history.state && history.state.ws) history.back();
+}
+window.addEventListener("popstate", () => {
+  const ws = !!(history.state && history.state.ws);
+  if (wsOpen() && !ws) {                     // 返回键: 有上一张卡就回去(历史再补一条), 没有就关掉
+    if (wsStack.length) { history.pushState({ ...(history.state || {}), ws: true }, ""); wsBack(); }
+    else wsHide();
+  } else if (!wsOpen() && ws) history.back();   // 卡片已经关了(比如从卡片进了详情页又回来): 跳过这条多出来的历史
+});
 const wsBox = () => $("wsheet").firstElementChild;
 function wsBackShow() {
   const prev = wsStack[wsStack.length - 1];
@@ -203,7 +223,7 @@ async function wsBack() {
 $("wsBack").onclick = wsBack;
 $("wsClose").onclick = closeWordSheet;
 $("wsheet").onclick = e => { if (e.target === $("wsheet")) closeWordSheet(); };
-window.addEventListener("hashchange", closeWordSheet);
+window.addEventListener("hashchange", wsHide);
 
 function wsButton(w) {
   const b = $("wsAdd");
@@ -248,15 +268,12 @@ function exampleExplain(el, text, level = "B1") {
   box.append(btn, note);
 }
 
-// 这些页面离开再回来会重新出题, 所以单词卡里不放“详情”, 免得丢掉正在做的这一组
-const wsCanLeave = () => !["review", "drill", "dquiz", "squiz", "gquiz"].includes(current);
-
 async function openWordSheet(token, line, back = false) {
   if (!back) wsEnter({ token, line, label: token });
   wsWord = null;
   const seq = ++wsSeq;
   const lemma = (line.map && line.map[token]) || LESSON_FORMS[token.toLowerCase()] || token;
-  $("wsheet").classList.remove("hidden");
+  wsShow();
   $("wsWord").textContent = token;
   $("wsPlural").textContent = ""; $("wsMeaning").textContent = "查询中…";
   $("wsLesson").textContent = (line.notes && line.notes[token]) || "";   // 冠词题的答案: 说明词形怎么来的
@@ -336,7 +353,7 @@ function openGlossaryWord(g, keep = false, back = false) {
   wsMoreReset();
   $("wsAlts").classList.add("hidden");
   $("wsAi").classList.add("hidden");
-  $("wsheet").classList.remove("hidden");
+  wsShow();
   wsLoads = fillWordCard("ws", g, { forms: false, example: false });
   $("wsExample").textContent = g.example || "";
   $("wsLesson").textContent = "";
@@ -396,7 +413,7 @@ function wsMoreReset() {
 function wsMoreFill(w) {
   fillWordMore("ws", w);
   exampleInto($("wsMoreEx"), w.example, null);
-  $("wsFull").classList.toggle("hidden", !wsCanLeave());
+  $("wsFull").classList.remove("hidden");   // 答题页去详情再按返回, 会接着做原来那一题(core.js 的 onResume)
   $("wsMore").classList.remove("hidden");
   $("wsView").textContent = "收起";
 }
@@ -412,9 +429,8 @@ $("wsView").onclick = async () => {
 $("wsFull").onclick = () => {
   if (!wsWord || !wsWord.id) return;
   const id = wsWord.id;
-  closeWordSheet();
-  if (current === "view") { viewingId = id; onShow.view(); window.scrollTo(0, 0); }   // 详情页里点词: 网址不变, 要手动刷新
-  else openView(id);
+  if (current === "view") { closeWordSheet(); viewingId = id; onShow.view(); window.scrollTo(0, 0); }   // 详情页里点词: 网址不变, 要手动刷新
+  else { wsHide(); openView(id); }   // 不退历史(会和换页抢), 回来时那条多出来的历史由 popstate 跳过
 };
 $("wsAdd").onclick = async () => {
   const w = wsWord;

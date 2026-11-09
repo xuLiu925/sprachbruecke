@@ -123,18 +123,34 @@ function showWeek(week) {
   $("hWeekSum").textContent = week.reduce((a, b) => a + b, 0);
 }
 
-// 推荐练习: 有错题或到期的句子才出现; 查询失败就不显示那一项
+// 今天还要练: 各练习自己的复习排期里今天到期的词(practice_due.py), 点了只练这些到期的(scope=due), 不用选范围
+// 复数练习还没有排期, 显示错题数; 整句复习用情景课自己的到期数。查询失败就不显示那一项
+const gStartDue = id => { gTopic = GRAMMAR_TOPICS.find(t => t.id === id); gScopeNow = "due"; go("gquiz"); };
+const sStartDue = mode => { sMode = mode; sGo("due"); };
+const DUE_PRACTICE = [
+  ["nouns", { text: "die", cls: "die" }, "定冠词", "个名词的词性", () => gStartDue("art-def")],
+  ["verbs", { text: "-st" }, "现在时变位", "个动词", () => gStartDue("verb-praes")],
+  ["perfekt", { text: "hat" }, "完成时", "个动词", () => gStartDue("perf-bank")],
+  ["usage", { text: "auf" }, "动词搭配", "个动词", () => gStartDue("verb-usage")],
+  ["dictation", { text: "听" }, "单词听写", "个词", () => dStart("due")],
+  ["sent-cloze", { text: "__" }, "句子填空", "个词", () => sStartDue("cloze")],
+  ["sent-listen", { text: "听" }, "句子听力", "个词", () => sStartDue("listen")],
+  ["sent-order", { text: "1·2" }, "连词成句", "个词", () => sStartDue("order")],
+  ["sent-translate", { text: "中→德" }, "中译德", "个词", () => sStartDue("translate")],
+];
 async function showRecommend() {
   const box = $("hRec");
   const get = url => api(url).catch(() => null);
-  const [noun, plural, verb, rp] = await Promise.all([get("/api/grammar/nouns/books"), get("/api/plural/books"),
-                                                     get("/api/grammar/verbs/books"), get("/api/roleplay/due?count=1")]);
+  const [due, plural, rp] = await Promise.all([get("/api/today/practice?" + tzQuery()), get("/api/plural/books"),
+                                               get("/api/roleplay/due?count=1")]);
   box.textContent = "";
   const add = (n, tile, title, sub, fn) => { if (n) box.appendChild(listItem(tile, title, sub, fn)); };
-  add(noun && noun.wrong, { text: "die", cls: "die" }, "冠词错题", `${noun && noun.wrong} 个词容易记错冠词，练一组巩固一下`, () => openTopic("art-def"));
-  add(plural && plural.wrong, { text: "-en", cls: "das" }, "复数错题", `${plural && plural.wrong} 个词的复数还没记住`, () => go("plural"));
-  add(verb && verb.wrong, { text: "-st" }, "动词变位错题", `${verb && verb.wrong} 个动词容易变错`, () => openTopic("verb-praes"));
+  for (const [key, tile, title, unit, fn] of DUE_PRACTICE) {
+    const n = due && due.due[key];
+    add(n, tile, title, `${n} ${unit}到了复习时间`, fn);
+  }
   add(rp && rp.count, { text: "说" }, "整句复习", `${rp && rp.count} 句情景对话到了复习时间`, () => rpOpen(null));
+  add(plural && plural.wrong, { text: "-en", cls: "das" }, "复数错题", `${plural && plural.wrong} 个词的复数还没记住`, () => go("plural"));
   $("hRecBox").classList.toggle("hidden", !box.children.length);
 }
 
@@ -225,27 +241,28 @@ const GROUP_EXAMPLES = { "冠词": "der die das", "代词": "ich · mich · mir"
 // admin = 只有管理员看得到(和别的练习重复, 先不给用户看, 以后决定合并还是去掉)
 const PRACTICE_GROUPS = [
   { title: "名词", sub: "冠词 · 复数 · 变格", items: [
-    { tile: { text: "die", cls: "die" }, name: "定冠词", sub: "der / die / das 和四个格", to: () => openTopic("art-def"), wrong: "noun" },
-    { tile: { text: "ein", cls: "der" }, name: "不定冠词 ein", sub: "ein / eine 的四个格", to: () => openTopic("art-indef") },
-    { tile: { text: "kein", cls: "der" }, name: "否定冠词 kein", sub: "kein / keine 的四个格", to: () => openTopic("art-kein") },
-    { tile: { text: "mein", cls: "der" }, name: "物主冠词", sub: "mein / dein / sein …", to: () => openTopic("art-poss") },
+    // 题库知识点直接开始(上次的范围), 答题页顶上能换范围; 讲解和速查表在“学习 → 语法”
+    { tile: { text: "die", cls: "die" }, name: "定冠词", sub: "der / die / das 和四个格", to: () => quickTopic("art-def"), wrong: "noun" },
+    { tile: { text: "ein", cls: "der" }, name: "不定冠词 ein", sub: "ein / eine 的四个格", to: () => quickTopic("art-indef") },
+    { tile: { text: "kein", cls: "der" }, name: "否定冠词 kein", sub: "kein / keine 的四个格", to: () => quickTopic("art-kein") },
+    { tile: { text: "mein", cls: "der" }, name: "物主冠词", sub: "mein / dein / sein …", to: () => quickTopic("art-poss") },
     { tile: { text: "-en", cls: "das" }, name: "复数", sub: "看规律写复数", to: () => go("plural"), wrong: "plural" },
     { tile: { text: "Akk" }, name: "变格", sub: "四个格的冠词和词尾", to: () => openForms("cases", "变格练习"), admin: true },
     { tile: { text: "?" }, name: "冠词快速选择", sub: "der / die / das 三选一", to: () => go("drill"), admin: true },
   ] },
   { title: "动词", sub: "变位 · 时态 · 搭配", items: [
-    { tile: { text: "-st" }, name: "现在时变位", sub: "du kommst, er arbeitet", to: () => openTopic("verb-praes"), wrong: "verb" },
-    { tile: { text: "hat" }, name: "完成时", sub: "haben 还是 sein，过去分词", to: () => openTopic("perf-bank"), wrong: "perf" },
-    { tile: { text: "auf" }, name: "动词搭配", sub: "warten auf + 第四格", to: () => openTopic("verb-usage"), wrong: "usage" },
+    { tile: { text: "-st" }, name: "现在时变位", sub: "du kommst, er arbeitet", to: () => quickTopic("verb-praes"), wrong: "verb" },
+    { tile: { text: "hat" }, name: "完成时", sub: "haben 还是 sein，过去分词", to: () => quickTopic("perf-bank"), wrong: "perf" },
+    { tile: { text: "auf" }, name: "动词搭配", sub: "warten auf + 第四格", to: () => quickTopic("verb-usage"), wrong: "usage" },
     { tile: { text: "ich" }, name: "变位表练习", sub: "不同人称的现在时", to: () => openForms("verbs", "动词变位"), admin: true },
   ] },
   { title: "句子", sub: "用学过的词造句", items: [
     { tile: { text: "__" }, name: "句子练习", sub: "填空、连词成句、中译德、听音填空", to: () => go("sentence"), wrong: "sent" },
   ] },
   { title: "听说", sub: "耳朵和嘴巴", items: [
-    { tile: { text: "听" }, name: "听写", sub: "听发音写单词", to: () => go("dictation"), wrong: "dict" },
-    // 句子练习的听音填空题型: 直接选好题型进句子练习入口页
-    { tile: { text: "句" }, name: "句子听力", sub: "听整句，写出空里的词", to: () => { setSetting("sMode", "listen"); go("sentence"); } },
+    { tile: { text: "听" }, name: "听写", sub: "听发音写单词", to: () => dStart(savedScope("dScope")), wrong: "dict" },
+    // 句子练习的听音填空题型: 用上次的范围直接开始
+    { tile: { text: "句" }, name: "句子听力", sub: "听整句，写出空里的词", to: () => { sMode = "listen"; setSetting("sMode", "listen"); sGo(savedScope("sScope")); } },
     { tile: { text: "说" }, name: "整句复习", sub: "情景对话里的句子，限时开口说", to: () => rpOpen(null), due: "rp" },
   ] },
 ];

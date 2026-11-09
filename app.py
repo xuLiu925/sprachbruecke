@@ -52,6 +52,7 @@ import auth
 import billing
 import admin
 import learn_path
+import practice_due
 import custom_lessons
 import dictionary
 import explain
@@ -215,6 +216,7 @@ app.register_blueprint(trial.bp)
 app.register_blueprint(feedback.bp)
 app.register_blueprint(admin.bp)
 app.register_blueprint(learn_path.bp)
+app.register_blueprint(practice_due.bp)
 app.register_blueprint(guide.bp)
 app.register_blueprint(user_profile.bp)
 

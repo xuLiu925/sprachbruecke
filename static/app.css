@@ -362,6 +362,10 @@ table.forms.gtable td:first-child { font-size:14px; white-space:normal; min-widt
 .nword { padding:6px 0; border-bottom:1px solid var(--line); }
 .nword:last-of-type { border-bottom:0; }
 .scopesee { flex:none; color:var(--accent); font-size:14px; padding:6px 0 6px 8px; }
+/* 答题页顶上: 现在练的范围 + 换范围 */
+.scopeline { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 4px 8px; font-size:13px; color:var(--muted); }
+.scopeline.hidden { display:none; }
+.scopeline button.linkbtn { font-size:13px; flex:none; }
 .gnword { cursor:pointer; }
 .nwordhead { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .nfoot { margin-top:10px; font-size:12px; }

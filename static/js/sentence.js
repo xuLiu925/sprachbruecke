@@ -56,9 +56,10 @@ async function sStart() {
   $("title").textContent = sPreset ? sPreset.name : S_MODES[sMode].name;
   $("sqBox").classList.add("hidden");
   $("sqDone").classList.add("hidden");
+  const scope = sScopeRun || savedScope("sScope");      // 练习列表直接开始、直接刷新答题页时用上次的范围
+  scopeLine("sqScope", scope, sPreset ? null : scopeChange("sentence"));   // 情景课、复数、词形练习的题不分范围
   if (sPreset && sPreset.questions) sq = sPreset.questions;
   else try {
-    const scope = sScopeRun || getSetting("sScope") || "";         // 直接刷新答题页时用上次的范围
     sq = (await api(sPreset ? sPreset.url                           // 词形练习每组重新要题
       : `/api/sentences?mode=${sMode}&scope=${encodeURIComponent(scope)}&${tzQuery()}`)).questions;
   } catch (e) { toast(e.message); return; }
@@ -66,6 +67,11 @@ async function sStart() {
   sRender();
 }
 onShow.squiz = sStart;
+onResume.squiz = () => {                    // 按返回回来: 接着这一题(core.js)
+  if (!sq.length) return false;
+  $("title").textContent = sPreset ? sPreset.name : S_MODES[sMode].name;
+  return true;
+};
 $("sqAgain").onclick = sStart;
 
 function sShuffled(n) {
@@ -253,6 +259,7 @@ function sFinish() {
     }
   } else if (sq.length) box.textContent = "全部答对了";
   else box.textContent = sPreset ? (sPreset.empty || "这一课没有这种题。")
+    : sScopeRun === "due" ? "今天到期的都练完了，明天再来。"
     : sScopeRun === "wrong" ? "错题本是空的，换个范围继续练。" : "这种题需要带中文翻译的例句，换一本单词书试试。";
   if (wrong.length && !sPreset) box.append(document.createElement("div"), "答错的词已经加进这种题型的错题本。");
 }

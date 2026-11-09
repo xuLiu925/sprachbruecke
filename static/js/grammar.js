@@ -286,6 +286,27 @@ async function gScopeLoad() {
 function gScopeShow() {
   scopeInto($("gScope"), gScopeList, gScopeNow, id => { gScopeNow = id; setSetting("gScope", id); gScopeShow(); }, id => gnOpen(id, gList()));
 }
+// 练习列表直接开始时用上次选的范围; 以前存的范围已经没有了(如“学过的词”)就交给后端用当前单词书
+const okScope = s => s === "wrong" || s in BOOK_NAMES;
+const savedScope = key => okScope(getSetting(key)) ? getSetting(key) : "";
+// 答题页顶上的一行: 现在练的范围 + “换范围”(回到入口页选); change 为空就不显示这一行
+function scopeLine(id, scope, change) {
+  const box = $(id);
+  box.classList.toggle("hidden", !change);
+  if (!change) return;
+  box.firstChild.textContent = "范围：" + (scope === "due" ? "今天到期的" : scope === "wrong" ? "错题本"
+    : scope ? BOOK_NAMES[scope] || scope : "当前单词书");
+  box.lastChild.onclick = change;
+}
+// 换范围: 用入口页替换掉答题页这条历史, 选好再开始, 返回键不会回到旧的那一组
+const scopeChange = page => () => switchTab(page);
+// 练习列表的题库知识点: 不经过知识点页, 用上次的范围直接开始(知识点页在“学习 → 语法”, 答题页上点“换范围”也能去)
+function quickTopic(id) {
+  gTopic = GRAMMAR_TOPICS.find(t => t.id === id);
+  gScopeNow = savedScope("gScope");
+  go("gquiz");
+}
+
 // 定冠词和复数练习共用: 后端返回的范围 → 列表项, 再画出来
 function scopeItems(r) {
   return [...r.books.map(b => ({ id: b.book, name: BOOK_NAMES[b.book] || b.book,
@@ -314,11 +335,18 @@ onShow.gquiz = async () => {
   $("title").textContent = gTopic.title;
   $("gqBox").classList.add("hidden");
   $("gqDone").classList.add("hidden");
+  scopeLine("gqScope", gScopeNow, gTopic.bank && user ? scopeChange("gtopic") : null);
   gQs = await gTopic.quiz(); gi = 0; gScore = 0; gPicks = [];
   $("gqHints").checked = getSetting("gHints");
   $("gqBox").classList.remove("hidden");
   $("gqDone").classList.add("hidden");
   gRender();
+};
+
+onResume.gquiz = () => {                    // 按返回回来(比如看完单词卡详情): 接着这一题, 不重新出题(core.js)
+  if (!gTopic || !gQs.length) return false;
+  $("title").textContent = gTopic.title;
+  return true;
 };
 
 // 题目里的 ___ 是空; 有几个空, 答案就用 " … " 隔开写几段(如 "bin … gefahren")
@@ -483,8 +511,9 @@ function gDone() {
   $("gqDone").classList.remove("hidden");
   const total = gQs.filter(q => !q.retry).length;      // 错题重练不计入总分
   if (!total) {
-    $("gqScore").textContent = "这个范围还没有词";
-    $("gqDoneMsg").textContent = gScopeNow === "wrong" ? "错题本是空的，换个范围继续练。" : "换个练习范围试试。";
+    $("gqScore").textContent = gScopeNow === "due" ? "今天到期的都练完了" : "这个范围还没有词";
+    $("gqDoneMsg").textContent = gScopeNow === "due" ? "明天再来，或者回到知识点页换个范围继续练。"
+      : gScopeNow === "wrong" ? "错题本是空的，换个范围继续练。" : "换个练习范围试试。";
     return;
   }
   $("gqScore").textContent = `得分 ${gScore} / ${total}`;

@@ -1,5 +1,5 @@
 // 冠词练习(不影响复习计划)
-let drill = [], di = 0, score = 0, drillPicks = [], drillToView = false;   // drillPicks[i] = 第 i 题选的冠词, "?" = 点了不会
+let drill = [], di = 0, score = 0, drillPicks = [];   // drillPicks[i] = 第 i 题选的冠词, "?" = 点了不会
 const drillBtns = document.querySelectorAll("#drillBtns button");
 const drillAnswered = () => di < drill.length && drillPicks[di] != null;
 
@@ -10,11 +10,8 @@ async function startDrill() {
   di = 0; score = 0; drillPicks = [];
   drillRender();
 }
-// 从“详情”返回时接着做这一组, 不重新开始
-onShow.drill = () => { if (drillToView) drillToView = false; else startDrill(); };
-window.addEventListener("hashchange", () => {   // 从详情去了别的页面(不是编辑), 下次进来就重新开始
-  if (!["drill", "view", "edit"].includes(location.hash.slice(1))) drillToView = false;
-});
+onShow.drill = startDrill;
+onResume.drill = () => drill.length > 0;    // 从“详情”按返回回来时接着做这一组(core.js)
 $("btnDrill").onclick = startDrill;
 
 function drillRender() {
@@ -70,7 +67,7 @@ $("btnDrillNext").onclick = drillNext;
 $("btnDrillBack").onclick = drillBack;
 $("btnDrillSpeak").onclick = () => { if (drillAnswered()) speakDe(wordText(drill[di])); };
 $("btnDrillEx").onclick = () => { if (drillAnswered()) speakDe(exampleDe(drill[di].example)); };
-$("btnDrillView").onclick = () => { if (drillAnswered()) { drillToView = true; openView(drill[di].id); } };
+$("btnDrillView").onclick = () => { if (drillAnswered()) openView(drill[di].id); };
 
 // 快捷键: 1 der / 2 die / 3 das; 答完后 空格/回车 下一个, P 读单词, E 读例句; Backspace 上一个; 做完一组后回车 = 再来一组
 onKey.drill = (e, typing) => {

@@ -33,7 +33,7 @@ function closeSearch() {
 }
 function searchSync() {   // 返回键、进出详情页时, 按当前这条历史决定显示不显示
   const open = !!(history.state && history.state.search);
-  if (searchIsOpen() && !open) closeWordSheet();
+  if (searchIsOpen() && !open) wsHide();
   $("search").classList.toggle("hidden", !open);
 }
 window.addEventListener("popstate", searchSync);

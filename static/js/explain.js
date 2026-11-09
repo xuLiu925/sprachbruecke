@@ -80,7 +80,6 @@ function renderNote(box, note, body, meta = {}) {
     row.appendChild(regen);
   }
   box.append(issue, row, fixBox);
-  if (!wsCanLeave()) return;              // 复习和练习页: 跳去替换练习再回来会重新出题
   box.append(drill, drillBox);
   if (meta.can) {
     const redo = miniAction("重新出替换题", async () => {

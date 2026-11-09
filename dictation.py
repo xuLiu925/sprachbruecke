@@ -48,7 +48,7 @@ def read_n():
 def dictation():
     """?scope=单词书或 wrong&n=20: 一组听写题, 每个词一题。不带 scope 时用当前单词书"""
     scope = request.args.get("scope") or current_book(current_user_id())
-    if scope not in SCOPES:
+    if scope not in SCOPES + ["due"]:
         return err("范围无效")
     n = read_n()
     if n is None:
@@ -60,13 +60,17 @@ def dictation():
         rows = query(base.format(join="", where=IN_WRONG) + f" ORDER BY {RISK} LIMIT :n", n=n, now=now).fetchall()
         words = [dict(r) for r in rows]
         return jsonify({"words": pick_round(words, [], [], n)})
-    join, args, order = book_filter(scope)
     end = local_day(read_tz())[2]        # 到期按本地日期, 和今日学习一样
+    due_where = "AND dp.word_id IS NOT NULL AND (dp.next_review IS NULL OR dp.next_review < :end)"
+    if scope == "due":                   # 今天页: 只出到期的, 不管哪本单词书
+        rows = query(base.format(join="", where=due_where) + f" ORDER BY {RISK} LIMIT :n", n=n, now=now, end=end).fetchall()
+        return jsonify({"words": pick_round([dict(r) for r in rows], [], [], n)})
+    join, args, order = book_filter(scope)
 
     def rows(where, tail):
         return [dict(r) for r in query(base.format(join=join, where=where) + f" ORDER BY {tail} LIMIT :pool",
                                        pool=POOL, now=now, end=end, **args).fetchall()]
-    due = rows("AND dp.word_id IS NOT NULL AND (dp.next_review IS NULL OR dp.next_review < :end)", RISK)
+    due = rows(due_where, RISK)
     new = rows("AND dp.word_id IS NULL", f"p.word_id IS NULL, {order}")
     spare = rows("AND dp.next_review >= :end", RISK)
     return jsonify({"words": pick_round(due, new, spare, n)})

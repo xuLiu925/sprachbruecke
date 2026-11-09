@@ -26,6 +26,7 @@ async function loadReview() {
   render();
 }
 onShow.review = loadReview;
+onResume.review = () => cards.length > 0 && trial === !user;   // 按返回回来: 接着这一张卡(core.js)
 
 function render() {
   const done = idx >= cards.length;

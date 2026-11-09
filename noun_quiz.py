@@ -48,6 +48,7 @@ CELL = re.compile("(indef|kein|poss):(der|die|das|pl):[0-3]")   # ein / kein / �
 MARKS = ("LEFT JOIN noun_practice np ON np.word_id = w.id AND np.user_id = :uid "
          "LEFT JOIN noun_list nl ON nl.word_id = w.id AND nl.user_id = :uid")
 IN_WRONG = "AND (np.weak = 1 OR nl.word_id IS NOT NULL)"
+DUE = "AND np.word_id IS NOT NULL AND (np.next_review IS NULL OR np.next_review < :end)"   # 到期: 练过且今天结束前该复习
 # 记忆保持率只取决于 隔了多久 / 稳定性, 所以直接按这个比值排: 越大越容易忘。老记录没有状态, 排最前
 RISK = "COALESCE((julianday(:now) - julianday(np.last_review)) / np.stability, 1e9) DESC, np.last_at"
 GENDER_ZH = {"der": "阳性", "die": "阴性", "das": "中性"}
@@ -264,7 +265,7 @@ def update_practice(db, uid, word_id, rating, table="noun_practice", keys=None):
 def nouns():
     """?scope=单词书或 wrong&n=14: 一组定冠词题, 每个词最多一题。不带 scope 时用当前单词书"""
     scope = request.args.get("scope") or current_book(current_user_id())
-    if scope not in SCOPES:
+    if scope not in SCOPES + ["due"]:
         return err("范围无效")
     try:
         n = min(max(int(request.args.get("n", "14")), 1), MAX_ROUND)
@@ -280,12 +281,17 @@ def nouns():
         questions = make_round(rows, n, written)
         random.shuffle(questions)
         return jsonify({"questions": questions})
-    join, args, order = book_filter(scope)
     end = local_day(read_tz())[2]        # 到期按本地日期, 和今日学习一样
+    if scope == "due":                   # 今天页“今天还要练”: 只出到期的词, 不管哪本单词书, 不补新词
+        rows = query(base.format(join="", where=DUE) + f" ORDER BY {RISK} LIMIT :pool", pool=POOL, now=now, end=end).fetchall()
+        questions = make_round(rows, n, written)
+        random.shuffle(questions)
+        return jsonify({"questions": questions})
+    join, args, order = book_filter(scope)
     def rows(where, tail):
         return query(base.format(join=join, where=where) + f" ORDER BY {tail} LIMIT :pool",
                      pool=POOL, now=now, end=end, **args).fetchall()
-    due = rows("AND np.word_id IS NOT NULL AND (np.next_review IS NULL OR np.next_review < :end)", RISK)
+    due = rows(DUE, RISK)
     new = rows("AND np.word_id IS NULL", f"p.word_id IS NULL, {order}")
     spare = rows("AND np.next_review >= :end", RISK)
     return jsonify({"questions": pick_round(make_round(due, n, written), make_round(new, n, written),

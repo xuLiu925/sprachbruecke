@@ -261,12 +261,20 @@ const PAGES = {
 // 没登录也能看的页面(游客的 home 换成 welcome); 其他页面要先登录。试学在 review.js
 const GUEST_PAGES = ["welcome", "review", "grammar", "gtopic", "gquiz"];
 const onShow = {};    // 各页面注册: 进入该页时执行
-let current = null, pushed = false;
+// 答题页注册 onResume.页面名 = () => 能接着做时返回 true(顺便补上标题)。按返回键(或浏览器前进)回到这一页时,
+// 先问它: 返回 true 就不再调用 onShow, 页面保持离开时的样子(DOM 一直在, 只是藏起来了), 滚动位置也还原。
+// 用 go() / switchTab() 进来的算重新进入, 照常调用 onShow。文档 docs/features/quiz-resume.md
+const onResume = {};
+let current = null, pushed = false, navGo = false;
+const scrollMem = {};
 
-function go(name) { pushed = true; location.hash = name; }
-function switchTab(name) { location.replace("#" + name); }
+function go(name) { pushed = true; if (location.hash !== "#" + name) navGo = true; location.hash = name; }
+function switchTab(name) { if (location.hash !== "#" + name) navGo = true; location.replace("#" + name); }
 
 function route() {
+  const back = !navGo && current !== null;   // 不是 go() / switchTab() 引起的: 返回键、浏览器前进
+  navGo = false;
+  if (current) scrollMem[current] = window.scrollY;
   let name = location.hash.slice(1);
   if (!PAGES[name]) name = "home";
   if (!user) {
@@ -284,8 +292,9 @@ function route() {
   document.body.classList.toggle("tabpage", !!p.tab || name === "welcome");   // 标签页: 页面里有大标题, 顶栏不显示标题
   searchRefresh();   // 游客不显示搜索(search.js)
   document.querySelectorAll("#tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  window.scrollTo(0, 0);
   current = name;
+  if (back && onResume[name] && onResume[name]()) return window.scrollTo(0, scrollMem[name] || 0);
+  window.scrollTo(0, 0);
   if (onShow[name]) onShow[name]();
 }
 window.addEventListener("hashchange", route);

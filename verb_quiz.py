@@ -219,7 +219,7 @@ def verbs(which):
     cfg = KINDS[which]
     uid = current_user_id()
     scope = request.args.get("scope") or current_book(uid)
-    if scope not in nq.SCOPES:
+    if scope not in nq.SCOPES + ["due"]:
         return err("范围无效")
     try:
         n = min(max(int(request.args.get("n", "14")), 1), nq.MAX_ROUND)
@@ -236,12 +236,18 @@ def verbs(which):
         questions = make_round(rows, n, weights, make)
         random.shuffle(questions)
         return jsonify({"questions": questions})
-    join, args, order = book_filter(scope)
     end = local_day(read_tz())[2]
+    if scope == "due":                   # 今天页: 只出到期的, 不管哪本单词书
+        rows = query(base.format(join="", where=nq.DUE) + f" ORDER BY {nq.RISK} LIMIT :pool",
+                     pool=nq.POOL, now=now, end=end).fetchall()
+        questions = make_round(rows, n, weights, make)
+        random.shuffle(questions)
+        return jsonify({"questions": questions})
+    join, args, order = book_filter(scope)
     def rows(where, tail):
         return query(base.format(join=join, where=where) + f" ORDER BY {tail} LIMIT :pool",
                      pool=nq.POOL, now=now, end=end, **args).fetchall()
-    due = rows("AND np.word_id IS NOT NULL AND (np.next_review IS NULL OR np.next_review < :end)", nq.RISK)
+    due = rows(nq.DUE, nq.RISK)
     new = rows("AND np.word_id IS NULL", f"p.word_id IS NULL, {order}")
     spare = rows("AND np.next_review >= :end", nq.RISK)
     fresh = sorted(make_round(new, nq.POOL, weights, make), key=lambda q: q["short"])      # 新词里有句子的先出

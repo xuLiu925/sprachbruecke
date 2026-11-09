@@ -182,6 +182,12 @@
         <button class="hero-btn" id="hStart">开始今天的学习</button>
       </div>
 
+      <!-- 今天还要练: 各练习今天到期的词, 点了只练到期的(home.js 的 showRecommend) -->
+      <div id="hRecBox" class="hidden">
+        <h2>今天还要练</h2>
+        <div class="list" id="hRec"></div>
+      </div>
+
       <!-- 学习路径: 现在在哪一级、下一步做什么(path.js) -->
       <div id="hPathBox" class="hidden">
         <h2>学习路径</h2>
@@ -200,11 +206,6 @@
           <b id="hResumeTitle"></b>
           <span class="bar"><i id="hResumeBar"></i></span>
         </button>
-      </div>
-
-      <div id="hRecBox" class="hidden">
-        <h2>推荐练习</h2>
-        <div class="list" id="hRec"></div>
       </div>
 
       <div class="card">
@@ -607,6 +608,8 @@
     </section>
 
     <section class="page" data-page="dquiz">
+      <!-- 现在练的范围 + 换范围(grammar.js 的 scopeLine) -->
+      <div class="scopeline hidden" id="dqScope"><span></span><button class="linkbtn">换范围</button></div>
       <div class="card" id="dictBox">
         <div class="tag" id="dictProgress"></div>
         <div class="row" style="margin:12px 0">
@@ -712,6 +715,8 @@
     </section>
 
     <section class="page" data-page="gquiz">
+      <!-- 现在练的范围 + 换范围(grammar.js 的 scopeLine) -->
+      <div class="scopeline hidden" id="gqScope"><span></span><button class="linkbtn">换范围</button></div>
       <div class="card" id="gqBox">
         <div class="tag" id="gqProgress"></div>
         <label class="meta hidden" id="gqHintRow" style="display:block;text-align:center"><input type="checkbox" id="gqHints" style="width:auto"> <span id="gqHintText">显示词性提示</span></label>
@@ -879,6 +884,8 @@
     </section>
 
     <section class="page" data-page="squiz">
+      <!-- 现在练的范围 + 换范围(grammar.js 的 scopeLine) -->
+      <div class="scopeline hidden" id="sqScope"><span></span><button class="linkbtn">换范围</button></div>
       <div class="card hidden" id="sqBox">
         <div class="tag" id="sqProgress"></div>
         <label class="meta hidden" id="sqRuleRow" style="display:block;text-align:center"><input type="checkbox" id="sqRuleOn" style="width:auto"> 显示规律提示</label>

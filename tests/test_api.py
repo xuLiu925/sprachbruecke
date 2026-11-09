@@ -1654,6 +1654,34 @@ ul = J(cb.post("/api/grammar/usage/list", json={"text": "helfen, zzfahren"}))
 assert ul["added"] == 1 and ul["missing"] == ["zzfahren"], ul        # 不在搭配表里的动词加不进来
 assert cb.delete(f"/api/grammar/usage/list/{vhe}").status_code == 200 and cb.delete(f"/api/grammar/usage/list/{vwa}").status_code == 200
 assert J(cb.get("/api/grammar/usage/books"))["wrong"] == 0
+
+# 今天还要练: 各练习今天到期的词数(/api/today/practice), scope=due 只出到期的, 不补新词。bob 的排期先存起来, 测完还原
+dbd = sqlite3.connect(os.environ["DB_PATH"])
+bob_id = dbd.execute("SELECT id FROM users WHERE username = 'bob'").fetchone()[0]
+due_tables = ("noun_practice", "verb_practice", "perfekt_practice", "usage_practice", "dict_practice", "sent_practice")
+saved = {t: dbd.execute(f"SELECT rowid, next_review FROM {t} WHERE user_id = ?", (bob_id,)).fetchall() for t in due_tables}
+for t in due_tables:
+    dbd.execute(f"UPDATE {t} SET next_review = '2999-01-01 00:00:00' WHERE user_id = ?", (bob_id,))
+dbd.commit()
+assert A.app.test_client().get("/api/today/practice").status_code == 401
+due0 = J(cb.get("/api/today/practice?tz=0"))["due"]
+assert set(due0) >= {"nouns", "verbs", "perfekt", "usage", "dictation", "sent-cloze", "sent-listen"} and not any(due0.values()), due0
+assert nq(cb, "due") == [] and J(cb.get("/api/dictation?scope=due"))["words"] == []
+assert J(cb.get("/api/grammar/verbs?scope=due"))["questions"] == [] and J(cb.get("/api/sentences?mode=cloze&scope=due"))["questions"] == []
+dbd.execute("UPDATE noun_practice SET next_review = '2000-01-01 00:00:00' WHERE user_id = ? AND word_id = ?", (bob_id, nid))
+dict_had = dbd.execute("SELECT 1 FROM dict_practice WHERE user_id = ? AND word_id = ?", (bob_id, nid)).fetchone()
+dbd.execute("INSERT OR IGNORE INTO dict_practice (user_id, word_id, last_at) VALUES (?, ?, '2000-01-01 00:00:00')", (bob_id, nid))
+dbd.execute("UPDATE dict_practice SET next_review = '2000-01-01 00:00:00' WHERE user_id = ? AND word_id = ?", (bob_id, nid))
+dbd.commit()
+due1 = J(cb.get("/api/today/practice?tz=0"))["due"]
+assert due1["nouns"] == 1 and due1["dictation"] == 1 and due1["verbs"] == 0, due1
+assert [x["word_id"] for x in nq(cb, "due")] == [nid] and [x["id"] for x in J(cb.get("/api/dictation?scope=due"))["words"]] == [nid]
+assert cb.get("/api/grammar/nouns/words?scope=due").status_code == 400      # 查看单词的范围里没有 due
+if not dict_had:
+    dbd.execute("DELETE FROM dict_practice WHERE user_id = ? AND word_id = ?", (bob_id, nid))
+for t, rows in saved.items():
+    dbd.executemany(f"UPDATE {t} SET next_review = ? WHERE rowid = ?", [(r[1], r[0]) for r in rows])
+dbd.commit(); dbd.close()
 # 手写句子: 每句一个空, 德语不混中文, 第一位不用 sie / Sie
 for german, items in WRITTEN.items():
     assert len(items) >= 2 and len({x[1] for x in items}) == len(items), german
@@ -2095,4 +2123,5 @@ assert c.post("/api/explain/generate", json={"de": "Ganz neuer Satz hier.", "zh"
 assert not J(c.get("/api/explain?de=" + urllib.parse.quote("Ganz neuer Satz hier.")))["gen"]
 dba.execute("DELETE FROM memberships WHERE user_id = ?", (tu_id,)); dba.commit(); dba.close()
 billing.ENFORCE = False
+
 print("ALL OK")

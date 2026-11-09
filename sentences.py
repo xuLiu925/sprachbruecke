@@ -128,7 +128,7 @@ def sentences():
     if mode not in MODES:
         return err("题型无效")
     scope = request.args.get("scope") or current_book(current_user_id())
-    if scope not in SCOPES:
+    if scope not in SCOPES + ["due"]:
         return err("范围无效")
     base = (f"SELECT {COLS} FROM my_words w {{join}} {DETAILS} {MARKS} "
             f"LEFT JOIN progress p ON p.word_id = w.id AND p.user_id = :uid WHERE 1 {HAS_EXAMPLE} {{where}}")
@@ -137,8 +137,13 @@ def sentences():
         rows = query(base.format(join="", where=IN_WRONG) + f" ORDER BY {RISK} LIMIT :pool",
                      pool=POOL_SIZE, now=now, mode=mode).fetchall()
         return jsonify({"questions": pick_round(make_questions(rows, mode, seen)[:ROUND_SIZE], [], [], ROUND_SIZE)})
-    join, args, order = book_filter(scope)
     end = local_day(read_tz())[2]
+    due_where = "AND sp.word_id IS NOT NULL AND (sp.next_review IS NULL OR sp.next_review < :end)"
+    if scope == "due":                   # 今天页: 只出到期的, 不管哪本单词书
+        rows = query(base.format(join="", where=due_where) + f" ORDER BY {RISK} LIMIT :pool",
+                     pool=POOL_SIZE, now=now, end=end, mode=mode).fetchall()
+        return jsonify({"questions": pick_round(make_questions(rows, mode, seen)[:ROUND_SIZE], [], [], ROUND_SIZE)})
+    join, args, order = book_filter(scope)
 
     def pick(where, tail, scan=POOL_SIZE):
         out = []
@@ -149,7 +154,7 @@ def sentences():
             if len(out) >= ROUND_SIZE or len(rows) < POOL_SIZE:
                 break
         return out[:ROUND_SIZE]
-    due = pick("AND sp.word_id IS NOT NULL AND (sp.next_review IS NULL OR sp.next_review < :end)", RISK)
+    due = pick(due_where, RISK)
     new = pick("AND sp.word_id IS NULL", f"p.word_id IS NULL, {order}", MAX_SCAN)
     spare = pick("AND sp.next_review >= :end", RISK)
     return jsonify({"questions": pick_round(due, new, spare, ROUND_SIZE)})

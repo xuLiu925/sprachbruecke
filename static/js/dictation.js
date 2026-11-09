@@ -27,7 +27,8 @@ $("dsStart").onclick = () => { if (dScopeNow) dStart(dScopeNow); };
 async function startDictation() {
   $("dictBox").classList.add("hidden");
   $("dictDone").classList.add("hidden");
-  const scope = dScopeRun || getSetting("dScope") || "";      // 直接刷新答题页时用上次的范围
+  const scope = dScopeRun || savedScope("dScope");      // 练习列表直接开始、直接刷新答题页时用上次的范围
+  scopeLine("dqScope", scope, scopeChange("dictation"));
   try {
     dict = (await api(`/api/dictation?scope=${encodeURIComponent(scope)}&${tzQuery()}`)).words;
   } catch (e) { toast(e.message); return; }
@@ -36,6 +37,7 @@ async function startDictation() {
   dictRender();
 }
 onShow.dquiz = startDictation;
+onResume.dquiz = () => dict.length > 0;     // 按返回回来: 接着这一题(core.js)
 $("dictAgain").onclick = startDictation;
 
 const dictFirst = () => dict.map((w, i) => [w, dAnswers[i]]).filter(([w]) => !w.retry);
@@ -48,6 +50,7 @@ function dictRender() {
   if (done) {
     const first = dictFirst(), wrong = first.filter(([, a]) => !a.r.ok).map(([w]) => w);
     $("dictScore").textContent = first.length ? `得分 ${first.length - wrong.length} / ${first.length}`
+      : dScopeRun === "due" ? "今天到期的都练完了，明天再来。"
       : (dScopeRun === "wrong" ? "错题本是空的，换个范围继续练。" : "这个范围没有可以听写的词，换个范围试试。");
     $("dictDoneTip").classList.toggle("hidden", !wrong.length);
     const box = $("dictWrong"); box.textContent = "";
